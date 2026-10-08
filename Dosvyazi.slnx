@@ -8,4 +8,7 @@
   <Folder Name="/tests/integration/">
     <Project Path="tests/integration/App.IntegrationTests/App.IntegrationTests.csproj" />
   </Folder>
+  <Folder Name="/tests/voice/">
+    <Project Path="tests/voice/App.VoiceProbe/App.VoiceProbe.csproj" />
+  </Folder>
 </Solution>

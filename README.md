@@ -11,7 +11,7 @@ A multifunctional group communication platform. This monorepo contains the brows
 - `docs/` - public technical documentation.
 - [AGENTS.md](AGENTS.md) - development rules for contributors and AI agents.
 
-The development foundation and two-user text slice are implemented: an English React workspace, registration/profile editing, communities, bounded invitations, membership/bans and persisted text messages, live updates and reconnect recovery. The controller API includes OpenAPI, PostgreSQL migrations and readiness checks. Voice and Gatherings follow in separate milestones. The architecture remains a modular monolith with PostgreSQL and separate self-hosted LiveKit for future voice workflows.
+The development foundation and two-user text slice are implemented: an English React workspace, registration/profile editing, communities, bounded invitations, membership/bans and persisted text messages, live updates and reconnect recovery. The controller API includes OpenAPI, PostgreSQL migrations and readiness checks. The voice foundation includes pinned local LiveKit, a server adapter and synthetic browser checks; community voice UI and Gatherings remain upcoming work. The architecture remains a modular monolith with PostgreSQL and separate self-hosted LiveKit.
 
 ## Development
 
@@ -44,6 +44,8 @@ npm run test:e2e
 ```
 
 See [development instructions](docs/development.md), [accounts](docs/accounts.md), [communities](docs/communities.md) and [messaging](docs/messaging.md) for configuration, contracts, checks and troubleshooting. This setup is for local development.
+
+See [local voice development](docs/voice-development.md) for the optional SFU setup and `npm run test:voice`. This fixture uses generated audio and does not enable voice access in the application.
 
 ## Local Materials
 
