@@ -120,6 +120,138 @@ namespace App.Api.Infrastructure.Persistence.Migrations
                     b.ToTable("Sessions");
                 });
 
+            modelBuilder.Entity("App.Api.Features.Communities.Community", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ClientRequestId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<Guid>("OwnerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<long>("PolicyVersion")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OwnerId", "ClientRequestId")
+                        .IsUnique();
+
+                    b.ToTable("Communities");
+                });
+
+            modelBuilder.Entity("App.Api.Features.Communities.CommunityInvite", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ClientRequestId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CodeHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<Guid>("CommunityId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("LifetimeHours")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("MaxUses")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ProtectedCode")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset?>("RevokedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Uses")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CodeHash")
+                        .IsUnique();
+
+                    b.HasIndex("CommunityId", "ClientRequestId")
+                        .IsUnique();
+
+                    b.ToTable("CommunityInvites", t =>
+                        {
+                            t.HasCheckConstraint("CK_CommunityInvites_Limits", "\"Uses\" >= 0 AND \"Uses\" <= \"MaxUses\" AND \"MaxUses\" BETWEEN 1 AND 100 AND \"LifetimeHours\" BETWEEN 1 AND 168");
+                        });
+                });
+
+            modelBuilder.Entity("App.Api.Features.Communities.Membership", b =>
+                {
+                    b.Property<Guid>("CommunityId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("JoinedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.HasKey("CommunityId", "UserId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("Memberships", t =>
+                        {
+                            t.HasCheckConstraint("CK_Memberships_Status", "\"Status\" IN ('Active', 'Banned', 'Left')");
+                        });
+                });
+
+            modelBuilder.Entity("App.Api.Features.Communities.TextChannel", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CommunityId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CommunityId", "Name")
+                        .IsUnique();
+
+                    b.ToTable("TextChannels");
+                });
+
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserClaim<System.Guid>", b =>
                 {
                     b.Property<int>("Id")
@@ -195,6 +327,56 @@ namespace App.Api.Infrastructure.Persistence.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("App.Api.Features.Communities.Community", b =>
+                {
+                    b.HasOne("App.Api.Features.Accounts.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("OwnerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("App.Api.Features.Communities.CommunityInvite", b =>
+                {
+                    b.HasOne("App.Api.Features.Communities.Community", "Community")
+                        .WithMany()
+                        .HasForeignKey("CommunityId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Community");
+                });
+
+            modelBuilder.Entity("App.Api.Features.Communities.Membership", b =>
+                {
+                    b.HasOne("App.Api.Features.Communities.Community", "Community")
+                        .WithMany("Members")
+                        .HasForeignKey("CommunityId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("App.Api.Features.Accounts.AppUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Community");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("App.Api.Features.Communities.TextChannel", b =>
+                {
+                    b.HasOne("App.Api.Features.Communities.Community", "Community")
+                        .WithMany("Channels")
+                        .HasForeignKey("CommunityId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Community");
+                });
+
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserClaim<System.Guid>", b =>
                 {
                     b.HasOne("App.Api.Features.Accounts.AppUser", null)
@@ -220,6 +402,13 @@ namespace App.Api.Infrastructure.Persistence.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("App.Api.Features.Communities.Community", b =>
+                {
+                    b.Navigation("Channels");
+
+                    b.Navigation("Members");
                 });
 #pragma warning restore 612, 618
         }
