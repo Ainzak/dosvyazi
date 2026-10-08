@@ -11,7 +11,7 @@ A multifunctional group communication platform. This monorepo contains the brows
 - `docs/` - public technical documentation.
 - [AGENTS.md](AGENTS.md) - development rules for contributors and AI agents.
 
-The development foundation is implemented: an English React workspace, a controller API with OpenAPI, PostgreSQL readiness checks and smoke tests. Accounts, communication features and Gatherings will follow in separate milestones. The architecture remains a modular monolith with PostgreSQL and separate self-hosted LiveKit for future voice workflows.
+The development foundation and accounts are implemented: an English React workspace, registration, sign-in, sign-out, profile editing, a controller API with OpenAPI, PostgreSQL migrations and readiness checks. Communication features and Gatherings will follow in separate milestones. The architecture remains a modular monolith with PostgreSQL and separate self-hosted LiveKit for future voice workflows.
 
 ## Development
 
@@ -22,6 +22,7 @@ npm ci
 npm run setup
 npm run check
 npm run dev:database
+npm run migrate:api
 ```
 
 Start these in two separate terminals:
@@ -42,7 +43,7 @@ npm run install:browser
 npm run test:e2e
 ```
 
-See [development instructions](docs/development.md) for configuration, contract generation, checks and troubleshooting. This setup is for local development.
+See [development instructions](docs/development.md) for configuration, contract generation, checks and troubleshooting, and [accounts](docs/accounts.md) for the session contract. This setup is for local development.
 
 ## Local Materials
 

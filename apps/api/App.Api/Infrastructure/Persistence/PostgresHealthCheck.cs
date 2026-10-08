@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.EntityFrameworkCore;
 
 namespace App.Api.Infrastructure.Persistence;
 
@@ -14,7 +15,7 @@ public sealed class PostgresHealthCheck(IServiceScopeFactory scopeFactory, IConf
 
         using var scope = scopeFactory.CreateScope();
         var database = scope.ServiceProvider.GetRequiredService<AppDbContext>().Database;
-        return await database.CanConnectAsync(cancellationToken)
+        return await database.CanConnectAsync(cancellationToken) && !(await database.GetPendingMigrationsAsync(cancellationToken)).Any()
             ? HealthCheckResult.Healthy()
             : HealthCheckResult.Unhealthy("Database is unavailable.");
     }

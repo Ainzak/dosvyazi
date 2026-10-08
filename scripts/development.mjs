@@ -19,6 +19,7 @@ const cliEnvironment = {
   DOTNET_ADD_GLOBAL_TOOLS_TO_PATH: 'false',
   DOTNET_CLI_WORKLOAD_UPDATE_NOTIFY_DISABLE: 'true',
   PLAYWRIGHT_BROWSERS_PATH: path.join(local, 'playwright-browsers'),
+  DataProtection__KeyPath: process.env.DataProtection__KeyPath ?? path.join(local, 'data-protection'),
 };
 
 function run(executable, args, environment = {}) {
@@ -77,7 +78,8 @@ try {
       exitCode = await run('docker', ['compose', '--env-file', 'deploy/.env', '-f', 'deploy/compose.dev.yml', ...operation]);
       break;
     }
-    case 'api': {
+    case 'api':
+    case 'migrate': {
       let database = {};
       if (!process.env.ConnectionStrings__Dosvyazi) {
         try { database = await databaseEnvironment(); }
@@ -85,8 +87,15 @@ try {
       }
       const port = process.env.DOSVYAZI_API_PORT ?? '5080';
       if (!/^\d+$/.test(port) || Number(port) < 1 || Number(port) > 65535) throw new Error('Invalid API port.');
-      exitCode = await run('dotnet', ['run', '--project', 'apps/api/App.Api', '--no-launch-profile', '--no-build', '--no-restore'], {
+      exitCode = await run('dotnet', ['run', '--project', 'apps/api/App.Api', '--no-launch-profile', '--no-build', '--no-restore', ...(command === 'migrate' ? ['--', '--migrate'] : [])], {
         ...database, ASPNETCORE_ENVIRONMENT: 'Development', ASPNETCORE_URLS: `http://127.0.0.1:${port}`,
+      });
+      break;
+    }
+    case 'ef': {
+      const database = process.env.ConnectionStrings__Dosvyazi ? {} : await databaseEnvironment();
+      exitCode = await run('dotnet', ['tool', 'run', 'dotnet-ef', '--', ...process.argv.slice(3)], {
+        ...database, ASPNETCORE_ENVIRONMENT: 'Development',
       });
       break;
     }
