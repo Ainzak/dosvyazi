@@ -1,0 +1,14 @@
+@App.Api_HostAddress = http://127.0.0.1:5080
+
+GET {{App.Api_HostAddress}}/api/v1/system
+Accept: application/json
+
+###
+
+GET {{App.Api_HostAddress}}/health/live
+Accept: application/json
+
+###
+
+GET {{App.Api_HostAddress}}/health/ready
+Accept: application/json
