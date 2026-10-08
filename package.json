@@ -1,0 +1,38 @@
+{
+  "name": "dosvyazi",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": ["apps/web"],
+  "packageManager": "npm@10.9.7",
+  "engines": { "node": "^22.22.0 || >=24.0.0", "npm": ">=10.9.7" },
+  "scripts": {
+    "setup": "node scripts/development.mjs setup",
+    "dev:database": "node scripts/development.mjs database",
+    "stop:database": "node scripts/development.mjs database-stop",
+    "dev:api": "node scripts/development.mjs api",
+    "dev:web": "npm run dev --workspace @dosvyazi/web",
+    "restore:api": "node scripts/development.mjs dotnet restore Dosvyazi.slnx --locked-mode",
+    "build:api": "node scripts/development.mjs dotnet build Dosvyazi.slnx --no-restore --disable-build-servers -m:1",
+    "build:web": "npm run build --workspace @dosvyazi/web",
+    "lint": "eslint apps/web scripts tests/e2e",
+    "typecheck": "npm run typecheck --workspace @dosvyazi/web && tsc -p tests/e2e/tsconfig.json",
+    "test:api": "node scripts/development.mjs dotnet test Dosvyazi.slnx --no-build --no-restore -m:1 --filter Category!=PostgreSQL --logger trx --results-directory .local/artifacts/dotnet-tests",
+    "test:database": "node scripts/development.mjs database-test",
+    "test:e2e": "playwright test --config tests/e2e/playwright.config.ts",
+    "install:browser": "node scripts/development.mjs browser-install",
+    "generate:api": "npm run generate:api --workspace @dosvyazi/web",
+    "check": "npm run lint && npm run typecheck && npm run build:web && npm run restore:api && npm run build:api && npm run test:api"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@playwright/test": "1.64.0",
+    "@types/node": "22.20.5",
+    "eslint": "10.12.0",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "eslint-plugin-react-refresh": "0.5.7",
+    "globals": "17.13.0",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.71.1"
+  }
+}
