@@ -8,14 +8,19 @@ using Microsoft.Extensions.Configuration;
 
 namespace App.IntegrationTests;
 
-public sealed class FoundationFactory(string environment = "Development", string? connection = null)
+public sealed class FoundationFactory(string environment = "Development", string? connection = null, int permitLimit = 30)
     : WebApplicationFactory<Program>
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment(environment);
         builder.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(
-            new Dictionary<string, string?> { ["ConnectionStrings:Dosvyazi"] = connection }));
+            new Dictionary<string, string?>
+            {
+                ["ConnectionStrings:Dosvyazi"] = connection,
+                ["Accounts:PermitLimit"] = permitLimit.ToString(),
+                ["DataProtection:KeyPath"] = Path.Combine(Path.GetFullPath("../../..", _.HostingEnvironment.ContentRootPath), ".local", "artifacts", "test-keys"),
+            }));
     }
 }
 

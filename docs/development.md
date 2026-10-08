@@ -1,6 +1,6 @@
-# Development foundation
+# Local development
 
-The first milestone provides a responsive English status workspace and an ASP.NET Core controller API connected to PostgreSQL through EF Core/Npgsql. It does not yet provide sessions, communities, messaging, SignalR subscriptions, voice, domain tables or migrations. The UI identifies later workflows explicitly.
+The foundation provides a responsive English status workspace and an ASP.NET Core controller API connected to PostgreSQL through EF Core/Npgsql. Accounts add registration, sign-in, sign-out, profile editing, revocable cookie sessions and an initial migration. Communities, messaging, SignalR subscriptions and voice belong to later stages. See [accounts](accounts.md) for implemented behavior and boundaries.
 
 ## Toolchain and dependency compatibility
 
@@ -14,6 +14,7 @@ Exact direct npm versions and transitive integrity hashes are in `package.json`,
 | React Router (Declarative Mode) | 8.4.0 | [Declarative installation](https://reactrouter.com/start/declarative/installation); published peers require React 19.2.7+ and Node 22.22+ |
 | TanStack Query | 5.104.1 | [Installation and React compatibility](https://tanstack.com/query/latest/docs/framework/react/installation) |
 | ASP.NET Core / EF Core | 10.0.11 / 10.0.11 | [.NET support](https://dotnet.microsoft.com/en-us/platform/support/policy/dotnet-core), [EF Core 10](https://learn.microsoft.com/en-us/ef/core/what-is-new/ef-core-10.0/whatsnew) |
+| Identity EF store / EF Design / local dotnet-ef | 10.0.11 | [Identity model](https://learn.microsoft.com/en-us/aspnet/core/security/authentication/customize-identity-model?view=aspnetcore-10.0), [EF tool versions](https://learn.microsoft.com/en-us/ef/core/cli/dotnet) |
 | Npgsql EF provider | 10.0.3 | [Npgsql 10 release notes](https://www.npgsql.org/efcore/release-notes/10.0.html); NuGet metadata requires EF Core 10 |
 | PostgreSQL | 18.6 | [PostgreSQL 18 docs](https://www.postgresql.org/docs/18/), [official container](https://hub.docker.com/_/postgres) |
 | ESLint / @eslint/js | 10.12.0 / 10.0.1 | [ESLint version support](https://eslint.org/version-support); published engines support Node 22.13+ |
@@ -30,6 +31,7 @@ npm ci
 npm run setup
 npm run check
 npm run dev:database
+npm run migrate:api
 ```
 
 The setup command generates an untracked `deploy/.env` and never overwrites an existing one. It contains development database identifiers, port and a random password; do not publish its contents. The scripts accept simple unquoted dotenv values, lowercase SQL identifiers, a numeric port, and a 16–128 character password using letters, digits, underscore or hyphen. The template password must be replaced if configuring manually.
@@ -42,10 +44,22 @@ The API can start with no database configuration: liveness and system metadata w
 
 - `GET /api/v1/system`: product and milestone metadata.
 - `GET /health/live`: HTTP 200 while the host can serve requests; independent of PostgreSQL.
-- `GET /health/ready`: HTTP 200 when the EF/Npgsql database probe succeeds, otherwise 503. Responses contain only status and named check states, with no connection strings or exception details. This is a connectivity check, not a domain schema/migration check.
+- `GET /health/ready`: HTTP 200 when PostgreSQL is reachable and no checked-in EF migration is pending, otherwise 503. Responses contain only status and named check states, with no connection strings or exception details. This does not detect every possible manual schema alteration.
 - `GET /openapi/v1.json`: development only. Unmatched API routes use ProblemDetails.
 
 With the API running on port 5080, `npm run generate:api` regenerates `apps/web/src/api/schema.d.ts` from the real OpenAPI document. Review and keep that generated file so `npm ci` and web builds do not require a running API. After changing API contracts, regenerate it and run checks. There is no hand-maintained duplicate DTO definition in the UI.
+
+## Database migrations
+
+After building the API and starting PostgreSQL, run `npm run migrate:api`. This applies checked-in migrations and exits without starting an HTTP listener. Ordinary API startup never migrates the database. Repeating the command leaves an up-to-date database unchanged. Review migration source before applying future changes; do not reset a database or run a rollback to fix configuration.
+
+The repository's `dotnet-tools.json` pins the optional EF CLI. To inspect migration/model state using the workspace caches:
+
+```powershell
+npm run restore:tools
+npm run ef -- migrations list --project apps/api/App.Api --no-build
+npm run ef -- migrations has-pending-model-changes --project apps/api/App.Api --no-build
+```
 
 ## Checks
 
@@ -58,9 +72,9 @@ npm run test:e2e
 
 `check` runs ESLint, strict UI/E2E TypeScript checking, production web build, locked .NET restore, .NET build with warnings as errors, and API pipeline tests. Stop a running development API before rebuilding on Windows: its executable can be locked by the running process. The build runs serially with build servers disabled to work in restricted environments.
 
-`test:database` explicitly requires the configured real PostgreSQL instance. It checks provider wiring, server major 18 and repeated successful readiness calls; it fails if unavailable. Set `DOSVYAZI_TEST_CONNECTION` to use a separate PostgreSQL 18 instance. Ordinary API tests cover missing/unavailable database failures without a database substitute.
+`test:database` explicitly requires the configured real PostgreSQL instance. It checks provider wiring, server major 18, readiness and account persistence/security; it fails if unavailable. Account integration tests create a unique schema containing synthetic accounts and apply migrations twice; they do not modify existing accounts or drop schemas. Test schemas remain for inspection. Set `DOSVYAZI_TEST_CONNECTION` to use a separate PostgreSQL 18 instance. Ordinary API tests cover missing/unavailable database failures without a database substitute.
 
-Playwright starts isolated local API/web processes on 5081/5174, then stops them at completion. Tests run in desktop and mobile Chromium viewports, cover live API wiring, navigation, loading, failure/retry, loss/recovery after a successful response, invalid readiness data and overflow. Deterministic failure-state tests intercept HTTP requests; they are UI tests, while the live smoke scenario calls the real API. Chromium emulation does not replace testing on actual phones or all browser engines.
+Playwright starts separate local API/web processes on 5081/5174, then stops them at completion. Tests run in desktop and mobile Chromium viewports and cover live registration, profile editing, reload, logout/login, duplicate accounts, tab logout, navigation, loading, failure/retry, invalid readiness data and overflow. Account browser tests create random `@example.test` accounts in the configured development database; these synthetic rows remain after tests. To use a dedicated test database, set `ConnectionStrings__Dosvyazi`, apply migrations there, then run E2E. Deterministic failure-state tests intercept HTTP requests; the live account and smoke scenarios call the real API. Chromium emulation does not replace testing on actual phones or all browser engines.
 
 The scripts keep .NET CLI home, NuGet caches, browser binaries, TRX results, browser screenshots and traces inside ignored `.local/`. Network access is needed for initial dependency/browser downloads and NuGet audit metadata. A restricted sandbox may also require approval for loopback connections or Docker's named pipe; request the necessary normal escalation instead of bypassing protection.
 
@@ -72,4 +86,4 @@ If a port is busy or reserved, change `POSTGRES_PORT` in ignored `deploy/.env` a
 
 PostgreSQL 18's official image uses `/var/lib/postgresql/18/docker` and declares its volume at `/var/lib/postgresql`. This Compose configuration uses that new mount location. Do not apply older PostgreSQL 17 volume instructions to this image or delete a volume to fix configuration.
 
-Keep this development Compose file local; production TLS, Caddy/static UI hosting, least-privilege database roles, backups, persisted Data Protection keys and LiveKit networking will be implemented and verified in their authorized stages. Private files and attachments will remain outside the public web root when implemented.
+Persisted Data Protection keys are already used for sessions. Keep this development Compose file local; production TLS, Caddy/static UI hosting, least-privilege database roles, backup/key management and LiveKit networking will be implemented and verified in their authorized stages. Private files and attachments will remain outside the public web root when implemented.
