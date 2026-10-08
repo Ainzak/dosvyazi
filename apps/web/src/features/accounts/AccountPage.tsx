@@ -16,7 +16,7 @@ function Profile({ user }: { user: UserProfile }) {
   } });
   return <section className="account-card"><div className="account-avatar"><UserRound size={28} aria-hidden="true" /></div>
     <p className="eyebrow">YOUR ACCOUNT</p><h1>Welcome, {user.displayName}.</h1>
-    <p className="account-intro">Your profile is ready. Communities come in the next milestone.</p>
+    <p className="account-intro">Your profile is ready. <Link to="/communities">Explore your communities.</Link></p>
     <div className="account-email"><span>Email address</span><strong>{user.email}</strong></div>
     <form onSubmit={event => { event.preventDefault(); const data = new FormData(event.currentTarget); update.mutate({ displayName: String(data.get('displayName') ?? '') }); }}>
       <label htmlFor="displayName">Display name</label>

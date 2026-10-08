@@ -1,0 +1,27 @@
+import type { components } from './schema';
+import { callApi, mutateApi, readJson } from './http';
+
+export type CommunityDetails = components['schemas']['CommunityDetails'];
+export type CommunitySummary = components['schemas']['CommunitySummary'];
+export type ChannelSummary = components['schemas']['ChannelSummary'];
+export type MemberSummary = components['schemas']['MemberSummary'];
+export type InviteSummary = components['schemas']['InviteSummary'];
+export type CreatedInvite = components['schemas']['CreatedInvite'];
+type CreateCommunityRequest = components['schemas']['CreateCommunityRequest'];
+type CreateInviteRequest = components['schemas']['CreateInviteRequest'];
+const root = '/api/v1/communities';
+export const privateKeys = (user: string) => ['private', user] as const;
+export const communityKeys = (user: string, id: string) => [...privateKeys(user), 'community', id] as const;
+export const communityListKey = (user: string) => [...privateKeys(user), 'communities'] as const;
+const query = async <T>(path: string, signal: AbortSignal) => readJson<T>(await callApi(root + path, { signal }));
+export const listCommunities = (signal: AbortSignal) => query<CommunitySummary[]>('', signal);
+export const getCommunity = (id: string, signal: AbortSignal) => query<CommunityDetails>(`/${id}`, signal);
+export const getChannel = (id: string, channel: string, signal: AbortSignal) => query<ChannelSummary>(`/${id}/channels/${channel}`, signal);
+export const listInvites = (id: string, signal: AbortSignal) => query<InviteSummary[]>(`/${id}/invites`, signal);
+export const listMembers = (id: string, signal: AbortSignal) => query<MemberSummary[]>(`/${id}/members`, signal);
+export const createCommunity = (body: CreateCommunityRequest) => mutateApi<CommunityDetails>(root, 'POST', body);
+export const joinCommunity = (code: string) => mutateApi<CommunityDetails>(`${root}/join`, 'POST', { code });
+export const createInvite = (id: string, body: CreateInviteRequest) => mutateApi<CreatedInvite>(`${root}/${id}/invites`, 'POST', body);
+export const revokeInvite = (id: string, invite: string) => mutateApi<InviteSummary>(`${root}/${id}/invites/${invite}/revoke`, 'POST');
+export const banMember = (id: string, user: string, banned: boolean) => mutateApi<MemberSummary>(`${root}/${id}/members/${user}/ban`, 'PUT', { banned });
+export const leaveCommunity = (id: string) => mutateApi<boolean>(`${root}/${id}/leave`, 'POST');

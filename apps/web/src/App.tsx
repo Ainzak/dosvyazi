@@ -1,9 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
 import { NavLink, Route, Routes, Link } from 'react-router';
-import { Activity, ArrowRight, AudioLines, CircleCheck, Database, Info, Layers3, RefreshCw, Server, Users } from 'lucide-react';
+import { Activity, ArrowRight, AudioLines, CircleCheck, Database, Hash, Info, Layers3, RefreshCw, Server, Users } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { getReadiness, getSystem } from './api/client';
 import { AccountPage, SessionLink } from './features/accounts/AccountPage';
+import { CommunitiesPage, CommunityPage } from './features/communities/CommunitiesPage';
+import { PrivateCacheBoundary } from './features/communities/PrivateCacheBoundary';
 
 type Status = 'checking' | 'healthy' | 'unhealthy';
 
@@ -31,7 +33,7 @@ function Workspace() {
     <div className="page-heading"><div><p className="eyebrow">DEVELOPMENT WORKSPACE</p>
       <h1>A shared space starts here.</h1>
       <p className="page-description">The first building block of Dosvyazi. Check the foundation before creating your community.</p></div>
-      <span className="milestone-badge"><Layers3 size={16} aria-hidden="true" /> Accounts · M2.1</span></div>
+      <span className="milestone-badge"><Layers3 size={16} aria-hidden="true" /> Communities · M2.2</span></div>
     <section aria-labelledby="services-heading">
       <div className="section-heading"><h2 id="services-heading">Service status</h2>
         <button className="refresh-button" disabled={checking} onClick={() => { void system.refetch(); void readiness.refetch(); }}>
@@ -56,8 +58,8 @@ function Workspace() {
     <section className="next-step" aria-labelledby="community-heading">
       <div className="community-mark"><Users size={30} aria-hidden="true" /></div>
       <p className="eyebrow">NEXT MILESTONE</p><h2 id="community-heading">Room for your first community.</h2>
-      <p>Your account is the first step. Communities and a shared text channel come next.<br className="desktop-break" /> Create an account or sign in to set up your profile.</p>
-      <Link className="about-link" to="/account">Set up your profile <ArrowRight size={16} aria-hidden="true" /></Link><br />
+      <p>Create a community, invite your people and open your first text channel.<br className="desktop-break" /> Text messaging comes in the next stage.</p>
+      <Link className="about-link" to="/communities">Find your shared space <ArrowRight size={16} aria-hidden="true" /></Link><br />
       <Link className="about-link" to="/about">Explore this build <ArrowRight size={16} aria-hidden="true" /></Link>
     </section>
   </>;
@@ -66,8 +68,8 @@ function Workspace() {
 function About() {
   return <><div className="page-heading"><div><p className="eyebrow">ABOUT THIS BUILD</p>
     <h1>One verified step at a time.</h1><p className="page-description">Dosvyazi is taking shape, starting with a connected foundation.</p></div></div>
-    <section className="about-panel"><h2>Available now</h2><p>Registration, sign-in, sign-out and profile editing, alongside the responsive status workspace and live database checks.</p>
-      <h2>Coming in later milestones</h2><p>Communities, text and voice channels, roles and private access, and Gatherings with invitations and responses.</p>
+    <section className="about-panel"><h2>Available now</h2><p>Accounts, communities, membership, bounded invitations, owner bans and a members-only text channel workspace, alongside live service checks.</p>
+      <h2>Coming in later milestones</h2><p>Text messaging, voice channels, roles and private channel configuration, and Gatherings with invitations and responses.</p>
       <p>Communication features are still to be implemented.</p><Link className="about-link" to="/">Back to workspace <ArrowRight size={16} aria-hidden="true" /></Link>
     </section></>;
 }
@@ -77,15 +79,16 @@ function NotFound() {
 }
 
 export default function App() {
-  return <div className="app-shell"><a className="skip-link" href="#main">Skip to content</a>
+  return <div className="app-shell"><PrivateCacheBoundary /><a className="skip-link" href="#main">Skip to content</a>
     <aside className="sidebar"><Link to="/" className="brand" aria-label="Dosvyazi home"><span className="brand-mark"><AudioLines size={23} aria-hidden="true" /></span><span>Dosvyazi<span className="brand-subtitle">Stay connected.</span></span></Link>
       <p className="nav-heading">WORKSPACE</p><nav aria-label="Main navigation">
         <NavLink to="/" end><Activity size={18} aria-hidden="true" /> Overview</NavLink>
         <NavLink to="/about"><Info size={18} aria-hidden="true" /> About this build</NavLink>
         <NavLink to="/account"><Users size={18} aria-hidden="true" /> Account</NavLink>
-      </nav><div className="sidebar-footer"><span className="development-dot" /> Development build<span className="version">v0.1 · Accounts</span></div>
+        <NavLink to="/communities"><Hash size={18} aria-hidden="true" /> Communities</NavLink>
+      </nav><div className="sidebar-footer"><span className="development-dot" /> Development build<span className="version">v0.1 · Communities</span></div>
     </aside><div className="main-shell"><header className="topbar"><span>Workspace <span className="breadcrumb-divider">/</span> <span className="breadcrumb-current">Dosvyazi</span></span><SessionLink /></header>
-      <main id="main" tabIndex={-1}><Routes><Route path="/" element={<Workspace />} /><Route path="/about" element={<About />} /><Route path="/account" element={<AccountPage />} /><Route path="/login" element={<AccountPage mode="login" />} /><Route path="/register" element={<AccountPage mode="register" />} /><Route path="*" element={<NotFound />} /></Routes></main>
+      <main id="main" tabIndex={-1}><Routes><Route path="/" element={<Workspace />} /><Route path="/about" element={<About />} /><Route path="/account" element={<AccountPage />} /><Route path="/login" element={<AccountPage mode="login" />} /><Route path="/register" element={<AccountPage mode="register" />} /><Route path="/communities" element={<CommunitiesPage />} /><Route path="/communities/:id" element={<CommunityPage />} /><Route path="/communities/:id/channels/:channelId" element={<CommunityPage />} /><Route path="*" element={<NotFound />} /></Routes></main>
       <footer className="page-footer"><span>Dosvyazi <span aria-hidden="true">·</span> ДоСвязи</span><span>Built for shared moments.</span></footer>
     </div></div>;
 }

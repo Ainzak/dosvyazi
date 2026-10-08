@@ -1,6 +1,6 @@
 # Accounts and sessions
 
-The browser supports registration, sign-in, sign-out and editing the current user's display name at `/register`, `/login` and `/account`. This stage has no email delivery, email confirmation, password recovery, MFA, external login, account deletion or global Identity roles. Community permissions are a later stage.
+The browser supports registration, sign-in, sign-out and editing the current user's display name at `/register`, `/login` and `/account`. This stage has no email delivery, email confirmation, password recovery, MFA, external login, account deletion or global Identity roles. [Communities](communities.md) provide owner/member access; full role-based permissions remain a later stage.
 
 ## HTTP contract
 

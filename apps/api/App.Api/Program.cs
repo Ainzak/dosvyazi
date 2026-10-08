@@ -1,6 +1,7 @@
 using App.Api.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using App.Api.Features.Accounts;
+using App.Api.Features.Communities;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
@@ -35,6 +36,7 @@ builder.Services.AddIdentityCore<AppUser>(options =>
     options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
 }).AddEntityFrameworkStores<AppDbContext>().AddSignInManager();
 builder.Services.AddScoped<AccountService>();
+builder.Services.AddScoped<CommunityService>();
 builder.Services.AddScoped<SessionCookieEvents>();
 builder.Services.AddAuthentication(IdentityConstants.ApplicationScheme)
     .AddCookie(IdentityConstants.ApplicationScheme, options =>
@@ -68,6 +70,11 @@ if (OperatingSystem.IsWindows()) protection.ProtectKeysWithDpapi();
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy("community-commands", context => RateLimitPartition.GetFixedWindowLimiter(
+        context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "anonymous", _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 60, Window = TimeSpan.FromMinutes(1), QueueLimit = 0, AutoReplenishment = true,
+        }));
     options.AddPolicy("accounts", context => RateLimitPartition.GetFixedWindowLimiter(
         context.Connection.RemoteIpAddress?.ToString() ?? "local", _ => new FixedWindowRateLimiterOptions
         {
