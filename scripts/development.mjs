@@ -53,6 +53,18 @@ async function databaseEnvironment() {
   };
 }
 
+async function voiceEnvironment() {
+  const content = await readFile(path.join(local, 'voice.json'), 'utf8');
+  let config;
+  // JSON parser diagnostics can include secret-bearing input excerpts.
+  try { config = JSON.parse(content); } catch { throw new Error('Invalid local voice configuration.'); }
+  if (!config || typeof config !== 'object') throw new Error('Invalid local voice configuration.');
+  if (!/^[a-f0-9]{32}$/.test(config.apiKey ?? '') || !/^[a-f0-9]{64}$/.test(config.apiSecret ?? '')) {
+    throw new Error('Invalid local voice configuration.');
+  }
+  return { LIVEKIT_API_KEY: config.apiKey, LIVEKIT_API_SECRET: config.apiSecret, LIVEKIT_URL: 'http://127.0.0.1:7880' };
+}
+
 try {
   await mkdir(local, { recursive: true });
   let exitCode = 0;
@@ -78,6 +90,30 @@ try {
       exitCode = await run('docker', ['compose', '--env-file', 'deploy/.env', '-f', 'deploy/compose.dev.yml', ...operation]);
       break;
     }
+    case 'voice-setup': {
+      const credentialsPath = path.join(local, 'voice.json');
+      try {
+        await writeFile(credentialsPath, JSON.stringify({ apiKey: randomBytes(16).toString('hex'), apiSecret: randomBytes(32).toString('hex') }) + '\n', { flag: 'wx', mode: 0o600 });
+      } catch (error) { if (error.code !== 'EEXIST') throw error; }
+      const voice = await voiceEnvironment();
+      await writeFile(path.join(local, 'livekit.yaml'),
+        `port: 7880\nbind_addresses: ["0.0.0.0"]\nrtc:\n  tcp_port: 7881\n  udp_port: 7882\n  use_external_ip: false\n  node_ip: 127.0.0.1\nkeys:\n  ${voice.LIVEKIT_API_KEY}: ${voice.LIVEKIT_API_SECRET}\nlogging:\n  level: warn\n`, { mode: 0o600 });
+      console.log('Prepared ignored local voice configuration; preserved existing credentials.');
+      break;
+    }
+    case 'voice':
+    case 'voice-stop': {
+      await voiceEnvironment();
+      exitCode = await run('docker', ['compose', '-f', 'deploy/compose.voice.yml', ...(command === 'voice' ? ['up', '--detach'] : ['stop', 'livekit'])]);
+      break;
+    }
+    case 'voice-probe':
+      exitCode = await run('dotnet', ['run', '--project', 'tests/voice/App.VoiceProbe', '--no-build', '--no-restore'], await voiceEnvironment());
+      break;
+    case 'voice-test':
+      await voiceEnvironment();
+      exitCode = await run(process.execPath, ['scripts/voice-test.mjs']);
+      break;
     case 'api':
     case 'migrate': {
       let database = {};
