@@ -4,6 +4,120 @@
  */
 
 export interface paths {
+    "/api/v1/communities/{community}/channels/{channel}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    before?: string;
+                };
+                header?: never;
+                path: {
+                    community: string;
+                    channel: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["MessageSnapshot"];
+                        "application/json": components["schemas"]["MessageSnapshot"];
+                        "text/json": components["schemas"]["MessageSnapshot"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    community: string;
+                    channel: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SendMessageRequest"];
+                    "text/json": components["schemas"]["SendMessageRequest"];
+                    "application/*+json": components["schemas"]["SendMessageRequest"];
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["MessageDto"];
+                        "application/json": components["schemas"]["MessageDto"];
+                        "text/json": components["schemas"]["MessageDto"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/communities/{community}/channels/{channel}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    after?: string;
+                };
+                header?: never;
+                path: {
+                    community: string;
+                    channel: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["CatchUpPage"];
+                        "application/json": components["schemas"]["CatchUpPage"];
+                        "text/json": components["schemas"]["CatchUpPage"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health/live": {
         parameters: {
             query?: never;
@@ -774,6 +888,12 @@ export interface components {
         BanMemberRequest: {
             banned: boolean;
         };
+        CatchUpPage: {
+            events: components["schemas"]["MessageEvent"][];
+            nextSequence: string;
+            watermark: string;
+            hasMore: boolean;
+        };
         ChannelSummary: {
             id: string;
             name: string;
@@ -839,6 +959,31 @@ export interface components {
             status: string;
             isOwner: boolean;
         };
+        MessageDto: {
+            id: string;
+            channelId: string;
+            authorId: string;
+            authorName: string;
+            clientMessageId: string;
+            sequence: string;
+            content: string;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        MessageEvent: {
+            eventId: string;
+            channelId: string;
+            sequence: string;
+            kind: string;
+            /** Format: int32 */
+            schemaVersion: number | string;
+            payload: components["schemas"]["MessageDto"];
+        };
+        MessageSnapshot: {
+            messages: components["schemas"]["MessageDto"][];
+            watermark: string;
+            hasOlder: boolean;
+        };
         ReadinessResponse: {
             status: string;
             checks: {
@@ -849,6 +994,11 @@ export interface components {
             email: string;
             password: string;
             displayName: string;
+        };
+        SendMessageRequest: {
+            /** Format: uuid */
+            clientMessageId: string;
+            content: string;
         };
         UpdateProfileRequest: {
             displayName: string;

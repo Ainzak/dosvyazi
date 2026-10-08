@@ -9,6 +9,7 @@ import { banMember, communityKeys, communityListKey, createCommunity, createInvi
   joinCommunity, leaveCommunity, listCommunities, listInvites, listMembers, privateKeys, revokeInvite } from '../../api/communities';
 import type { CommunityDetails } from '../../api/communities';
 import { useSession } from '../accounts/useSession';
+import { MessageTimeline } from '../messages/MessageTimeline';
 
 function Recovery({ title = 'Connection interrupted.', error, retry }: { title?: string; error: Error; retry: () => void }) {
   return <section className="about-panel"><h1>{title}</h1><p role="alert">{error.message}</p><button className="secondary-button" onClick={retry}>Try again</button></section>;
@@ -17,9 +18,9 @@ function Recovery({ title = 'Connection interrupted.', error, retry }: { title?:
 function AccountGate({ children }: { children: (user: UserProfile) => ReactNode }) {
   const session = useSession();
   if (session.isPending) return <p role="status">Checking your session…</p>;
-  if (session.isError) return <Recovery error={session.error} retry={() => void session.refetch()} />;
+  if (session.isError && !session.data) return <Recovery error={session.error} retry={() => void session.refetch()} />;
   if (!session.data) return <section className="about-panel"><h1>A place for your people.</h1><p>Sign in to create a community or join with an invitation.</p><Link className="about-link" to="/login">Sign in</Link></section>;
-  return children(session.data);
+  return <>{session.isError && <div className="message-error"><p role="alert">Session check interrupted. {session.error.message}</p><button className="secondary-button" onClick={() => void session.refetch()}>Retry session check</button></div>}{children(session.data)}</>;
 }
 
 function CommunityList({ user }: { user: UserProfile }) {
@@ -99,8 +100,8 @@ function OwnerTools({ community, user }: { community: CommunityDetails; user: Us
 function Channel({ community, channelId, user }: { community: CommunityDetails; channelId: string; user: UserProfile }) {
   const channel = useQuery({ queryKey: [...communityKeys(user.id, community.id), 'channel', channelId], queryFn: ({ signal }) => getChannel(community.id, channelId, signal) });
   if (channel.isPending) return <p role="status">Loading channel…</p>;
-  if (channel.isError) return <Recovery error={channel.error} retry={() => void channel.refetch()} />;
-  return <section className="channel-workspace"><p className="eyebrow">TEXT CHANNEL</p><h2>#{channel.data.name}</h2><Hash size={40} aria-hidden="true" /><h3>Your shared space is ready.</h3><p>Text messaging is coming next.</p></section>;
+  if (!channel.data) return <Recovery error={channel.error ?? new Error('Channel unavailable.')} retry={() => void channel.refetch()} />;
+  return <section className="channel-workspace chat-workspace"><p className="eyebrow">TEXT CHANNEL</p><h2>#{channel.data.name}</h2>{channel.isError && <p role="alert">Channel check interrupted. {channel.error.message}</p>}<MessageTimeline key={`${user.id}:${channelId}`} community={community.id} channel={channelId} user={user} /></section>;
 }
 
 function CommunityView({ id, channelId, user }: { id: string; channelId: string | undefined; user: UserProfile }) {
@@ -129,9 +130,10 @@ function CommunityView({ id, channelId, user }: { id: string; channelId: string 
   } });
   if (denied || (community.error instanceof ApiError && [401, 403, 404].includes(community.error.status))) return <section className="about-panel"><h1>Community unavailable.</h1><p>You may no longer have access, or this community or channel does not exist.</p><Link className="about-link" to="/communities">Back to communities</Link></section>;
   if (community.isPending) return <p role="status">Loading community…</p>;
-  if (community.isError) return <Recovery error={community.error} retry={() => void community.refetch()} />;
+  if (!community.data) return <Recovery error={community.error ?? new Error('Community unavailable.')} retry={() => void community.refetch()} />;
   const data = community.data;
   return <>
+    {community.isError && <div className="message-error"><p role="alert">Community check interrupted. {community.error.message}</p><button className="secondary-button" onClick={() => void community.refetch()}>Retry community check</button></div>}
     <Link className="about-link" to="/communities">← Your communities</Link>
     <div className="page-heading"><div><p className="eyebrow">{data.role === 'Owner' ? 'YOUR COMMUNITY' : 'COMMUNITY'}</p><h1>{data.name}</h1><p className="page-description">{data.memberCount} {data.memberCount === 1 ? 'member' : 'members'} · {data.role}</p></div>
       {data.role !== 'Owner' && <button className="secondary-button" onClick={() => leave.mutate()} disabled={leave.isPending}>Leave community</button>}</div>

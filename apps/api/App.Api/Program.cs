@@ -2,6 +2,7 @@ using App.Api.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using App.Api.Features.Accounts;
 using App.Api.Features.Communities;
+using App.Api.Features.Messages;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
@@ -37,6 +38,11 @@ builder.Services.AddIdentityCore<AppUser>(options =>
 }).AddEntityFrameworkStores<AppDbContext>().AddSignInManager();
 builder.Services.AddScoped<AccountService>();
 builder.Services.AddScoped<CommunityService>();
+builder.Services.AddScoped<MessageService>();
+builder.Services.AddScoped<EventPublisher>();
+builder.Services.AddSingleton<MessageConnections>();
+builder.Services.AddHostedService<OutboxWorker>();
+builder.Services.AddSignalR(options => { options.EnableDetailedErrors = false; options.MaximumReceiveMessageSize = 4096; });
 builder.Services.AddScoped<SessionCookieEvents>();
 builder.Services.AddAuthentication(IdentityConstants.ApplicationScheme)
     .AddCookie(IdentityConstants.ApplicationScheme, options =>
@@ -117,6 +123,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.MapControllers();
+app.MapHub<MessagesHub>("/hubs/messages", options => options.CloseOnAuthenticationExpiration = true);
 app.Run();
 
 // Integration tests exercise the real host/pipeline.

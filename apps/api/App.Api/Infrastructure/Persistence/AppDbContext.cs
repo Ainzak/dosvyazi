@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using App.Api.Features.Accounts;
 using App.Api.Features.Communities;
+using App.Api.Features.Messages;
 
 namespace App.Api.Infrastructure.Persistence;
 
@@ -12,10 +13,35 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : Ident
     public DbSet<Membership> Memberships => Set<Membership>();
     public DbSet<TextChannel> TextChannels => Set<TextChannel>();
     public DbSet<CommunityInvite> CommunityInvites => Set<CommunityInvite>();
+    public DbSet<Message> Messages => Set<Message>();
+    public DbSet<ChannelEvent> ChannelEvents => Set<ChannelEvent>();
+    public DbSet<OutboxEntry> OutboxEntries => Set<OutboxEntry>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
+        builder.Entity<Message>(message =>
+        {
+            message.Property(item => item.Content).HasMaxLength(4000).IsRequired();
+            message.HasOne(item => item.Channel).WithMany().HasForeignKey(item => item.ChannelId).OnDelete(DeleteBehavior.Restrict);
+            message.HasOne(item => item.Author).WithMany().HasForeignKey(item => item.AuthorId).OnDelete(DeleteBehavior.Restrict);
+            message.HasIndex(item => new { item.AuthorId, item.ChannelId, item.ClientMessageId }).IsUnique();
+            message.HasIndex(item => new { item.ChannelId, item.Sequence }).IsUnique();
+            message.HasAlternateKey(item => new { item.Id, item.ChannelId, item.Sequence });
+            message.ToTable(table => table.HasCheckConstraint("CK_Messages_Sequence", "\"Sequence\" > 0"));
+        });
+        builder.Entity<ChannelEvent>(change =>
+        {
+            change.HasOne(item => item.Message).WithMany().HasForeignKey(item => new { item.MessageId, item.ChannelId, item.Sequence })
+                .HasPrincipalKey(item => new { item.Id, item.ChannelId, item.Sequence }).OnDelete(DeleteBehavior.Restrict);
+            change.HasIndex(item => new { item.ChannelId, item.Sequence }).IsUnique();
+        });
+        builder.Entity<OutboxEntry>(entry =>
+        {
+            entry.HasOne(item => item.Event).WithMany().HasForeignKey(item => item.EventId).OnDelete(DeleteBehavior.Restrict);
+            entry.HasIndex(item => item.EventId).IsUnique();
+            entry.HasIndex(item => item.PublishedAt).HasFilter("\"PublishedAt\" IS NULL");
+        });
         builder.Entity<Community>(community =>
         {
             community.Property(item => item.Name).HasMaxLength(80).IsRequired();

@@ -6,7 +6,14 @@ public sealed class SameOriginMiddleware(RequestDelegate next)
     {
         var unsafeMethod = !HttpMethods.IsGet(context.Request.Method) && !HttpMethods.IsHead(context.Request.Method) &&
             !HttpMethods.IsOptions(context.Request.Method);
-        if (unsafeMethod && context.Request.Headers.TryGetValue("Origin", out var origin))
+        // CORS does not protect WebSockets. All browser hub transports must supply
+        // our exact Origin, including GET upgrade and long-polling requests.
+        if (context.Request.Path.StartsWithSegments("/hubs") && !context.Request.Headers.ContainsKey("Origin"))
+        {
+            await Results.Problem(statusCode: 403, title: "An explicit same-origin connection is required.").ExecuteAsync(context);
+            return;
+        }
+        if ((unsafeMethod || context.Request.Path.StartsWithSegments("/hubs")) && context.Request.Headers.TryGetValue("Origin", out var origin))
         {
             var expected = $"{context.Request.Scheme}://{context.Request.Host}";
             if (origin.Count != 1 || !string.Equals(origin[0], expected, StringComparison.OrdinalIgnoreCase))
