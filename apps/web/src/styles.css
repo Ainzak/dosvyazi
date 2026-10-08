@@ -85,6 +85,23 @@ h1 { font-size: clamp(26px, 2.6vw, 36px); line-height: 1.2; letter-spacing: -1.1
 .channel-nav a { display: flex; gap: 8px; padding: 12px; font-size: 14px; border-radius: 7px; }
 .channel-nav a.selected { color: #285e49; background: #d7e9df; }
 .channel-workspace { min-height: 280px; padding: 35px; text-align: center; color: #637870; }
+.chat-workspace { text-align: left; min-width: 0; }
+.chat-workspace h2 { margin-top: 4px; }
+.message-timeline { min-width: 0; }
+.connection-status { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 12px; color: #285e49; }
+.message-list { list-style: none; margin: 16px 0; padding: 0; max-height: 480px; overflow-y: auto; overscroll-behavior: contain; }
+.message-list li { padding: 16px 0; border-bottom: 1px solid #e3ebe7; }
+.message-meta { display: flex; gap: 12px; flex-wrap: wrap; align-items: baseline; }
+.message-meta strong { color: #263a32; font-size: 13px; overflow-wrap: anywhere; }
+.message-meta time, .pending-message span { font-size: 10px; color: #637870; }
+.message-list li p { white-space: pre-wrap; overflow-wrap: anywhere; margin: 8px 0 0; color: #263a32; }
+.pending-message { opacity: .65; }
+.empty-messages { text-align: center; padding: 24px 12px; }
+.message-composer label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 8px; }
+.message-composer textarea { width: 100%; resize: vertical; min-height: 90px; border: 1px solid #c7d5ce; border-radius: 7px; background: #fbfdfc; padding: 12px; font: inherit; font-size: 14px; }
+.composer-footer { display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; margin-top: 12px; }
+.message-error { margin: 12px 0; color: #8a3e32; }
+@media (max-width: 600px) { .chat-workspace { padding: 20px 16px; } .message-list { max-height: 360px; } }
 .channel-workspace h2, .channel-workspace h3 { color: #263a32; overflow-wrap: anywhere; }
 .channel-workspace h2 { font-size: 22px; }
 .channel-workspace p { line-height: 1.8; font-size: 13px; }

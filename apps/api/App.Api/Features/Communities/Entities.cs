@@ -26,6 +26,7 @@ public sealed class Membership
 
 public sealed class TextChannel
 {
+    public long LastSequence { get; set; }
     public Guid Id { get; set; }
     public Guid CommunityId { get; set; }
     public Community Community { get; set; } = null!;

@@ -19,6 +19,7 @@ public sealed class FoundationFactory(string environment = "Development", string
             {
                 ["ConnectionStrings:Dosvyazi"] = connection,
                 ["Accounts:PermitLimit"] = permitLimit.ToString(),
+                ["Messages:WorkerEnabled"] = "false",
                 ["DataProtection:KeyPath"] = Path.Combine(Path.GetFullPath("../../..", _.HostingEnvironment.ContentRootPath), ".local", "artifacts", "test-keys"),
             }));
     }
