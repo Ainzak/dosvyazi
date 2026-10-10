@@ -10,6 +10,7 @@ public sealed class Community
     public string Name { get; set; } = string.Empty;
     public DateTimeOffset CreatedAt { get; set; }
     public long PolicyVersion { get; set; } = 1;
+    public Guid? VoiceCategoryId { get; set; }
     public ICollection<Membership> Members { get; set; } = [];
     public ICollection<TextChannel> Channels { get; set; } = [];
 }
@@ -26,6 +27,7 @@ public sealed class Membership
 
 public sealed class TextChannel
 {
+    public Guid? CategoryId { get; set; }
     public long LastSequence { get; set; }
     public Guid Id { get; set; }
     public Guid CommunityId { get; set; }

@@ -4,10 +4,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { UserProfile } from '../../api/accounts';
 import { communityKeys } from '../../api/communities';
 import { ApiError } from '../../api/http';
-import { catchUp, history, mergeMessages, sendMessage } from '../../api/messages';
+import { applyEvents, catchUp, history, mergeMessages, RecoveryRequired, sendMessage } from '../../api/messages';
 import type { MessageSnapshot } from '../../api/messages';
+import { MessageActions } from './MessageActions';
 
-export function MessageTimeline({ community, channel, user }: { community: string; channel: string; user: UserProfile }) {
+export function MessageTimeline({ community, channel, user, canSend = true, canManageMessages = false, sendDeniedBy = null }: { community: string; channel: string; user: UserProfile; canSend?: boolean; canManageMessages?: boolean; sendDeniedBy?: string | null }) {
   const client = useQueryClient();
   const [connectionState, setConnectionState] = useState('Connecting…');
   const [connectionAttempt, setConnectionAttempt] = useState(0);
@@ -21,16 +22,14 @@ export function MessageTimeline({ community, channel, user }: { community: strin
     const previous = client.getQueryData<MessageSnapshot>(key);
     if (!previous) return history(community, channel, signal);
     try {
-      let cursor = previous.watermark;
-      let messages = previous.messages;
+      let current = previous;
       for (;;) {
-        const page = await catchUp(community, channel, cursor, signal);
-        messages = mergeMessages(messages, page.events.map(event => event.payload));
-        cursor = page.nextSequence;
-        if (!page.hasMore) return { messages, watermark: cursor, hasOlder: previous.hasOlder };
+        const page = await catchUp(community, channel, current.watermark, signal);
+        current = applyEvents(current, page);
+        if (!page.hasMore) return current;
       }
     } catch (error) {
-      if (error instanceof ApiError && error.status === 409) return history(community, channel, signal);
+      if (error instanceof RecoveryRequired || (error instanceof ApiError && error.status === 409)) return history(community, channel, signal);
       throw error;
     }
   } });
@@ -76,7 +75,7 @@ export function MessageTimeline({ community, channel, user }: { community: strin
     const list = listElement.current;
     if (list) olderPosition.current = { height: list.scrollHeight, top: list.scrollTop };
     client.setQueryData<MessageSnapshot>(key, current => current ? {
-      ...current, messages: mergeMessages(current.messages, page.messages), hasOlder: page.hasOlder,
+      ...current, ...(BigInt(page.watermark) < BigInt(current.watermark) ? {} : { messages: mergeMessages(current.messages, page.messages, current.deletedVersions), hasOlder: page.hasOlder }),
     } : undefined);
   } });
   const send = useMutation({ mutationFn: (content: string) => {
@@ -100,6 +99,7 @@ export function MessageTimeline({ community, channel, user }: { community: strin
     } else if (followLatest.current) list.scrollTop = list.scrollHeight;
   }, [feed.data, send.isPending, send.isError]);
 
+  if (feed.error instanceof ApiError && [401, 403, 404].includes(feed.error.status)) return <div className="message-error"><h3>Channel unavailable.</h3><p>Access to this channel has changed.</p></div>;
   return <div className="message-timeline">
     <div className="connection-status"><span role="status">{connectionState}</span>{connectionState !== 'Live' && <button className="secondary-button" onClick={() => setConnectionAttempt(value => value + 1)}>Reconnect</button>}</div>
     <p className="field-hint">Live updates with automatic history recovery. Messages are plain text.</p>
@@ -114,11 +114,14 @@ export function MessageTimeline({ community, channel, user }: { community: strin
     }}>{feed.data?.messages.map(message => <li key={message.id} data-message-id={message.id}>
       <div className="message-meta"><strong>{message.authorName}</strong><time dateTime={message.createdAt}>{new Date(message.createdAt).toLocaleString('en')}</time></div>
       <p>{message.content}</p>
+      {message.updatedAt && <small>Edited</small>}
+      <MessageActions message={message} community={community} channel={channel} canEdit={canSend && message.authorId === user.id} canDelete={(canSend && message.authorId === user.id) || canManageMessages} refresh={async () => { await client.invalidateQueries({ queryKey: key }); }} />
     </li>)}{(send.isPending || send.isError) && !request.current.confirmed && !feed.data?.messages.some(message => message.authorId === user.id && message.clientMessageId === request.current.id) && <li className="pending-message"><strong>{user.displayName}</strong><p>{send.variables}</p><span>{send.isPending ? 'Sending…' : 'Not confirmed. Retry with the same text.'}</span></li>}</ol>
-    <form className="message-composer" onSubmit={event => { event.preventDefault(); send.mutate(draft); }}>
+    {!canSend && <p role="status">Read only: {sendDeniedBy ?? 'SendMessage is not granted.'}</p>}
+    {canSend && <form className="message-composer" onSubmit={event => { event.preventDefault(); send.mutate(draft); }}>
       <label htmlFor="message-content">Message</label><textarea id="message-content" value={draft} onChange={event => setDraft(event.target.value)} maxLength={4000} rows={3} required disabled={send.isPending} placeholder="Write to your community…" />
       {send.isError && <p role="alert" className="form-error">{send.error.message}</p>}
       <div className="composer-footer"><span className="field-hint">{draft.length} / 4000 · Stored when confirmed</span><button className="primary-button" disabled={send.isPending || !draft.trim()}>{send.isPending ? 'Sending…' : send.isError ? 'Retry send' : 'Send message'}</button></div>
-    </form>
+    </form>}
   </div>;
 }

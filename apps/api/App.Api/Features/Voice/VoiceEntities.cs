@@ -14,6 +14,7 @@ public sealed class VoiceRoomBinding
 
 public sealed class VoiceLease
 {
+    public bool CanSpeak { get; set; } = true;
     public Guid Id { get; set; }
     public Guid UserId { get; set; }
     public Guid CommunityId { get; set; }
@@ -44,10 +45,10 @@ public sealed class RetiredVoiceRoom
 
 public sealed record JoinVoiceRequest(Guid ClientRequestId);
 public sealed record VoiceLeaseRequest(Guid LeaseId);
-public sealed record VoiceJoinDto(string LeaseId, string Identity, string Generation, string Url, string Token, DateTimeOffset ExpiresAt);
+public sealed record VoiceJoinDto(string LeaseId, string Identity, string Generation, string Url, string Token, DateTimeOffset ExpiresAt, bool CanSpeak = true);
 public sealed record VoiceMemberDto(string Identity, string DisplayName, bool SpeakingAllowed, int AudioTracks);
 public sealed record VoiceStateDto(string Status, string Generation, string? OperationId, DateTimeOffset? CompletedAt,
-    bool ControlUnavailable, string? MyLeaseId, VoiceMemberDto[] Participants);
+    bool ControlUnavailable, string? MyLeaseId, VoiceMemberDto[] Participants, bool CanConnect = true, bool CanSpeak = true, bool CanModerate = false, string? DeniedBy = null);
 
 public sealed class VoiceOptions
 {

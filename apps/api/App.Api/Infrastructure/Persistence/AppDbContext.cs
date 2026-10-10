@@ -13,8 +13,17 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : Ident
     public DbSet<Community> Communities => Set<Community>();
     public DbSet<Membership> Memberships => Set<Membership>();
     public DbSet<TextChannel> TextChannels => Set<TextChannel>();
+    public DbSet<CommunityRole> CommunityRoles => Set<CommunityRole>();
+    public DbSet<Category> Categories => Set<Category>();
+    public DbSet<MemberRole> MemberRoles => Set<MemberRole>();
+    public DbSet<CategoryRoleRule> CategoryRoleRules => Set<CategoryRoleRule>();
+    public DbSet<ChannelRoleRule> ChannelRoleRules => Set<ChannelRoleRule>();
+    public DbSet<AccessChange> AccessChanges => Set<AccessChange>();
+    public DbSet<VoiceRoleRule> VoiceRoleRules => Set<VoiceRoleRule>();
+    public DbSet<AuditEntry> AuditEntries => Set<AuditEntry>();
     public DbSet<CommunityInvite> CommunityInvites => Set<CommunityInvite>();
     public DbSet<Message> Messages => Set<Message>();
+    public DbSet<MessageCommand> MessageCommands => Set<MessageCommand>();
     public DbSet<ChannelEvent> ChannelEvents => Set<ChannelEvent>();
     public DbSet<OutboxEntry> OutboxEntries => Set<OutboxEntry>();
     public DbSet<VoiceRoomBinding> VoiceRooms => Set<VoiceRoomBinding>();
@@ -26,6 +35,63 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : Ident
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
+        builder.Entity<CommunityRole>(role =>
+        {
+            role.HasAlternateKey(r => new { r.CommunityId, r.Id });
+            role.Property(r => r.Name).HasMaxLength(80);
+            role.HasOne<Community>().WithMany().HasForeignKey(r => r.CommunityId).OnDelete(DeleteBehavior.Restrict);
+            role.ToTable(t => t.HasCheckConstraint("CK_CommunityRoles_Grants", "\"Grants\" BETWEEN 0 AND 16383 AND (\"Grants\" & 280) = 0 AND \"Rank\" BETWEEN 0 AND 1000"));
+        });
+        builder.Entity<Category>(category =>
+        {
+            category.HasAlternateKey(c => new { c.CommunityId, c.Id });
+            category.Property(c => c.Name).HasMaxLength(80);
+            category.HasOne<Community>().WithMany().HasForeignKey(c => c.CommunityId).OnDelete(DeleteBehavior.Restrict);
+        });
+        builder.Entity<TextChannel>().HasAlternateKey(c => new { c.CommunityId, c.Id });
+        builder.Entity<TextChannel>().HasOne<Category>().WithMany().HasForeignKey(c => new { c.CommunityId, c.CategoryId })
+            .HasPrincipalKey(c => new { c.CommunityId, c.Id }).OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<MemberRole>(member =>
+        {
+            member.HasKey(m => new { m.CommunityId, m.UserId, m.RoleId });
+            member.HasOne<Membership>().WithMany().HasForeignKey(m => new { m.CommunityId, m.UserId }).OnDelete(DeleteBehavior.Cascade);
+            member.HasOne<CommunityRole>().WithMany().HasForeignKey(m => new { m.CommunityId, m.RoleId }).HasPrincipalKey(r => new { r.CommunityId, r.Id }).OnDelete(DeleteBehavior.Restrict);
+        });
+        builder.Entity<CategoryRoleRule>(rule =>
+        {
+            rule.HasKey(r => new { r.CommunityId, r.CategoryId, r.RoleId });
+            rule.HasOne<Category>().WithMany().HasForeignKey(r => new { r.CommunityId, r.CategoryId }).HasPrincipalKey(c => new { c.CommunityId, c.Id }).OnDelete(DeleteBehavior.Restrict);
+            rule.HasOne<CommunityRole>().WithMany().HasForeignKey(r => new { r.CommunityId, r.RoleId }).HasPrincipalKey(r => new { r.CommunityId, r.Id }).OnDelete(DeleteBehavior.Restrict);
+            rule.ToTable(t => t.HasCheckConstraint("CK_CategoryRoleRules_Bits", "\"Allow\" BETWEEN 0 AND 16383 AND \"Deny\" BETWEEN 0 AND 16383 AND ((\"Allow\" | \"Deny\") & 280) = 0"));
+        });
+        builder.Entity<ChannelRoleRule>(rule =>
+        {
+            rule.HasKey(r => new { r.CommunityId, r.ChannelId, r.RoleId });
+            rule.HasOne<TextChannel>().WithMany().HasForeignKey(r => new { r.CommunityId, r.ChannelId }).HasPrincipalKey(c => new { c.CommunityId, c.Id }).OnDelete(DeleteBehavior.Restrict);
+            rule.HasOne<CommunityRole>().WithMany().HasForeignKey(r => new { r.CommunityId, r.RoleId }).HasPrincipalKey(r => new { r.CommunityId, r.Id }).OnDelete(DeleteBehavior.Restrict);
+            rule.ToTable(t => t.HasCheckConstraint("CK_ChannelRoleRules_Bits", "\"Allow\" BETWEEN 0 AND 16383 AND \"Deny\" BETWEEN 0 AND 16383 AND ((\"Allow\" | \"Deny\") & 280) = 0"));
+        });
+        builder.Entity<Community>().HasOne<Category>().WithMany().HasForeignKey(c => new { c.Id, c.VoiceCategoryId }).HasPrincipalKey(c => new { c.CommunityId, c.Id }).OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<VoiceRoleRule>(rule =>
+        {
+            rule.HasKey(r => new { r.CommunityId, r.RoleId });
+            rule.HasOne<CommunityRole>().WithMany().HasForeignKey(r => new { r.CommunityId, r.RoleId }).HasPrincipalKey(r => new { r.CommunityId, r.Id }).OnDelete(DeleteBehavior.Restrict);
+            rule.ToTable(t => t.HasCheckConstraint("CK_VoiceRoleRules_Bits", "\"Allow\" BETWEEN 0 AND 16383 AND \"Deny\" BETWEEN 0 AND 16383 AND ((\"Allow\" | \"Deny\") & 280) = 0"));
+        });
+        builder.Entity<AuditEntry>(audit =>
+        {
+            audit.Property(a => a.Action).HasMaxLength(80);
+            audit.HasIndex(a => new { a.CommunityId, a.CreatedAt, a.Id });
+            audit.HasOne<Community>().WithMany().HasForeignKey(a => a.CommunityId).OnDelete(DeleteBehavior.Restrict);
+            audit.HasOne<AppUser>().WithMany().HasForeignKey(a => a.ActorId).OnDelete(DeleteBehavior.Restrict);
+        });
+        builder.Entity<AccessChange>(change =>
+        {
+            change.HasKey(c => new { c.CommunityId, c.ClientRequestId });
+            change.Property(c => c.Hash).HasMaxLength(64);
+            change.HasOne<Community>().WithMany().HasForeignKey(c => c.CommunityId).OnDelete(DeleteBehavior.Restrict);
+            change.HasOne<AppUser>().WithMany().HasForeignKey(c => c.ActorId).OnDelete(DeleteBehavior.Restrict);
+        });
         builder.Entity<VoiceWebhookReceipt>(receipt =>
         {
             receipt.Property(item => item.Id).HasMaxLength(128);
@@ -66,14 +132,23 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : Ident
             message.HasOne(item => item.Author).WithMany().HasForeignKey(item => item.AuthorId).OnDelete(DeleteBehavior.Restrict);
             message.HasIndex(item => new { item.AuthorId, item.ChannelId, item.ClientMessageId }).IsUnique();
             message.HasIndex(item => new { item.ChannelId, item.Sequence }).IsUnique();
-            message.HasAlternateKey(item => new { item.Id, item.ChannelId, item.Sequence });
+            message.HasAlternateKey(item => new { item.Id, item.ChannelId });
+            message.Property(item => item.OriginalContentHash).HasMaxLength(64);
             message.ToTable(table => table.HasCheckConstraint("CK_Messages_Sequence", "\"Sequence\" > 0"));
         });
         builder.Entity<ChannelEvent>(change =>
         {
-            change.HasOne(item => item.Message).WithMany().HasForeignKey(item => new { item.MessageId, item.ChannelId, item.Sequence })
-                .HasPrincipalKey(item => new { item.Id, item.ChannelId, item.Sequence }).OnDelete(DeleteBehavior.Restrict);
+            change.HasOne(item => item.Message).WithMany().HasForeignKey(item => new { item.MessageId, item.ChannelId })
+                .HasPrincipalKey(item => new { item.Id, item.ChannelId }).OnDelete(DeleteBehavior.Restrict);
+            change.Property(item => item.Kind).HasMaxLength(32);
             change.HasIndex(item => new { item.ChannelId, item.Sequence }).IsUnique();
+        });
+        builder.Entity<MessageCommand>(command =>
+        {
+            command.HasKey(c => new { c.ChannelId, c.ActorId, c.ClientRequestId });
+            command.Property(c => c.Hash).HasMaxLength(64);
+            command.HasOne<Message>().WithMany().HasForeignKey(c => new { c.MessageId, c.ChannelId }).HasPrincipalKey(m => new { m.Id, m.ChannelId }).OnDelete(DeleteBehavior.Restrict);
+            command.HasOne<AppUser>().WithMany().HasForeignKey(c => c.ActorId).OnDelete(DeleteBehavior.Restrict);
         });
         builder.Entity<OutboxEntry>(entry =>
         {

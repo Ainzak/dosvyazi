@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using App.Api.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using App.Api.Features.Communities;
 
 namespace App.Api.Features.Messages;
 
@@ -23,9 +24,11 @@ public sealed class MessageConnections
         }
     }
 
-    public static Task<bool> AuthorizedAsync(AppDbContext database, MessageConnection connection, CancellationToken ct) => database.Sessions.AsNoTracking()
-        .AnyAsync(session => session.Id == connection.SessionId && session.UserId == connection.UserId && session.RevokedAt == null &&
-            session.ExpiresAt > DateTimeOffset.UtcNow && session.User.SecurityStamp == connection.Stamp &&
-            database.Memberships.Any(member => member.UserId == connection.UserId && member.CommunityId == connection.CommunityId && member.Status == "Active") &&
-            database.TextChannels.Any(channel => channel.Id == connection.ChannelId && channel.CommunityId == connection.CommunityId), ct);
+    public static async Task<bool> AuthorizedAsync(AppDbContext database, MessageConnection connection, CancellationToken ct)
+    {
+        if (!await database.Sessions.AsNoTracking().AnyAsync(session => session.Id == connection.SessionId && session.UserId == connection.UserId && session.RevokedAt == null &&
+            session.ExpiresAt > DateTimeOffset.UtcNow && session.User.SecurityStamp == connection.Stamp, ct)) return false;
+        var channel = await database.TextChannels.AsNoTracking().SingleOrDefaultAsync(c => c.Id == connection.ChannelId && c.CommunityId == connection.CommunityId, ct);
+        return channel is not null && (await ChannelAccess.ResolveAsync(database, connection.CommunityId, channel, connection.UserId, ct)).View;
+    }
 }

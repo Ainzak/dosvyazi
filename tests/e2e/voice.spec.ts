@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import type { VoiceJoin } from '../../apps/web/src/api/voice';
+import type { components } from '../../apps/web/src/api/schema';
 
 async function register(page: Page, name: string) {
   await page.goto('/register');
@@ -31,6 +32,54 @@ async function receivedEnergy(page: Page) {
     } finally { await context.close(); }
   });
 }
+
+test('Speak revocation rotates live audio, rejoins listen-only, and Connect/View denies remain scoped', async ({ page, browser }, info) => {
+  test.setTimeout(90_000);
+  await register(page, 'Voice policy owner'); await create(page);
+  await page.getByRole('button', { name: 'Create invitation', exact: true }).click();
+  const code = await page.getByLabel('Share this invitation code').inputValue();
+  const root = `/api/v1${new URL(page.url()).pathname}`;
+  const csrf = await (await page.request.get('/api/v1/account/csrf')).json() as { requestToken: string };
+  const context = await browser.newContext({ baseURL: 'http://127.0.0.1:5174', viewport: page.viewportSize()!, permissions: ['microphone'] });
+  try {
+    const member = await context.newPage(); await register(member, 'Voice policy peer'); await member.goto('/communities');
+    await member.getByLabel('Invitation code', { exact: true }).fill(code); await member.getByRole('button', { name: 'Join community', exact: true }).click();
+    await page.getByRole('button', { name: 'Join voice', exact: true }).click();
+    await expect(page.getByRole('region', { name: 'Voice controls' })).toContainText('Connected');
+    const oldResponse = member.waitForResponse(response => response.url().endsWith('/voice/join') && response.request().method() === 'POST');
+    await member.getByRole('button', { name: 'Join voice', exact: true }).click(); const old: VoiceJoin = await (await oldResponse).json();
+    await expect(member.getByRole('region', { name: 'Voice controls' })).toContainText('Connected');
+    await member.getByRole('button', { name: 'Enable microphone', exact: true }).click();
+    await expect.poll(() => receivedEnergy(page), { timeout: 15000 }).toBeGreaterThan(0.001);
+    async function deny(bits: number) {
+      const policy = await (await page.request.get(root + '/access')).json() as components['schemas']['AccessPolicy'];
+      const everyone = policy.roles.find(role => role.name === 'everyone')!.id;
+      policy.voiceRules = [{ resourceId: everyone, roleId: everyone, allow: 0, deny: bits }];
+      expect((await page.request.put(root + '/access', { headers: { 'X-CSRF-TOKEN': csrf.requestToken }, data: { clientRequestId: crypto.randomUUID(), policy } })).status()).toBe(200);
+    }
+    const listenerResponse = member.waitForResponse(response => response.url().endsWith('/voice/join') && response.request().method() === 'POST' && response.status() === 200);
+    await deny(4096); const listener: VoiceJoin = await (await listenerResponse).json();
+    expect(listener.canSpeak).toBe(false); expect(BigInt(listener.generation)).toBeGreaterThan(BigInt(old.generation));
+    await expect(member.getByRole('region', { name: 'Voice controls' })).toContainText('Connected · Muted', { timeout: 20000 });
+    await expect(member.getByRole('button', { name: 'Enable microphone', exact: true })).toBeDisabled();
+    await expect.poll(() => receivedEnergy(page)).toBeLessThan(0.001);
+    const replay = await context.newPage(); await replay.goto('/about');
+    const observed = await replay.evaluate(async grant => {
+      const sdkUrl = '/node_modules/.vite/deps/livekit-client.js'; const sdk = await import(sdkUrl); const room = new sdk.Room();
+      try { await room.connect(grant.url, grant.token); await new Promise(resolve => setTimeout(resolve, 1000)); return room.remoteParticipants.size as number; }
+      catch { return 0; } finally { await room.disconnect(); }
+    }, old);
+    expect(observed).toBe(0); await replay.close();
+    await deny(2048 | 4096);
+    await expect(member.getByRole('region', { name: 'Voice controls' })).toHaveCount(0, { timeout: 15000 });
+    await expect(member.getByRole('button', { name: 'Join voice', exact: true })).toBeDisabled();
+    await deny(1 | 2048 | 4096);
+    await expect(member.getByRole('heading', { name: 'Voice unavailable.', exact: true })).toBeVisible();
+    await member.getByRole('link', { name: 'general', exact: true }).click(); await expect(member.getByRole('heading', { name: '#general' })).toBeVisible();
+    expect(await member.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await member.screenshot({ path: info.outputPath('voice-private-text-accessible.png'), fullPage: true });
+  } finally { await context.close(); }
+});
 
 test('members receive audio, keep voice through text navigation, mute/deafen and leave', async ({ page, browser }, info) => {
   test.setTimeout(65_000);
