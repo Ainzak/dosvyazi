@@ -3,6 +3,7 @@ using System;
 using App.Api.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace App.Api.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20261010105115_TextAccessPolicy")]
+    partial class TextAccessPolicy
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -149,38 +152,6 @@ namespace App.Api.Infrastructure.Persistence.Migrations
                     b.ToTable("AccessChanges");
                 });
 
-            modelBuilder.Entity("App.Api.Features.Communities.AuditEntry", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Action")
-                        .IsRequired()
-                        .HasMaxLength(80)
-                        .HasColumnType("character varying(80)");
-
-                    b.Property<Guid>("ActorId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("CommunityId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("TargetId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ActorId");
-
-                    b.HasIndex("CommunityId", "CreatedAt", "Id");
-
-                    b.ToTable("AuditEntries");
-                });
-
             modelBuilder.Entity("App.Api.Features.Communities.Category", b =>
                 {
                     b.Property<Guid>("Id")
@@ -223,7 +194,7 @@ namespace App.Api.Infrastructure.Persistence.Migrations
 
                     b.ToTable("CategoryRoleRules", t =>
                         {
-                            t.HasCheckConstraint("CK_CategoryRoleRules_Bits", "\"Allow\" BETWEEN 0 AND 16383 AND \"Deny\" BETWEEN 0 AND 16383 AND ((\"Allow\" | \"Deny\") & 280) = 0");
+                            t.HasCheckConstraint("CK_CategoryRoleRules_Bits", "\"Allow\" BETWEEN 0 AND 3 AND \"Deny\" BETWEEN 0 AND 3");
                         });
                 });
 
@@ -250,13 +221,14 @@ namespace App.Api.Infrastructure.Persistence.Migrations
 
                     b.ToTable("ChannelRoleRules", t =>
                         {
-                            t.HasCheckConstraint("CK_ChannelRoleRules_Bits", "\"Allow\" BETWEEN 0 AND 16383 AND \"Deny\" BETWEEN 0 AND 16383 AND ((\"Allow\" | \"Deny\") & 280) = 0");
+                            t.HasCheckConstraint("CK_ChannelRoleRules_Bits", "\"Allow\" BETWEEN 0 AND 3 AND \"Deny\" BETWEEN 0 AND 3");
                         });
                 });
 
             modelBuilder.Entity("App.Api.Features.Communities.Community", b =>
                 {
                     b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
                     b.Property<Guid>("ClientRequestId")
@@ -276,12 +248,7 @@ namespace App.Api.Infrastructure.Persistence.Migrations
                     b.Property<long>("PolicyVersion")
                         .HasColumnType("bigint");
 
-                    b.Property<Guid?>("VoiceCategoryId")
-                        .HasColumnType("uuid");
-
                     b.HasKey("Id");
-
-                    b.HasIndex("Id", "VoiceCategoryId");
 
                     b.HasIndex("OwnerId", "ClientRequestId")
                         .IsUnique();
@@ -359,14 +326,11 @@ namespace App.Api.Infrastructure.Persistence.Migrations
                         .HasMaxLength(80)
                         .HasColumnType("character varying(80)");
 
-                    b.Property<int>("Rank")
-                        .HasColumnType("integer");
-
                     b.HasKey("Id");
 
                     b.ToTable("CommunityRoles", t =>
                         {
-                            t.HasCheckConstraint("CK_CommunityRoles_Grants", "\"Grants\" BETWEEN 0 AND 16383 AND (\"Grants\" & 280) = 0 AND \"Rank\" BETWEEN 0 AND 1000");
+                            t.HasCheckConstraint("CK_CommunityRoles_Grants", "\"Grants\" BETWEEN 0 AND 3");
                         });
                 });
 
@@ -444,28 +408,6 @@ namespace App.Api.Infrastructure.Persistence.Migrations
                     b.ToTable("TextChannels");
                 });
 
-            modelBuilder.Entity("App.Api.Features.Communities.VoiceRoleRule", b =>
-                {
-                    b.Property<Guid>("CommunityId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("RoleId")
-                        .HasColumnType("uuid");
-
-                    b.Property<int>("Allow")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("Deny")
-                        .HasColumnType("integer");
-
-                    b.HasKey("CommunityId", "RoleId");
-
-                    b.ToTable("VoiceRoleRules", t =>
-                        {
-                            t.HasCheckConstraint("CK_VoiceRoleRules_Bits", "\"Allow\" BETWEEN 0 AND 16383 AND \"Deny\" BETWEEN 0 AND 16383 AND ((\"Allow\" | \"Deny\") & 280) = 0");
-                        });
-                });
-
             modelBuilder.Entity("App.Api.Features.Messages.ChannelEvent", b =>
                 {
                     b.Property<Guid>("Id")
@@ -478,11 +420,6 @@ namespace App.Api.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<string>("Kind")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)");
-
                     b.Property<Guid>("MessageId")
                         .HasColumnType("uuid");
 
@@ -494,7 +431,7 @@ namespace App.Api.Infrastructure.Persistence.Migrations
                     b.HasIndex("ChannelId", "Sequence")
                         .IsUnique();
 
-                    b.HasIndex("MessageId", "ChannelId");
+                    b.HasIndex("MessageId", "ChannelId", "Sequence");
 
                     b.ToTable("ChannelEvents");
                 });
@@ -522,20 +459,7 @@ namespace App.Api.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<bool>("Deleted")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("OriginalContentHash")
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
                     b.Property<long>("Sequence")
-                        .HasColumnType("bigint");
-
-                    b.Property<DateTimeOffset?>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<long>("Version")
                         .HasColumnType("bigint");
 
                     b.HasKey("Id");
@@ -550,37 +474,6 @@ namespace App.Api.Infrastructure.Persistence.Migrations
                         {
                             t.HasCheckConstraint("CK_Messages_Sequence", "\"Sequence\" > 0");
                         });
-                });
-
-            modelBuilder.Entity("App.Api.Features.Messages.MessageCommand", b =>
-                {
-                    b.Property<Guid>("ChannelId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("ActorId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("ClientRequestId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Hash")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
-                    b.Property<Guid>("MessageId")
-                        .HasColumnType("uuid");
-
-                    b.Property<long>("ResultVersion")
-                        .HasColumnType("bigint");
-
-                    b.HasKey("ChannelId", "ActorId", "ClientRequestId");
-
-                    b.HasIndex("ActorId");
-
-                    b.HasIndex("MessageId", "ChannelId");
-
-                    b.ToTable("MessageCommands");
                 });
 
             modelBuilder.Entity("App.Api.Features.Messages.OutboxEntry", b =>
@@ -663,9 +556,6 @@ namespace App.Api.Infrastructure.Persistence.Migrations
 
                     b.Property<Guid>("AuthSessionId")
                         .HasColumnType("uuid");
-
-                    b.Property<bool>("CanSpeak")
-                        .HasColumnType("boolean");
 
                     b.Property<Guid>("CommunityId")
                         .HasColumnType("uuid");
@@ -847,21 +737,6 @@ namespace App.Api.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("App.Api.Features.Communities.AuditEntry", b =>
-                {
-                    b.HasOne("App.Api.Features.Accounts.AppUser", null)
-                        .WithMany()
-                        .HasForeignKey("ActorId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("App.Api.Features.Communities.Community", null)
-                        .WithMany()
-                        .HasForeignKey("CommunityId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-                });
-
             modelBuilder.Entity("App.Api.Features.Communities.Category", b =>
                 {
                     b.HasOne("App.Api.Features.Communities.Community", null)
@@ -912,12 +787,6 @@ namespace App.Api.Infrastructure.Persistence.Migrations
                         .HasForeignKey("OwnerId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
-
-                    b.HasOne("App.Api.Features.Communities.Category", null)
-                        .WithMany()
-                        .HasForeignKey("Id", "VoiceCategoryId")
-                        .HasPrincipalKey("CommunityId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("App.Api.Features.Communities.CommunityInvite", b =>
@@ -992,22 +861,12 @@ namespace App.Api.Infrastructure.Persistence.Migrations
                     b.Navigation("Community");
                 });
 
-            modelBuilder.Entity("App.Api.Features.Communities.VoiceRoleRule", b =>
-                {
-                    b.HasOne("App.Api.Features.Communities.CommunityRole", null)
-                        .WithMany()
-                        .HasForeignKey("CommunityId", "RoleId")
-                        .HasPrincipalKey("CommunityId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-                });
-
             modelBuilder.Entity("App.Api.Features.Messages.ChannelEvent", b =>
                 {
                     b.HasOne("App.Api.Features.Messages.Message", "Message")
                         .WithMany()
-                        .HasForeignKey("MessageId", "ChannelId")
-                        .HasPrincipalKey("Id", "ChannelId")
+                        .HasForeignKey("MessageId", "ChannelId", "Sequence")
+                        .HasPrincipalKey("Id", "ChannelId", "Sequence")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
@@ -1031,22 +890,6 @@ namespace App.Api.Infrastructure.Persistence.Migrations
                     b.Navigation("Author");
 
                     b.Navigation("Channel");
-                });
-
-            modelBuilder.Entity("App.Api.Features.Messages.MessageCommand", b =>
-                {
-                    b.HasOne("App.Api.Features.Accounts.AppUser", null)
-                        .WithMany()
-                        .HasForeignKey("ActorId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("App.Api.Features.Messages.Message", null)
-                        .WithMany()
-                        .HasForeignKey("MessageId", "ChannelId")
-                        .HasPrincipalKey("Id", "ChannelId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
                 });
 
             modelBuilder.Entity("App.Api.Features.Messages.OutboxEntry", b =>

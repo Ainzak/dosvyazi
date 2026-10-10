@@ -1,6 +1,7 @@
 using System.Data;
 using App.Api.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using App.Api.Features.Communities;
 
 namespace App.Api.Features.Voice;
 
@@ -15,7 +16,9 @@ public sealed class VoiceReconciler(AppDbContext database, IVoiceGateway gateway
         var leases = await database.VoiceLeases.Where(item => item.CommunityId == community && item.Active).ToArrayAsync(ct);
         foreach (var lease in leases)
         {
+            var access = await ChannelAccess.VoiceAsync(database, community, lease.UserId, ct);
             if (lease.Generation != room.Generation || lease.ExpiresAt <= DateTimeOffset.UtcNow ||
+                !access.Connect || lease.CanSpeak != access.Speak ||
                 !await database.Sessions.AnyAsync(item => item.Id == lease.AuthSessionId && item.UserId == lease.UserId && item.RevokedAt == null &&
                     item.ExpiresAt > DateTimeOffset.UtcNow && item.User.SecurityStamp == lease.SecurityStamp, ct) ||
                 !await database.Memberships.AnyAsync(item => item.CommunityId == community && item.UserId == lease.UserId && item.Status == "Active", ct))

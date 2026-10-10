@@ -8,3 +8,4 @@ export const getVoice = async (id: string, signal?: AbortSignal) => readJson<Voi
 export const joinVoice = (id: string, clientRequestId: string) => mutateApi<VoiceJoin>(`${root(id)}/join`, 'POST', { clientRequestId });
 export const endVoice = (id: string, leaseId: string) => mutateApi<VoiceState>(`${root(id)}/leave`, 'POST', { leaseId });
 export const heartbeatVoice = (id: string, leaseId: string) => mutateApi<boolean>(`${root(id)}/heartbeat`, 'POST', { leaseId });
+export const disconnectVoice = (id: string, leaseId: string) => mutateApi<boolean>(`${root(id)}/disconnect`, 'POST', { leaseId });

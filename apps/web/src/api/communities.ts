@@ -7,6 +7,9 @@ export type ChannelSummary = components['schemas']['ChannelSummary'];
 export type MemberSummary = components['schemas']['MemberSummary'];
 export type InviteSummary = components['schemas']['InviteSummary'];
 export type CreatedInvite = components['schemas']['CreatedInvite'];
+export type AccessPolicy = components['schemas']['AccessPolicy'];
+export const getAccess = (id: string, signal: AbortSignal) => query<AccessPolicy>(`/${id}/access`, signal);
+export const saveAccess = (id: string, clientRequestId: string, policy: AccessPolicy) => mutateApi<components['schemas']['AccessSaved']>(`${root}/${id}/access`, 'PUT', { clientRequestId, policy });
 type CreateCommunityRequest = components['schemas']['CreateCommunityRequest'];
 type CreateInviteRequest = components['schemas']['CreateInviteRequest'];
 const root = '/api/v1/communities';
@@ -25,3 +28,5 @@ export const createInvite = (id: string, body: CreateInviteRequest) => mutateApi
 export const revokeInvite = (id: string, invite: string) => mutateApi<InviteSummary>(`${root}/${id}/invites/${invite}/revoke`, 'POST');
 export const banMember = (id: string, user: string, banned: boolean) => mutateApi<MemberSummary>(`${root}/${id}/members/${user}/ban`, 'PUT', { banned });
 export const leaveCommunity = (id: string) => mutateApi<boolean>(`${root}/${id}/leave`, 'POST');
+export const kickMember = (id: string, user: string) => mutateApi<boolean>(`${root}/${id}/members/${user}/kick`, 'POST');
+export const getAudit = (id: string, signal: AbortSignal) => query<components['schemas']['AuditDto'][]>(`/${id}/audit`, signal);

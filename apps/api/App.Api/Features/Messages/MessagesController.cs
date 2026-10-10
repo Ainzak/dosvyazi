@@ -29,4 +29,10 @@ public sealed class MessagesController(MessageService messages) : ControllerBase
     [HttpGet("events")]
     public Task<ActionResult<CatchUpPage>> Events(Guid community, Guid channel, [FromQuery] string after, CancellationToken ct)
         => Execute(() => messages.CatchUpAsync(community, channel, UserId, after, ct));
+
+    [HttpPut("messages/{id:guid}"), EnableRateLimiting("community-commands")]
+    public Task<ActionResult<MessageCommandResult>> Edit(Guid community, Guid channel, Guid id, EditMessageRequest request, CancellationToken ct) => Execute(() => messages.EditAsync(community, channel, UserId, id, request, ct));
+
+    [HttpPost("messages/{id:guid}/delete"), EnableRateLimiting("community-commands")]
+    public Task<ActionResult<MessageCommandResult>> Delete(Guid community, Guid channel, Guid id, DeleteMessageRequest request, CancellationToken ct) => Execute(() => messages.DeleteAsync(community, channel, UserId, id, request, ct));
 }

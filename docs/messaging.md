@@ -1,6 +1,6 @@
 # Text messaging
 
-An active community member can send plain-text messages in its general channel, load older history and recover messages after reconnecting. Owner bans and member departure deny new reads, sends and subscriptions. Editing, deletion, files, reactions, typing, presence and additional channel permissions belong to later slices.
+An authorized member can send plain-text messages in accessible channels, load older history and recover after reconnecting. Authors can edit/delete their messages while sending is allowed; ManageMessages permits deleting other authors' messages, with current viewing access still required. Files, reactions, typing and presence belong to later slices. See [access rules](text-access.md).
 
 ## HTTP contracts
 
@@ -12,10 +12,14 @@ All routes below use `/api/v1/communities/{communityId}/channels/{channelId}`. I
 | `GET /messages` | Latest 50 messages, ascending sequence, snapshot watermark and `hasOlder` |
 | `GET /messages?before=sequence` | Previous 50 messages using exclusive keyset pagination |
 | `GET /events?after=sequence` | Next 100 versioned journal events, `nextSequence`, watermark and `hasMore` |
+| `PUT /messages/{id}` | `{ clientRequestId, expectedVersion, content }`; author edit with optimistic revision |
+| `POST /messages/{id}/delete` | `{ clientRequestId, expectedVersion }`; author/moderator deletion |
 
 Content contains 1–4000 UTF-16 code units, must contain non-whitespace text and may include newlines/tabs but no other control characters. The browser renders it as escaped text, without interpreting HTML. Sender and timestamps come from the server. Unique `(authorId, channelId, clientMessageId)` binds retries to exact content; changing text under the same key returns 409. Different authors may use the same client ID. A successful response confirms persistence, not receipt or reading by every participant.
 
-Invalid cursors return 400, outsiders/banned members and mismatched resource IDs return 404, and anonymous/invalid sessions return 401. A nonzero recovery cursor older than seven days returns 409; the browser reloads a snapshot. This slice retains journal/outbox records and does not perform a destructive retention purge. Production retention and content-deletion policies are later work.
+Invalid cursors return 400, outsiders/banned members, hidden channels and mismatched resources return 404, and anonymous/invalid sessions return 401. A recovery cursor outside the seven-day window returns 409; cursor zero also expires if the journal contains older events. The browser reloads a snapshot. Journal/outbox records remain retained; no destructive retention purge or bounded-storage claim is made.
+
+Creation sequence fixes a message's position. Edits/deletes advance a separate channel event sequence and per-message version. Concurrent stale changes return 409; exact command retries return the originally applied version and current representation without another event/audit record. A send retry after editing/deleting checks the original content hash and returns the current representation, not the former body. Deletion clears stored content and removes the message from history. An original-content hash remains for retry identity; backups and content already delivered are not erased by this operation.
 
 ## Persistence and live recovery
 
@@ -25,7 +29,7 @@ The in-process worker checks pending durable outbox entries every 500 ms, at mos
 
 `/hubs/messages` authenticates cookies and requires an explicit exact same Origin for every transport, including WebSocket GET upgrades. The browser uses WebSockets directly, without fallback transports. `Subscribe(communityId, channelId)` reauthorizes both session and membership, with one channel per connection. Subscription attempts are limited to 12/minute per connection. There are at most eight subscribed connections per account and 500 per process. Limits apply to subscribed connections, not all unauthenticated network sockets; production ingress limits remain necessary. No SignalR group grants authority.
 
-The version-1 `ChannelChanged` hint contains `eventId`, `channelId`, `sequence`, `kind` and `schemaVersion`; it contains no message body or author. Receiving it triggers an authorized HTTP journal query. Journal events add a `payload` with the current message representation. Hints can repeat or arrive out of order; the client merges persistent message IDs and advances only its HTTP recovery cursor. Initial subscription and reconnect both trigger catch-up, closing the snapshot/subscription gap. Browser offline events stop the live connection and show Offline; online events restart and reauthorize it. HTTP polling every 15 seconds/on focus provides additional recovery if a hint is missed.
+The version-1 `ChannelChanged` hint contains `eventId`, `channelId`, `sequence`, `kind` and `schemaVersion`; it contains no body or author. It triggers an authorized HTTP journal query. Journal events include message ID/version and a current representation for undeleted messages. Every event referring to a deleted message instead returns `message.deleted` with null payload, so recovery cannot replay its former text. Hints may duplicate or arrive out of order. The client applies contiguous HTTP event sequences, keeps highest message versions and deletion tombstones, and reloads a snapshot for gaps or unsupported schemas/kinds. It discards an older pagination response whose watermark predates the current feed, preventing resurrection after concurrent deletion. Initial subscription/reconnect both catch up. Offline/online events stop/restart the connection; polling every 15 seconds/on focus provides fallback recovery.
 
 The worker also reconciles subscribed sessions/memberships each pass and aborts invalid connections. Database unavailability stops publication; the worker retries. Already delivered information and in-flight responses cannot be recalled. A hint already enqueued before revocation may still arrive, but it carries no content and a later unauthorized HTTP request is denied. Private cache keys include the account, community and channel; account switches/access denial remove private cache. Transient background session/community/channel errors show retry warnings while preserving the loaded workspace and draft; actual unauthorized responses still clear access. Loading an older page never recreates a removed cache entry.
 

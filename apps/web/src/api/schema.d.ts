@@ -178,6 +178,51 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/communities/{id}/voice/disconnect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["VoiceLeaseRequest"];
+                    "text/json": components["schemas"]["VoiceLeaseRequest"];
+                    "application/*+json": components["schemas"]["VoiceLeaseRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": boolean;
+                        "application/json": boolean;
+                        "text/json": boolean;
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/voice/webhook": {
         parameters: {
             query?: never;
@@ -325,6 +370,100 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/communities/{community}/channels/{channel}/messages/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    community: string;
+                    channel: string;
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["EditMessageRequest"];
+                    "text/json": components["schemas"]["EditMessageRequest"];
+                    "application/*+json": components["schemas"]["EditMessageRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["MessageCommandResult"];
+                        "application/json": components["schemas"]["MessageCommandResult"];
+                        "text/json": components["schemas"]["MessageCommandResult"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/communities/{community}/channels/{channel}/messages/{id}/delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    community: string;
+                    channel: string;
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["DeleteMessageRequest"];
+                    "text/json": components["schemas"]["DeleteMessageRequest"];
+                    "application/*+json": components["schemas"]["DeleteMessageRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["MessageCommandResult"];
+                        "application/json": components["schemas"]["MessageCommandResult"];
+                        "text/json": components["schemas"]["MessageCommandResult"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health/live": {
         parameters: {
             query?: never;
@@ -440,6 +579,74 @@ export interface paths {
             };
         };
         put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/communities/{id}/access": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["AccessPolicy"];
+                        "application/json": components["schemas"]["AccessPolicy"];
+                        "text/json": components["schemas"]["AccessPolicy"];
+                    };
+                };
+            };
+        };
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SaveAccessRequest"];
+                    "text/json": components["schemas"]["SaveAccessRequest"];
+                    "application/*+json": components["schemas"]["SaveAccessRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["AccessSaved"];
+                        "application/json": components["schemas"]["AccessSaved"];
+                        "text/json": components["schemas"]["AccessSaved"];
+                    };
+                };
+            };
+        };
         post?: never;
         delete?: never;
         options?: never;
@@ -826,6 +1033,85 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/communities/{id}/members/{memberId}/kick": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                    memberId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": boolean;
+                        "application/json": boolean;
+                        "text/json": boolean;
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/communities/{id}/audit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["AuditDto"][];
+                        "application/json": components["schemas"]["AuditDto"][];
+                        "text/json": components["schemas"]["AuditDto"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/communities/{id}/leave": {
         parameters: {
             query?: never;
@@ -1092,6 +1378,30 @@ export interface components {
         AcceptInviteRequest: {
             code: string;
         };
+        AccessPolicy: {
+            version: string;
+            roles: components["schemas"]["RolePolicy"][];
+            categories: components["schemas"]["CategoryPolicy"][];
+            channels: components["schemas"]["ChannelPolicy"][];
+            members: components["schemas"]["MemberRolePolicy"][];
+            categoryRules: components["schemas"]["ResourceRule"][];
+            channelRules: components["schemas"]["ResourceRule"][];
+            /** Format: uuid */
+            voiceCategoryId?: null | string;
+            voiceRules?: null | components["schemas"]["ResourceRule"][];
+        };
+        AccessSaved: {
+            version: string;
+            appliedVersion: string;
+        };
+        AuditDto: {
+            id: string;
+            actorName: string;
+            action: string;
+            targetId: string;
+            /** Format: date-time */
+            createdAt: string;
+        };
         BanMemberRequest: {
             banned: boolean;
         };
@@ -1101,9 +1411,27 @@ export interface components {
             watermark: string;
             hasMore: boolean;
         };
+        CategoryPolicy: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+        };
+        ChannelPolicy: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            /** Format: uuid */
+            categoryId: null | string;
+        };
         ChannelSummary: {
             id: string;
             name: string;
+            categoryName?: null | string;
+            /** @default true */
+            canSend: boolean;
+            sendDeniedBy?: null | string;
+            /** @default false */
+            canManageMessages: boolean;
         };
         CommunityDetails: {
             id: string;
@@ -1113,6 +1441,18 @@ export interface components {
             /** Format: int32 */
             memberCount: number | string;
             channels: components["schemas"]["ChannelSummary"][];
+            /**
+             * Format: int32
+             * @default 0
+             */
+            permissions: number | string;
+            /**
+             * Format: int32
+             * @default 0
+             */
+            rank: number | string;
+            /** @default true */
+            canViewVoice: boolean;
         };
         CommunitySummary: {
             id: string;
@@ -1139,6 +1479,17 @@ export interface components {
         CsrfResponse: {
             requestToken: string;
         };
+        DeleteMessageRequest: {
+            /** Format: uuid */
+            clientRequestId: string;
+            expectedVersion: string;
+        };
+        EditMessageRequest: {
+            /** Format: uuid */
+            clientRequestId: string;
+            expectedVersion: string;
+            content: string;
+        };
         FoundationInfo: {
             product: string;
             milestone: string;
@@ -1164,11 +1515,26 @@ export interface components {
             email: string;
             password: string;
         };
+        MemberRolePolicy: {
+            /** Format: uuid */
+            userId: string;
+            roleIds: string[];
+        };
         MemberSummary: {
             userId: string;
             displayName: string;
             status: string;
             isOwner: boolean;
+            /**
+             * Format: int32
+             * @default 0
+             */
+            rank: number | string;
+        };
+        MessageCommandResult: {
+            messageId: string;
+            appliedVersion: string;
+            current: components["schemas"]["MessageDto"];
         };
         MessageDto: {
             id: string;
@@ -1180,6 +1546,12 @@ export interface components {
             content: string;
             /** Format: date-time */
             createdAt: string;
+            /** @default 1 */
+            version: string;
+            /** Format: date-time */
+            updatedAt?: null | string;
+            /** @default false */
+            deleted: boolean;
         };
         MessageEvent: {
             eventId: string;
@@ -1188,7 +1560,11 @@ export interface components {
             kind: string;
             /** Format: int32 */
             schemaVersion: number | string;
-            payload: components["schemas"]["MessageDto"];
+            payload: null | components["schemas"]["MessageDto"];
+            /** @default  */
+            messageId: string;
+            /** @default 1 */
+            version: string;
         };
         MessageSnapshot: {
             messages: components["schemas"]["MessageDto"][];
@@ -1205,6 +1581,33 @@ export interface components {
             email: string;
             password: string;
             displayName: string;
+        };
+        ResourceRule: {
+            /** Format: uuid */
+            resourceId: string;
+            /** Format: uuid */
+            roleId: string;
+            /** Format: int32 */
+            allow: number | string;
+            /** Format: int32 */
+            deny: number | string;
+        };
+        RolePolicy: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            /** Format: int32 */
+            grants: number | string;
+            /**
+             * Format: int32
+             * @default 1
+             */
+            rank: number | string;
+        };
+        SaveAccessRequest: {
+            /** Format: uuid */
+            clientRequestId: string;
+            policy: components["schemas"]["AccessPolicy"];
         };
         SendMessageRequest: {
             /** Format: uuid */
@@ -1227,6 +1630,8 @@ export interface components {
             token: string;
             /** Format: date-time */
             expiresAt: string;
+            /** @default true */
+            canSpeak: boolean;
         };
         VoiceLeaseRequest: {
             /** Format: uuid */
@@ -1248,6 +1653,13 @@ export interface components {
             controlUnavailable: boolean;
             myLeaseId: null | string;
             participants: components["schemas"]["VoiceMemberDto"][];
+            /** @default true */
+            canConnect: boolean;
+            /** @default true */
+            canSpeak: boolean;
+            /** @default false */
+            canModerate: boolean;
+            deniedBy?: null | string;
         };
     };
     responses: never;

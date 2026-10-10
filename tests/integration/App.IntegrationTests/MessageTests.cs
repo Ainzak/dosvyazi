@@ -133,13 +133,14 @@ public sealed class MessageTests(AccountsDatabase database) : IClassFixture<Acco
         var page = (await owner.Client.GetFromJsonAsync<CatchUpPage>(PathFor(community) + "/events?after=0"))!;
         Assert.Equal(100, page.Events.Length); Assert.True(page.HasMore); Assert.Equal("100", page.NextSequence); Assert.Equal("105", page.Watermark);
         var tail = (await owner.Client.GetFromJsonAsync<CatchUpPage>(PathFor(community) + "/events?after=100"))!;
-        Assert.Equal(5, tail.Events.Length); Assert.False(tail.HasMore); Assert.All(tail.Events, item => { Assert.Equal(1, item.SchemaVersion); Assert.Equal("message.created", item.Kind); Assert.Equal(item.Sequence, item.Payload.Sequence); });
+        Assert.Equal(5, tail.Events.Length); Assert.False(tail.HasMore); Assert.All(tail.Events, item => { Assert.Equal(1, item.SchemaVersion); Assert.Equal("message.created", item.Kind); Assert.Equal(item.Sequence, Assert.IsType<MessageDto>(item.Payload).Sequence); });
         foreach (var cursor in new[] { "-1", "106", "nonsense", "9223372036854775808" })
             Assert.Equal(HttpStatusCode.BadRequest, (await owner.Client.GetAsync(PathFor(community) + $"/events?after={cursor}")).StatusCode);
         using var finalScope = factory.Services.CreateScope();
         await finalScope.ServiceProvider.GetRequiredService<AppDbContext>().ChannelEvents.Where(item => item.ChannelId == Guid.Parse(community.Channels[0].Id) && item.Sequence == 100)
             .ExecuteUpdateAsync(setters => setters.SetProperty(item => item.CreatedAt, DateTimeOffset.UtcNow.AddDays(-8)));
         Assert.Equal(HttpStatusCode.Conflict, (await owner.Client.GetAsync(PathFor(community) + "/events?after=100")).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await owner.Client.GetAsync(PathFor(community) + "/events?after=0")).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await owner.Client.GetAsync(PathFor(community) + "/messages")).StatusCode);
     }
 
@@ -229,6 +230,70 @@ public sealed class MessageTests(AccountsDatabase database) : IClassFixture<Acco
     private static Task Subscribe(WebSocket socket, CommunityDetails community) => Frame(socket, new { type = 1, invocationId = "1", target = "Subscribe", arguments = new[] { community.Id, community.Channels[0].Id } });
 
     [Fact]
+    public async Task EditsKeepCreationOrderRecoverCurrentContentAndDeletesNeverReplayBodies()
+    {
+        await using var factory = Factory(); using var owner = await User(factory); using var member = await User(factory); var c = await Create(owner); await Join(owner, member, c);
+        var original = await Send(member, c, "Original content must be cleared"); await Send(owner, c, "Second message");
+        var root = PathFor(c) + $"/messages/{original.Id}";
+        var request = new EditMessageRequest(Guid.NewGuid(), "1", "Current edited content");
+        Assert.Equal(HttpStatusCode.Forbidden, (await Command(owner.Client, root, request, "PUT")).StatusCode);
+        using var edited = await Command(member.Client, root, request, "PUT"); Assert.Equal(HttpStatusCode.OK, edited.StatusCode);
+        var change = (await edited.Content.ReadFromJsonAsync<MessageCommandResult>())!; Assert.Equal("2", change.AppliedVersion); Assert.Equal("1", change.Current.Sequence);
+        using var retry = await Command(member.Client, root, request, "PUT"); Assert.Equal(change, await retry.Content.ReadFromJsonAsync<MessageCommandResult>());
+        Assert.Equal(HttpStatusCode.Conflict, (await Command(member.Client, root, request with { Content = "Changed retry" }, "PUT")).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await Command(member.Client, root, new EditMessageRequest(Guid.NewGuid(), "1", "Stale draft"), "PUT")).StatusCode);
+        var history = (await member.Client.GetFromJsonAsync<MessageSnapshot>(PathFor(c) + "/messages"))!; Assert.Equal("3", history.Watermark); Assert.Equal(original.Id, history.Messages[0].Id);
+        var events = (await member.Client.GetFromJsonAsync<CatchUpPage>(PathFor(c) + "/events?after=0"))!;
+        Assert.Equal(new[] { "1", "2", "3" }, events.Events.Select(e => e.Sequence));
+        Assert.Equal("Current edited content", events.Events[0].Payload!.Content); Assert.Equal("message.edited", events.Events[2].Kind);
+        var deleteRequest = new DeleteMessageRequest(Guid.NewGuid(), "2");
+        Assert.Equal(HttpStatusCode.OK, (await Command(owner.Client, root + "/delete", deleteRequest)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await Command(owner.Client, root + "/delete", deleteRequest)).StatusCode);
+        events = (await member.Client.GetFromJsonAsync<CatchUpPage>(PathFor(c) + "/events?after=0"))!;
+        Assert.Equal(4, events.Events.Length); Assert.All(events.Events.Where(e => e.MessageId == original.Id), e => { Assert.Null(e.Payload); Assert.Equal("message.deleted", e.Kind); });
+        Assert.Single((await member.Client.GetFromJsonAsync<MessageSnapshot>(PathFor(c) + "/messages"))!.Messages);
+        Assert.Equal(HttpStatusCode.Conflict, (await Command(member.Client, root, new EditMessageRequest(Guid.NewGuid(), "3", "Cannot restore"), "PUT")).StatusCode);
+        using var sendRetry = await Command(member.Client, PathFor(c) + "/messages", new SendMessageRequest(Guid.Parse(original.ClientMessageId), "Original content must be cleared"));
+        Assert.Equal(HttpStatusCode.Created, sendRetry.StatusCode); Assert.True((await sendRetry.Content.ReadFromJsonAsync<MessageDto>())!.Deleted);
+        using var scope = factory.Services.CreateScope(); var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        Assert.Equal("", (await db.Messages.SingleAsync(m => m.Id == Guid.Parse(original.Id))).Content);
+        Assert.Equal(2, await db.MessageCommands.CountAsync(command => command.MessageId == Guid.Parse(original.Id)));
+        var audit = (await owner.Client.GetFromJsonAsync<AuditDto[]>($"/api/v1/communities/{c.Id}/audit"))!; Assert.Single(audit, a => a.Action == "message.deleted");
+        Assert.DoesNotContain("Original content", System.Text.Json.JsonSerializer.Serialize(audit));
+    }
+
+    [Fact]
+    public async Task ConcurrentEditsHaveOneWinnerAndHiddenChannelsDenyModeration()
+    {
+        await using var factory = Factory(); using var owner = await User(factory); using var member = await User(factory); var c = await Create(owner); await Join(owner, member, c);
+        var message = await Send(member, c, "Concurrent edit"); var path = PathFor(c) + $"/messages/{message.Id}";
+        using var peer = factory.CreateClient(); peer.DefaultRequestHeaders.Add("Cookie", member.Cookie);
+        var responses = await Task.WhenAll(Command(member.Client, path, new EditMessageRequest(Guid.NewGuid(), "1", "First"), "PUT"), Command(peer, path, new EditMessageRequest(Guid.NewGuid(), "1", "Second"), "PUT"));
+        Assert.Single(responses, r => r.StatusCode == HttpStatusCode.OK); Assert.Single(responses, r => r.StatusCode == HttpStatusCode.Conflict);
+        var root = $"/api/v1/communities/{c.Id}"; var policy = (await owner.Client.GetFromJsonAsync<AccessPolicy>(root + "/access"))!;
+        Assert.Equal(HttpStatusCode.OK, (await Command(owner.Client, root + "/access", new SaveAccessRequest(Guid.NewGuid(), policy with { Roles = [new(Guid.Parse(c.Id), "everyone", ChannelAccess.ManageMessages, 0)] }), "PUT")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await Command(member.Client, path + "/delete", new DeleteMessageRequest(Guid.NewGuid(), "2"))).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await Command(member.Client, path, new EditMessageRequest(Guid.NewGuid(), "2", "Hidden edit"), "PUT")).StatusCode);
+    }
+
+    [Fact]
+    public async Task PolicyRevocationDeniesNewHubSubscriptionsAndAbortsExistingBeforePublication()
+    {
+        await using var factory = Factory(); using var owner = await User(factory); using var member = await User(factory);
+        var community = await Create(owner); await Join(owner, member, community);
+        using var socket = await Connect(factory, member); await Subscribe(socket, community); Assert.False((await Receive(socket)).TryGetProperty("error", out _));
+        await Send(owner, community, "Queued before text policy revocation");
+        var root = $"/api/v1/communities/{community.Id}";
+        var policy = (await owner.Client.GetFromJsonAsync<AccessPolicy>(root + "/access"))!;
+        using var revoked = await Command(owner.Client, root + "/access", new SaveAccessRequest(Guid.NewGuid(), policy with { Roles = [new(Guid.Parse(community.Id), "everyone", 0)] }), "PUT");
+        Assert.Equal(HttpStatusCode.OK, revoked.StatusCode);
+        using var denied = await Connect(factory, member); await Subscribe(denied, community); Assert.True((await Receive(denied)).TryGetProperty("error", out _));
+        await Publish(factory, community);
+        Assert.Empty(factory.Services.GetRequiredService<MessageConnections>().All());
+        Assert.Equal(HttpStatusCode.NotFound, (await member.Client.GetAsync(PathFor(community) + "/events?after=0")).StatusCode);
+    }
+
+    [Fact]
     public async Task RealHubAuthorizesSubscriptionsAndPublishesOnlyContentFreeHints()
     {
         await using var factory = Factory(); using var owner = await User(factory); using var member = await User(factory); using var outsider = await User(factory);
@@ -277,8 +342,10 @@ public sealed class MessageTests(AccountsDatabase database) : IClassFixture<Acco
         Assert.Equal(HttpStatusCode.Forbidden, (await owner.Client.SendAsync(get)).StatusCode);
     }
 
-    [Fact]
-    public async Task MessageWaitingBehindBanRereadsAccessAndPersistsNothing()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task MessageWaitingBehindBanOrPolicyChangeRereadsAccessAndPersistsNothing(bool policyChange)
     {
         await using var factory = Factory(); using var owner = await User(factory); using var member = await User(factory);
         var community = await Create(owner); await Join(owner, member, community);
@@ -286,7 +353,7 @@ public sealed class MessageTests(AccountsDatabase database) : IClassFixture<Acco
         await using var blocker = new NpgsqlConnection(database.Connection); await blocker.OpenAsync(); await using var transaction = await blocker.BeginTransactionAsync();
         await using (var command = new NpgsqlCommand("SELECT 1 FROM \"Communities\" WHERE \"Id\"=@community FOR UPDATE", blocker, transaction))
         { command.Parameters.AddWithValue("community", Guid.Parse(community.Id)); await command.ExecuteScalarAsync(); }
-        await using (var command = new NpgsqlCommand("UPDATE \"Memberships\" SET \"Status\"='Banned' WHERE \"CommunityId\"=@community AND \"UserId\"=@user", blocker, transaction))
+        await using (var command = new NpgsqlCommand(policyChange ? "UPDATE \"CommunityRoles\" SET \"Grants\"=0 WHERE \"CommunityId\"=@community" : "UPDATE \"Memberships\" SET \"Status\"='Banned' WHERE \"CommunityId\"=@community AND \"UserId\"=@user", blocker, transaction))
         { command.Parameters.AddWithValue("community", Guid.Parse(community.Id)); command.Parameters.AddWithValue("user", Guid.Parse(member.Profile.Id)); await command.ExecuteNonQueryAsync(); }
         using var request = new HttpRequestMessage(HttpMethod.Post, PathFor(community) + "/messages") { Content = JsonContent.Create(new { ClientMessageId = Guid.NewGuid(), Content = "Must not persist" }) }; request.Headers.Add("X-CSRF-TOKEN", token);
         var pending = member.Client.SendAsync(request);

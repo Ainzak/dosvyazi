@@ -8,9 +8,15 @@ namespace App.Api.Features.Communities;
 [ApiController, Authorize]
 [Route("api/v1/communities")]
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
-public sealed class CommunitiesController(CommunityService communities) : ControllerBase
+public sealed class CommunitiesController(CommunityService communities, AccessService access) : ControllerBase
 {
     private Guid UserId => Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+
+    [HttpGet("{id:guid}/access")]
+    public Task<ActionResult<AccessPolicy>> Access(Guid id, CancellationToken ct) => Execute(() => access.GetAsync(id, UserId, ct));
+
+    [HttpPut("{id:guid}/access"), EnableRateLimiting("community-commands"), RequestSizeLimit(1024 * 1024)]
+    public Task<ActionResult<AccessSaved>> SaveAccess(Guid id, SaveAccessRequest request, CancellationToken ct) => Execute(() => access.SaveAsync(id, UserId, request, ct));
     private async Task<ActionResult<T>> Execute<T>(Func<Task<T>> action, int success = 200)
     {
         try { return StatusCode(success, await action()); }
@@ -48,6 +54,12 @@ public sealed class CommunitiesController(CommunityService communities) : Contro
 
     [HttpPut("{id:guid}/members/{memberId:guid}/ban"), EnableRateLimiting("community-commands")]
     public Task<ActionResult<MemberSummary>> Ban(Guid id, Guid memberId, BanMemberRequest request, CancellationToken ct) => Execute(() => communities.BanAsync(id, memberId, request.Banned, UserId, ct));
+
+    [HttpPost("{id:guid}/members/{memberId:guid}/kick"), EnableRateLimiting("community-commands")]
+    public Task<ActionResult<bool>> Kick(Guid id, Guid memberId, CancellationToken ct) => Execute(() => communities.KickAsync(id, memberId, UserId, ct));
+
+    [HttpGet("{id:guid}/audit")]
+    public Task<ActionResult<AuditDto[]>> Audit(Guid id, CancellationToken ct) => Execute(() => communities.AuditAsync(id, UserId, ct));
 
     [HttpPost("{id:guid}/leave"), EnableRateLimiting("community-commands")]
     public Task<ActionResult<bool>> Leave(Guid id, CancellationToken ct) => Execute(() => communities.LeaveAsync(id, UserId, ct));

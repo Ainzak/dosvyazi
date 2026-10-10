@@ -23,4 +23,6 @@ public sealed class VoiceController(VoiceService voice) : ControllerBase
     public Task<ActionResult<VoiceStateDto>> Leave(Guid id, VoiceLeaseRequest request, CancellationToken ct) => Execute(() => voice.LeaveAsync(id, request, User, ct));
     [HttpPost("heartbeat"), EnableRateLimiting("community-commands")]
     public Task<ActionResult<bool>> Heartbeat(Guid id, VoiceLeaseRequest request, CancellationToken ct) => Execute(() => voice.HeartbeatAsync(id, request, User, ct));
+    [HttpPost("disconnect"), EnableRateLimiting("community-commands")]
+    public Task<ActionResult<bool>> Disconnect(Guid id, VoiceLeaseRequest request, CancellationToken ct) => Execute(() => voice.DisconnectAsync(id, request, User, ct));
 }

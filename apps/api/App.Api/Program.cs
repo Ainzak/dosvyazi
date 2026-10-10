@@ -39,6 +39,7 @@ builder.Services.AddIdentityCore<AppUser>(options =>
 }).AddEntityFrameworkStores<AppDbContext>().AddSignInManager();
 builder.Services.AddScoped<AccountService>();
 builder.Services.AddScoped<CommunityService>();
+builder.Services.AddScoped<AccessService>();
 builder.Services.AddScoped<MessageService>();
 builder.Services.AddOptions<VoiceOptions>().Bind(builder.Configuration.GetSection("Voice"))
     .Validate(voice => !voice.Enabled || (!string.IsNullOrWhiteSpace(voice.ApiKey) && voice.ApiSecret.Length >= 32 &&

@@ -174,3 +174,18 @@ h1 { font-size: clamp(26px, 2.6vw, 36px); line-height: 1.2; letter-spacing: -1.1
 .voice-devices select { width: 100%; min-width: 0; padding: 8px; border-radius: 8px; border: 1px solid #c8d9cd; background: white; }
 .voice-notice { margin: 12px 40px; }
 @media (max-width: 700px) { .voice-dock, .voice-notice { margin: 12px 16px; } .voice-panel { padding: 16px; } .voice-actions button { flex: 1 1 130px; } }
+/* Owner text-access controls remain a single column on narrow screens. */
+.access-editor { display: grid; gap: 1rem; margin-top: 1rem; }
+.access-editor fieldset { min-width: 0; border: 1px solid #dde5e2; border-radius: 12px; padding: 1rem; display: grid; gap: .75rem; }
+.access-editor label { display: grid; gap: .35rem; overflow-wrap: anywhere; }
+.access-editor select { width: 100%; padding: .65rem; border-radius: 8px; background: #fff; color: #26333c; border: 1px solid #d5dfdc; font: inherit; }
+.access-editor .access-checkbox { display: flex; align-items: center; gap: .6rem; }
+.access-checkbox input { width: auto; }
+.access-add { display: flex; gap: .5rem; flex-wrap: wrap; }
+.access-add input { flex: 1; min-width: 120px; }
+.access-actions { display: flex; gap: .5rem; flex-wrap: wrap; }
+.access-member { display: grid; gap: .5rem; padding: .5rem 0; }
+.message-actions { display: flex; gap: .5rem; flex-wrap: wrap; margin-top: .5rem; }
+.message-actions form { width: 100%; }
+.message-actions label { display: grid; gap: .5rem; }
+.management-list span { overflow-wrap: anywhere; }

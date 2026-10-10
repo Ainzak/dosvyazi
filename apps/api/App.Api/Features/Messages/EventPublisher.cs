@@ -27,7 +27,7 @@ public sealed class EventPublisher(AppDbContext database, MessageConnections con
                 continue;
             }
             await hub.Clients.Client(connection.Id).SendAsync("ChannelChanged", new ChannelHint(entry.Event.Id.ToString(), entry.Event.ChannelId.ToString(),
-                entry.Event.Sequence.ToString(CultureInfo.InvariantCulture), "message.created", 1), ct);
+                entry.Event.Sequence.ToString(CultureInfo.InvariantCulture), entry.Event.Kind, 1), ct);
         }
         entry.PublishedAt = DateTimeOffset.UtcNow;
         await database.SaveChangesAsync(ct);
@@ -38,9 +38,14 @@ public sealed class EventPublisher(AppDbContext database, MessageConnections con
     {
         foreach (var connection in connections.All())
         {
-            if (await MessageConnections.AuthorizedAsync(database, connection, ct)) continue;
-            connections.Remove(connection.Id);
-            connection.Abort();
+            await using var tx = await database.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, ct);
+            await database.Communities.FromSqlInterpolated($"SELECT * FROM \"Communities\" WHERE \"Id\" = {connection.CommunityId} FOR UPDATE").SingleOrDefaultAsync(ct);
+            if (!await MessageConnections.AuthorizedAsync(database, connection, ct))
+            {
+                connections.Remove(connection.Id);
+                connection.Abort();
+            }
+            await tx.CommitAsync(ct);
         }
     }
 }

@@ -1,6 +1,6 @@
 # Local development
 
-The foundation provides an English status workspace and controller API connected to PostgreSQL through EF Core/Npgsql. Accounts add registration, sign-in/out, profile editing and revocable cookie sessions. Communities add membership, bounded invitations, owner bans and a members-only channel workspace. Messaging adds persisted text, authorized SignalR subscriptions and catch-up. Community voice adds devices, mute/deafen, recovery and durable access transitions. See [accounts](accounts.md), [communities](communities.md), [messaging](messaging.md) and [voice](voice-development.md) for behavior and boundaries.
+The foundation provides an English status workspace and controller API connected to PostgreSQL through EF Core/Npgsql. Accounts add registration, sign-in/out, profile editing and revocable cookie sessions. Communities add membership, bounded invitations, owner bans and a members-only channel workspace. Messaging adds persisted text, authorized SignalR subscriptions and catch-up. Community voice adds devices, mute/deafen, recovery and durable access transitions. Owner-managed roles, categories and private text channels add Deny precedence. See [accounts](accounts.md), [communities](communities.md), [messaging](messaging.md), [voice](voice-development.md) and [text access](text-access.md) for behavior and boundaries.
 
 ## Toolchain and dependency compatibility
 

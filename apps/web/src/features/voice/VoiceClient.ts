@@ -6,11 +6,11 @@ import { ApiError } from '../../api/http';
 
 export type VoiceSnapshot = {
   community: string | null; name: string; status: string; error: string | null;
-  muted: boolean; deafened: boolean; input: string; output: string;
+  muted: boolean; deafened: boolean; input: string; output: string; canSpeak: boolean;
   devices: MediaDeviceInfo[]; participants: VoiceState['participants']; speakers: string[]; changingAudio: boolean;
 };
 const initial = (): VoiceSnapshot => ({ community: null, name: '', status: 'Disconnected', error: null,
-  muted: true, deafened: false, input: 'default', output: 'default', devices: [], participants: [], speakers: [], changingAudio: false });
+  muted: true, deafened: false, input: 'default', output: 'default', canSpeak: true, devices: [], participants: [], speakers: [], changingAudio: false });
 
 export class VoiceClient {
   private value = initial();
@@ -74,6 +74,7 @@ export class VoiceClient {
       const grant = await joinVoice(community, this.request);
       if (epoch !== this.epoch) return;
       this.lease = grant.leaseId; this.generation = grant.generation;
+      this.update({ canSpeak: grant.canSpeak, ...(grant.canSpeak ? {} : { muted: true }) });
       this.disconnect();
       await this.disconnecting;
       if (epoch !== this.epoch) return;
@@ -127,6 +128,10 @@ export class VoiceClient {
       const state = await getVoice(community);
       if (epoch !== this.epoch) return;
       this.update({ participants: state.participants });
+      if (!state.canConnect) { this.disconnect(); this.update({ ...initial(), error: 'Voice access was revoked.' }); this.lease = undefined; return; }
+      if (!state.canSpeak && !this.value.muted) await this.microphone(true);
+      if (epoch !== this.epoch) return;
+      this.update({ canSpeak: state.canSpeak });
       if (state.status === 'Pending') {
         this.disconnect(); this.update({ status: 'Access updating', error: state.controlUnavailable ? 'Voice service is unavailable. Access changes remain pending.' : null, speakers: [] });
       } else if (state.controlUnavailable) {
@@ -155,6 +160,7 @@ export class VoiceClient {
   async microphone(muted: boolean) {
     const room = this.room;
     if (!room || room.state !== 'connected' || this.value.changingAudio) return;
+    if (!muted && !this.value.canSpeak) { this.update({ muted: true, error: 'SpeakVoice is denied. You can listen.' }); return; }
     this.update({ changingAudio: true });
     try {
       await room.localParticipant.setMicrophoneEnabled(!muted, this.value.input === 'default' ? undefined : { deviceId: this.value.input });
