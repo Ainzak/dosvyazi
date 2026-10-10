@@ -1,6 +1,6 @@
 # Local development
 
-The foundation provides an English status workspace and controller API connected to PostgreSQL through EF Core/Npgsql. Accounts add registration, sign-in/out, profile editing and revocable cookie sessions. Communities add membership, bounded invitations, owner bans and a members-only channel workspace. Messaging, SignalR subscriptions and voice belong to later stages. See [accounts](accounts.md) and [communities](communities.md) for implemented behavior and boundaries.
+The foundation provides an English status workspace and controller API connected to PostgreSQL through EF Core/Npgsql. Accounts add registration, sign-in/out, profile editing and revocable cookie sessions. Communities add membership, bounded invitations, owner bans and a members-only channel workspace. Messaging adds persisted text, authorized SignalR subscriptions and catch-up. Community voice adds devices, mute/deafen, recovery and durable access transitions. See [accounts](accounts.md), [communities](communities.md), [messaging](messaging.md) and [voice](voice-development.md) for behavior and boundaries.
 
 ## Toolchain and dependency compatibility
 
@@ -38,7 +38,7 @@ The setup command generates an untracked `deploy/.env` and never overwrites an e
 
 In separate terminals, run `npm run dev:api` and `npm run dev:web`. Open `http://127.0.0.1:5173`. API port: 5080; database host port: 15432. All listeners bind to loopback. The Vite proxy forwards `/api`, `/health` and development `/openapi`; `/hubs/messages` serves authenticated WebSocket subscriptions with explicit Origin checks. There is no broad CORS policy. The API accepts configuration through standard ASP.NET Core providers; `ConnectionStrings__Dosvyazi` overrides the local database configuration when using another PostgreSQL 18 instance. Never put secrets in `VITE_` variables.
 
-The API can start with no database configuration: liveness and system metadata work, while readiness is HTTP 503. An inaccessible database must not display as ready. The UI supports initial loading, unavailability, manual retry and periodic recovery checks. Text channels also show SignalR connection/reconnect state and recover persisted messages over HTTP; media reconnect is future work.
+The API can start with no database configuration: liveness and system metadata work, while readiness is HTTP 503. An inaccessible database must not display as ready. The UI supports initial loading, unavailability, manual retry and periodic recovery checks. Text channels show SignalR reconnect state and recover persisted messages over HTTP. Voice reconnects through current authorized grants; device and network validation remain separate manual checks.
 
 ## Health and contract
 
@@ -62,6 +62,8 @@ npm run ef -- migrations has-pending-model-changes --project apps/api/App.Api --
 ```
 
 ## Checks
+
+The full browser suite includes community voice and requires `npm run setup:voice`, `npm run dev:voice`, local PostgreSQL with current migrations and the workspace Chromium installation. Its Chromium clients use fake audio devices; synthetic checks do not request a physical microphone. The test runner starts separate API/web ports 5081/5174 and preserves the normal preview ports 5080/5173.
 
 ```powershell
 npm run check

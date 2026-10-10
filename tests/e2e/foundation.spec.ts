@@ -17,7 +17,7 @@ test('real API status, honest empty workspace and navigation fit the viewport', 
   await page.getByRole('link', { name: 'Explore this build' }).click();
   await expect(page.getByRole('heading', { name: 'One verified step at a time.' })).toBeVisible();
   await page.reload();
-  await expect(page.getByText('This build supports a shared text conversation; the remaining features follow in separate milestones.')).toBeVisible();
+  await expect(page.getByText('This build supports shared text and voice conversations; the remaining features follow in separate milestones.')).toBeVisible();
   expect(errors).toEqual([]);
 });
 

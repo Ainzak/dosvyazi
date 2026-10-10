@@ -346,6 +346,154 @@ namespace App.Api.Infrastructure.Persistence.Migrations
                     b.ToTable("OutboxEntries");
                 });
 
+            modelBuilder.Entity("App.Api.Features.Voice.RetiredVoiceRoom", b =>
+                {
+                    b.Property<Guid>("RoomId")
+                        .HasColumnType("uuid");
+
+                    b.Property<long>("Generation")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid>("CommunityId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("LastCleanupAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("RoomId", "Generation");
+
+                    b.HasIndex("CommunityId");
+
+                    b.ToTable("RetiredVoiceRooms");
+                });
+
+            modelBuilder.Entity("App.Api.Features.Voice.VoiceGrantRequest", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ClientRequestId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("LeaseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ProtectedToken")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("UserId", "ClientRequestId");
+
+                    b.HasIndex("LeaseId");
+
+                    b.ToTable("VoiceGrantRequests");
+                });
+
+            modelBuilder.Entity("App.Api.Features.Voice.VoiceLease", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("Active")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("AuthSessionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CommunityId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<long>("Generation")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("SecurityStamp")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AuthSessionId");
+
+                    b.HasIndex("UserId")
+                        .IsUnique()
+                        .HasFilter("\"Active\"");
+
+                    b.HasIndex("CommunityId", "Active");
+
+                    b.ToTable("VoiceLeases");
+                });
+
+            modelBuilder.Entity("App.Api.Features.Voice.VoiceRoomBinding", b =>
+                {
+                    b.Property<Guid>("CommunityId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("ControlUnavailable")
+                        .HasColumnType("boolean");
+
+                    b.Property<long>("Generation")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("NextCheckAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("OperationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.HasKey("CommunityId");
+
+                    b.HasIndex("Id")
+                        .IsUnique();
+
+                    b.HasIndex("NextCheckAt");
+
+                    b.ToTable("VoiceRooms", t =>
+                        {
+                            t.HasCheckConstraint("CK_VoiceRooms_State", "\"Generation\" > 0 AND \"Status\" IN ('Ready', 'Pending')");
+                        });
+                });
+
+            modelBuilder.Entity("App.Api.Features.Voice.VoiceWebhookReceipt", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<string>("BodyHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTimeOffset>("ReceivedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("VoiceWebhookReceipts");
+                });
+
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserClaim<System.Guid>", b =>
                 {
                     b.Property<int>("Id")
@@ -511,6 +659,56 @@ namespace App.Api.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("Event");
+                });
+
+            modelBuilder.Entity("App.Api.Features.Voice.RetiredVoiceRoom", b =>
+                {
+                    b.HasOne("App.Api.Features.Communities.Community", null)
+                        .WithMany()
+                        .HasForeignKey("CommunityId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("App.Api.Features.Voice.VoiceGrantRequest", b =>
+                {
+                    b.HasOne("App.Api.Features.Voice.VoiceLease", "Lease")
+                        .WithMany()
+                        .HasForeignKey("LeaseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Lease");
+                });
+
+            modelBuilder.Entity("App.Api.Features.Voice.VoiceLease", b =>
+                {
+                    b.HasOne("App.Api.Features.Accounts.UserSession", null)
+                        .WithMany()
+                        .HasForeignKey("AuthSessionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("App.Api.Features.Communities.Community", null)
+                        .WithMany()
+                        .HasForeignKey("CommunityId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("App.Api.Features.Accounts.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("App.Api.Features.Voice.VoiceRoomBinding", b =>
+                {
+                    b.HasOne("App.Api.Features.Communities.Community", null)
+                        .WithOne()
+                        .HasForeignKey("App.Api.Features.Voice.VoiceRoomBinding", "CommunityId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserClaim<System.Guid>", b =>

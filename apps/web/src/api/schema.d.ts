@@ -4,6 +4,213 @@
  */
 
 export interface paths {
+    "/api/v1/communities/{id}/voice": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["VoiceStateDto"];
+                        "application/json": components["schemas"]["VoiceStateDto"];
+                        "text/json": components["schemas"]["VoiceStateDto"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/communities/{id}/voice/join": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JoinVoiceRequest"];
+                    "text/json": components["schemas"]["JoinVoiceRequest"];
+                    "application/*+json": components["schemas"]["JoinVoiceRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["VoiceJoinDto"];
+                        "application/json": components["schemas"]["VoiceJoinDto"];
+                        "text/json": components["schemas"]["VoiceJoinDto"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/communities/{id}/voice/leave": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["VoiceLeaseRequest"];
+                    "text/json": components["schemas"]["VoiceLeaseRequest"];
+                    "application/*+json": components["schemas"]["VoiceLeaseRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["VoiceStateDto"];
+                        "application/json": components["schemas"]["VoiceStateDto"];
+                        "text/json": components["schemas"]["VoiceStateDto"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/communities/{id}/voice/heartbeat": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["VoiceLeaseRequest"];
+                    "text/json": components["schemas"]["VoiceLeaseRequest"];
+                    "application/*+json": components["schemas"]["VoiceLeaseRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": boolean;
+                        "application/json": boolean;
+                        "text/json": boolean;
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/voice/webhook": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/communities/{community}/channels/{channel}/messages": {
         parameters: {
             query?: never;
@@ -946,6 +1153,10 @@ export interface components {
             expiresAt: string;
             revoked: boolean;
         };
+        JoinVoiceRequest: {
+            /** Format: uuid */
+            clientRequestId: string;
+        };
         LivenessResponse: {
             status: string;
         };
@@ -1007,6 +1218,36 @@ export interface components {
             id: string;
             email: string;
             displayName: string;
+        };
+        VoiceJoinDto: {
+            leaseId: string;
+            identity: string;
+            generation: string;
+            url: string;
+            token: string;
+            /** Format: date-time */
+            expiresAt: string;
+        };
+        VoiceLeaseRequest: {
+            /** Format: uuid */
+            leaseId: string;
+        };
+        VoiceMemberDto: {
+            identity: string;
+            displayName: string;
+            speakingAllowed: boolean;
+            /** Format: int32 */
+            audioTracks: number | string;
+        };
+        VoiceStateDto: {
+            status: string;
+            generation: string;
+            operationId: null | string;
+            /** Format: date-time */
+            completedAt: null | string;
+            controlUnavailable: boolean;
+            myLeaseId: null | string;
+            participants: components["schemas"]["VoiceMemberDto"][];
         };
     };
     responses: never;

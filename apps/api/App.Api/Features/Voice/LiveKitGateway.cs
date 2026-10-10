@@ -101,7 +101,16 @@ public sealed class LiveKitGateway : IVoiceGateway
         try
         {
             using var response = await http.SendAsync(request, timeout.Token);
-            if (!response.IsSuccessStatusCode) throw new VoiceGatewayException();
+            if (!response.IsSuccessStatusCode)
+            {
+                if (response.StatusCode == System.Net.HttpStatusCode.NotFound && method is "DeleteRoom" or "ListParticipants")
+                {
+                    using var error = JsonDocument.Parse(await response.Content.ReadAsStringAsync(timeout.Token));
+                    if (error.RootElement.TryGetProperty("code", out var code) && code.GetString() == "not_found")
+                        return JsonDocument.Parse("{}");
+                }
+                throw new VoiceGatewayException();
+            }
             return JsonDocument.Parse(await response.Content.ReadAsStringAsync(timeout.Token));
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) { throw new VoiceGatewayException(); }

@@ -158,3 +158,19 @@ h1 { font-size: clamp(26px, 2.6vw, 36px); line-height: 1.2; letter-spacing: -1.1
   .page-footer { padding: 20px; font-size: 9px; gap: 18px; } .about-panel { padding: 22px; }
   .account-card { padding: 24px; } .account-card h1 { font-size: 25px; } nav { flex-wrap: wrap; } nav a { min-height: 44px; }
 }
+
+.voice-panel { border: 1px solid #e0e8e4; border-radius: 16px; padding: 22px; margin-bottom: 24px; background: #fff; }
+.voice-panel h2 { margin-top: 0; }
+.voice-participants { display: flex; gap: 12px; flex-wrap: wrap; list-style: none; padding: 0; }
+.voice-participants li { background: #eef4f1; color: #244d3a; padding: 6px 12px; border-radius: 10px; overflow-wrap: anywhere; }
+.voice-dock { position: sticky; bottom: 12px; z-index: 20; border: 1px solid #c8d9cd; background: #f2f8f4; border-radius: 16px; padding: 20px; margin: 12px 40px; box-shadow: 0 6px 24px #18302714; }
+.voice-dock p { margin: 8px 0; }
+.voice-dock a { color: #244d3a; font-weight: 700; overflow-wrap: anywhere; }
+.voice-actions, .voice-devices { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+.voice-actions button { margin: 0; }
+.voice-device-settings { margin-top: 14px; }
+.voice-device-settings summary { cursor: pointer; min-height: 24px; }
+.voice-devices label { display: grid; gap: 6px; min-width: 0; flex: 1 1 180px; }
+.voice-devices select { width: 100%; min-width: 0; padding: 8px; border-radius: 8px; border: 1px solid #c8d9cd; background: white; }
+.voice-notice { margin: 12px 40px; }
+@media (max-width: 700px) { .voice-dock, .voice-notice { margin: 12px 16px; } .voice-panel { padding: 16px; } .voice-actions button { flex: 1 1 130px; } }

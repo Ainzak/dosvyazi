@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using App.Api.Features.Accounts;
 using App.Api.Features.Communities;
 using App.Api.Features.Messages;
+using App.Api.Features.Voice;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
@@ -39,6 +40,21 @@ builder.Services.AddIdentityCore<AppUser>(options =>
 builder.Services.AddScoped<AccountService>();
 builder.Services.AddScoped<CommunityService>();
 builder.Services.AddScoped<MessageService>();
+builder.Services.AddOptions<VoiceOptions>().Bind(builder.Configuration.GetSection("Voice"))
+    .Validate(voice => !voice.Enabled || (!string.IsNullOrWhiteSpace(voice.ApiKey) && voice.ApiSecret.Length >= 32 &&
+        Uri.TryCreate(voice.ControlUrl, UriKind.Absolute, out var control) && control.Scheme is "http" or "https" &&
+        Uri.TryCreate(voice.BrowserUrl, UriKind.Absolute, out var browser) && browser.Scheme is "ws" or "wss"),
+        "Configure valid voice credentials and control/browser URLs.").ValidateOnStart();
+builder.Services.AddHttpClient("voice-control", http => http.Timeout = TimeSpan.FromSeconds(3));
+builder.Services.AddScoped<IVoiceGateway>(provider =>
+{
+    var voice = provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<VoiceOptions>>().Value;
+    return voice.Enabled ? new LiveKitGateway(provider.GetRequiredService<IHttpClientFactory>().CreateClient("voice-control"),
+        new Uri(voice.ControlUrl), voice.ApiKey, voice.ApiSecret) : new UnavailableVoiceGateway();
+});
+builder.Services.AddScoped<VoiceService>();
+builder.Services.AddScoped<VoiceReconciler>();
+builder.Services.AddHostedService<VoiceWorker>();
 builder.Services.AddScoped<EventPublisher>();
 builder.Services.AddSingleton<MessageConnections>();
 builder.Services.AddHostedService<OutboxWorker>();
@@ -76,6 +92,9 @@ if (OperatingSystem.IsWindows()) protection.ProtectKeysWithDpapi();
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy("voice-joins", context => RateLimitPartition.GetFixedWindowLimiter(
+        context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "anonymous", _ => new FixedWindowRateLimiterOptions
+        { PermitLimit = 12, Window = TimeSpan.FromMinutes(1), QueueLimit = 0, AutoReplenishment = true }));
     options.AddPolicy("community-commands", context => RateLimitPartition.GetFixedWindowLimiter(
         context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "anonymous", _ => new FixedWindowRateLimiterOptions
         {

@@ -6,6 +6,8 @@ import { getReadiness, getSystem } from './api/client';
 import { AccountPage, SessionLink } from './features/accounts/AccountPage';
 import { CommunitiesPage, CommunityPage } from './features/communities/CommunitiesPage';
 import { PrivateCacheBoundary } from './features/communities/PrivateCacheBoundary';
+import { VoiceProvider } from './features/voice/VoiceProvider';
+import { VoiceDock } from './features/voice/VoicePanel';
 
 type Status = 'checking' | 'healthy' | 'unhealthy';
 
@@ -33,7 +35,7 @@ function Workspace() {
     <div className="page-heading"><div><p className="eyebrow">DEVELOPMENT WORKSPACE</p>
       <h1>A shared space starts here.</h1>
       <p className="page-description">The first building block of Dosvyazi. Check the foundation before creating your community.</p></div>
-      <span className="milestone-badge"><Layers3 size={16} aria-hidden="true" /> Text chat · M2</span></div>
+      <span className="milestone-badge"><Layers3 size={16} aria-hidden="true" /> Text and voice · M3</span></div>
     <section aria-labelledby="services-heading">
       <div className="section-heading"><h2 id="services-heading">Service status</h2>
         <button className="refresh-button" disabled={checking} onClick={() => { void system.refetch(); void readiness.refetch(); }}>
@@ -68,9 +70,9 @@ function Workspace() {
 function About() {
   return <><div className="page-heading"><div><p className="eyebrow">ABOUT THIS BUILD</p>
     <h1>One verified step at a time.</h1><p className="page-description">Dosvyazi is taking shape, starting with a connected foundation.</p></div></div>
-    <section className="about-panel"><h2>Available now</h2><p>Accounts, communities, membership, bounded invitations, owner bans, live text messages and reconnect recovery, alongside live service checks.</p>
-      <h2>Coming in later milestones</h2><p>Voice channels, roles and private channel configuration, and Gatherings with invitations and responses.</p>
-      <p>This build supports a shared text conversation; the remaining features follow in separate milestones.</p><Link className="about-link" to="/">Back to workspace <ArrowRight size={16} aria-hidden="true" /></Link>
+    <section className="about-panel"><h2>Available now</h2><p>Accounts, communities, membership, bounded invitations, owner bans, live text messages, community voice rooms and reconnect recovery, alongside live service checks.</p>
+      <h2>Coming in later milestones</h2><p>Roles and private channel configuration, and Gatherings with invitations and responses.</p>
+      <p>This build supports shared text and voice conversations; the remaining features follow in separate milestones.</p><Link className="about-link" to="/">Back to workspace <ArrowRight size={16} aria-hidden="true" /></Link>
     </section></>;
 }
 
@@ -79,16 +81,16 @@ function NotFound() {
 }
 
 export default function App() {
-  return <div className="app-shell"><PrivateCacheBoundary /><a className="skip-link" href="#main">Skip to content</a>
+  return <VoiceProvider><div className="app-shell"><PrivateCacheBoundary /><a className="skip-link" href="#main">Skip to content</a>
     <aside className="sidebar"><Link to="/" className="brand" aria-label="Dosvyazi home"><span className="brand-mark"><AudioLines size={23} aria-hidden="true" /></span><span>Dosvyazi<span className="brand-subtitle">Stay connected.</span></span></Link>
       <p className="nav-heading">WORKSPACE</p><nav aria-label="Main navigation">
         <NavLink to="/" end><Activity size={18} aria-hidden="true" /> Overview</NavLink>
         <NavLink to="/about"><Info size={18} aria-hidden="true" /> About this build</NavLink>
         <NavLink to="/account"><Users size={18} aria-hidden="true" /> Account</NavLink>
         <NavLink to="/communities"><Hash size={18} aria-hidden="true" /> Communities</NavLink>
-      </nav><div className="sidebar-footer"><span className="development-dot" /> Development build<span className="version">v0.1 · Text chat</span></div>
+      </nav><div className="sidebar-footer"><span className="development-dot" /> Development build<span className="version">v0.1 · Text and voice</span></div>
     </aside><div className="main-shell"><header className="topbar"><span>Workspace <span className="breadcrumb-divider">/</span> <span className="breadcrumb-current">Dosvyazi</span></span><SessionLink /></header>
       <main id="main" tabIndex={-1}><Routes><Route path="/" element={<Workspace />} /><Route path="/about" element={<About />} /><Route path="/account" element={<AccountPage />} /><Route path="/login" element={<AccountPage mode="login" />} /><Route path="/register" element={<AccountPage mode="register" />} /><Route path="/communities" element={<CommunitiesPage />} /><Route path="/communities/:id" element={<CommunityPage />} /><Route path="/communities/:id/channels/:channelId" element={<CommunityPage />} /><Route path="*" element={<NotFound />} /></Routes></main>
-      <footer className="page-footer"><span>Dosvyazi <span aria-hidden="true">·</span> ДоСвязи</span><span>Built for shared moments.</span></footer>
-    </div></div>;
+      <VoiceDock /><footer className="page-footer"><span>Dosvyazi <span aria-hidden="true">·</span> ДоСвязи</span><span>Built for shared moments.</span></footer>
+    </div></div></VoiceProvider>;
 }

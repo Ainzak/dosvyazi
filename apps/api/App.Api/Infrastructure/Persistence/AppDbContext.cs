@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using App.Api.Features.Accounts;
 using App.Api.Features.Communities;
 using App.Api.Features.Messages;
+using App.Api.Features.Voice;
 
 namespace App.Api.Infrastructure.Persistence;
 
@@ -16,10 +17,48 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : Ident
     public DbSet<Message> Messages => Set<Message>();
     public DbSet<ChannelEvent> ChannelEvents => Set<ChannelEvent>();
     public DbSet<OutboxEntry> OutboxEntries => Set<OutboxEntry>();
+    public DbSet<VoiceRoomBinding> VoiceRooms => Set<VoiceRoomBinding>();
+    public DbSet<VoiceLease> VoiceLeases => Set<VoiceLease>();
+    public DbSet<VoiceGrantRequest> VoiceGrantRequests => Set<VoiceGrantRequest>();
+    public DbSet<RetiredVoiceRoom> RetiredVoiceRooms => Set<RetiredVoiceRoom>();
+    public DbSet<VoiceWebhookReceipt> VoiceWebhookReceipts => Set<VoiceWebhookReceipt>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
+        builder.Entity<VoiceWebhookReceipt>(receipt =>
+        {
+            receipt.Property(item => item.Id).HasMaxLength(128);
+            receipt.Property(item => item.BodyHash).HasMaxLength(64);
+        });
+        builder.Entity<VoiceRoomBinding>(room =>
+        {
+            room.HasKey(item => item.CommunityId);
+            room.HasIndex(item => item.Id).IsUnique();
+            room.HasIndex(item => item.NextCheckAt);
+            room.Property(item => item.Status).HasMaxLength(10);
+            room.HasOne<Community>().WithOne().HasForeignKey<VoiceRoomBinding>(item => item.CommunityId).OnDelete(DeleteBehavior.Restrict);
+            room.ToTable(table => table.HasCheckConstraint("CK_VoiceRooms_State", "\"Generation\" > 0 AND \"Status\" IN ('Ready', 'Pending')"));
+        });
+        builder.Entity<VoiceLease>(lease =>
+        {
+            lease.HasIndex(item => item.UserId).IsUnique().HasFilter("\"Active\"");
+            lease.HasIndex(item => new { item.CommunityId, item.Active });
+            lease.HasOne<AppUser>().WithMany().HasForeignKey(item => item.UserId).OnDelete(DeleteBehavior.Restrict);
+            lease.HasOne<Community>().WithMany().HasForeignKey(item => item.CommunityId).OnDelete(DeleteBehavior.Restrict);
+            lease.HasOne<UserSession>().WithMany().HasForeignKey(item => item.AuthSessionId).OnDelete(DeleteBehavior.Restrict);
+            lease.Property(item => item.SecurityStamp).HasMaxLength(256);
+        });
+        builder.Entity<VoiceGrantRequest>(request =>
+        {
+            request.HasKey(item => new { item.UserId, item.ClientRequestId });
+            request.HasOne(item => item.Lease).WithMany().HasForeignKey(item => item.LeaseId).OnDelete(DeleteBehavior.Restrict);
+        });
+        builder.Entity<RetiredVoiceRoom>(room =>
+        {
+            room.HasKey(item => new { item.RoomId, item.Generation });
+            room.HasOne<Community>().WithMany().HasForeignKey(item => item.CommunityId).OnDelete(DeleteBehavior.Restrict);
+        });
         builder.Entity<Message>(message =>
         {
             message.Property(item => item.Content).HasMaxLength(4000).IsRequired();
