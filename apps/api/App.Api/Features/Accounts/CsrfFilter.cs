@@ -10,6 +10,7 @@ public sealed class CsrfFilter(IAntiforgery antiforgery) : IAsyncAuthorizationFi
     public async Task OnAuthorizationAsync(AuthorizationFilterContext context)
     {
         var method = context.HttpContext.Request.Method;
+        if (context.HttpContext.GetEndpoint()?.Metadata.GetMetadata<App.Api.Features.Voice.VoiceWebhookAttribute>() is not null) return;
         if (HttpMethods.IsGet(method) || HttpMethods.IsHead(method) || HttpMethods.IsOptions(method)) return;
 
         try

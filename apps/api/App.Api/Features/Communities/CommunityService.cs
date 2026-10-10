@@ -4,6 +4,7 @@ using System.Text;
 using App.Api.Infrastructure.Persistence;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
+using App.Api.Features.Voice;
 
 namespace App.Api.Features.Communities;
 
@@ -164,6 +165,7 @@ public sealed class CommunityService(AppDbContext database, IDataProtectionProvi
         var member = await database.Memberships.Include(item => item.User).SingleOrDefaultAsync(item => item.CommunityId == id && item.UserId == target, cancellationToken) ?? throw Missing();
         var status = banned ? "Banned" : member.Status == "Banned" ? "Left" : member.Status;
         if (member.Status != status) { member.Status = status; community.PolicyVersion++; }
+        if (banned) await VoiceTransitions.RevokeMemberAsync(database, id, target, cancellationToken);
         await database.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return new MemberSummary(target.ToString(), member.User.DisplayName, member.Status, false);
@@ -177,6 +179,7 @@ public sealed class CommunityService(AppDbContext database, IDataProtectionProvi
         var member = await database.Memberships.SingleOrDefaultAsync(item => item.CommunityId == id && item.UserId == user, cancellationToken);
         if (member is null || member.Status == "Banned") throw Missing();
         if (member.Status != "Left") { member.Status = "Left"; community.PolicyVersion++; }
+        await VoiceTransitions.RevokeMemberAsync(database, id, user, cancellationToken);
         await database.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return true;

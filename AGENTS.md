@@ -36,7 +36,7 @@
 - Check the UI at mobile and desktop sizes, including loading, empty, error and reconnect states.
 - Run available checks for changed code. Explicitly report checks that could not be performed.
 - Do not invent run or test commands before the corresponding projects exist.
-- Foundation commands from the repository root: `npm ci`, `npm run check`, `npm run test:database` (requires PostgreSQL 18), and `npm run test:e2e` (requires the workspace Chromium installation). See `docs/development.md`; keep test artifacts in `.local/`.
+- Foundation commands from the repository root: `npm ci`, `npm run check`, `npm run test:database` (requires PostgreSQL 18), and `npm run test:e2e` (requires local PostgreSQL/LiveKit, voice setup and the workspace Chromium installation). See `docs/development.md`; keep test artifacts in `.local/`.
 
 ## Git and Commits
 

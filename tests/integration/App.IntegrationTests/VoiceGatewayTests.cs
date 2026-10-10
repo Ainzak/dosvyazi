@@ -89,6 +89,25 @@ public sealed class VoiceGatewayTests
     private static HttpResponseMessage Json(string body) => new(HttpStatusCode.OK)
     { Content = new StringContent(body, Encoding.UTF8, "application/json") };
 
+    [Theory]
+    [InlineData("not_found", true)]
+    [InlineData("unauthenticated", false)]
+    public async Task OnlyDocumentedMissingRoomCanCompleteAnIdempotentDelete(string code, bool missing)
+    {
+        using var handler = new CallbackHandler((_, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound)
+        { Content = new StringContent($"{{\"code\":\"{code}\"}}", Encoding.UTF8, "application/json") }));
+        using var http = new HttpClient(handler);
+        var gateway = new LiveKitGateway(http, new Uri("http://127.0.0.1:7880"), "test_key", Secret);
+        var room = new VoiceRoom(Guid.NewGuid(), 1);
+        if (missing)
+        {
+            await gateway.DeleteRoomAsync(room, default);
+            Assert.Empty(await gateway.ParticipantsAsync(room, default));
+        }
+        else await Assert.ThrowsAsync<VoiceGatewayException>(() => gateway.DeleteRoomAsync(room, default));
+        await Assert.ThrowsAsync<VoiceGatewayException>(() => gateway.CreateRoomAsync(room, default));
+    }
+
     private sealed class CallbackHandler(Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> callback) : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)

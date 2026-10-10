@@ -123,8 +123,17 @@ try {
       }
       const port = process.env.DOSVYAZI_API_PORT ?? '5080';
       if (!/^\d+$/.test(port) || Number(port) < 1 || Number(port) > 65535) throw new Error('Invalid API port.');
+      let voice = {};
+      if (command === 'api' && process.env.Voice__Enabled !== 'false') {
+        try {
+          const credentials = await voiceEnvironment();
+          voice = { Voice__Enabled: process.env.Voice__Enabled ?? 'true', Voice__ApiKey: process.env.Voice__ApiKey ?? credentials.LIVEKIT_API_KEY,
+            Voice__ApiSecret: process.env.Voice__ApiSecret ?? credentials.LIVEKIT_API_SECRET,
+            Voice__ControlUrl: process.env.Voice__ControlUrl ?? credentials.LIVEKIT_URL, Voice__BrowserUrl: process.env.Voice__BrowserUrl ?? 'ws://127.0.0.1:7880' };
+        } catch (error) { if (error.code !== 'ENOENT') throw error; }
+      }
       exitCode = await run('dotnet', ['run', '--project', 'apps/api/App.Api', '--no-launch-profile', '--no-build', '--no-restore', ...(command === 'migrate' ? ['--', '--migrate'] : [])], {
-        ...database, ASPNETCORE_ENVIRONMENT: 'Development', ASPNETCORE_URLS: `http://127.0.0.1:${port}`,
+        ...database, ...voice, ASPNETCORE_ENVIRONMENT: 'Development', ASPNETCORE_URLS: `http://127.0.0.1:${port}`,
       });
       break;
     }

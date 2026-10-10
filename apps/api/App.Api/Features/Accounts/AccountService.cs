@@ -3,6 +3,7 @@ using App.Api.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using App.Api.Features.Voice;
 
 namespace App.Api.Features.Accounts;
 
@@ -46,8 +47,20 @@ public sealed class AccountService(AppDbContext database, UserManager<AppUser> u
         if (Guid.TryParse(current.FindFirstValue(SessionCookieEvents.SessionClaim), out var sessionId) &&
             Guid.TryParse(current.FindFirstValue(ClaimTypes.NameIdentifier), out var userId))
         {
+            await using var ownedTransaction = database.Database.CurrentTransaction is null
+                ? await database.Database.BeginTransactionAsync(cancellationToken) : null;
+            await database.Users.FromSqlInterpolated($"SELECT * FROM \"AspNetUsers\" WHERE \"Id\" = {userId} FOR UPDATE").AnyAsync(cancellationToken);
+            var communities = await database.VoiceLeases.Where(item => item.UserId == userId && item.AuthSessionId == sessionId && item.Active)
+                .Select(item => item.CommunityId).Distinct().OrderBy(item => item).ToArrayAsync(cancellationToken);
+            foreach (var community in communities)
+            {
+                await database.Communities.FromSqlInterpolated($"SELECT * FROM \"Communities\" WHERE \"Id\" = {community} FOR UPDATE").AnyAsync(cancellationToken);
+                await VoiceTransitions.RevokeMemberAsync(database, community, userId, cancellationToken);
+            }
+            await database.SaveChangesAsync(cancellationToken);
             await database.Sessions.Where(session => session.Id == sessionId && session.UserId == userId && session.RevokedAt == null)
                 .ExecuteUpdateAsync(setters => setters.SetProperty(session => session.RevokedAt, DateTimeOffset.UtcNow), cancellationToken);
+            if (ownedTransaction is not null) await ownedTransaction.CommitAsync(cancellationToken);
         }
     }
 

@@ -10,6 +10,7 @@ import { banMember, communityKeys, communityListKey, createCommunity, createInvi
 import type { CommunityDetails } from '../../api/communities';
 import { useSession } from '../accounts/useSession';
 import { MessageTimeline } from '../messages/MessageTimeline';
+import { VoicePanel } from '../voice/VoicePanel';
 
 function Recovery({ title = 'Connection interrupted.', error, retry }: { title?: string; error: Error; retry: () => void }) {
   return <section className="about-panel"><h1>{title}</h1><p role="alert">{error.message}</p><button className="secondary-button" onClick={retry}>Try again</button></section>;
@@ -138,6 +139,7 @@ function CommunityView({ id, channelId, user }: { id: string; channelId: string 
     <div className="page-heading"><div><p className="eyebrow">{data.role === 'Owner' ? 'YOUR COMMUNITY' : 'COMMUNITY'}</p><h1>{data.name}</h1><p className="page-description">{data.memberCount} {data.memberCount === 1 ? 'member' : 'members'} · {data.role}</p></div>
       {data.role !== 'Owner' && <button className="secondary-button" onClick={() => leave.mutate()} disabled={leave.isPending}>Leave community</button>}</div>
     {leave.isError && <p role="alert" className="form-error">{leave.error.message}</p>}
+    <VoicePanel community={id} name={data.name} user={user.id} />
     <div className="community-workspace"><nav className="channel-nav" aria-label="Community channels"><h2>Text channels</h2>{data.channels.map(channel => <Link key={channel.id} to={`/communities/${id}/channels/${channel.id}`} className={channelId === channel.id ? 'selected' : ''}><Hash size={17} aria-hidden="true" />{channel.name}</Link>)}</nav>
       {channelId ? <Channel community={data} channelId={channelId} user={user} /> : <section className="channel-workspace"><Users size={40} aria-hidden="true" /><h2>Welcome to your community.</h2><p>Choose a text channel to see your shared space.</p></section>}
     </div>
