@@ -62,6 +62,11 @@ test('Speak revocation rotates live audio, rejoins listen-only, and Connect/View
     expect(listener.canSpeak).toBe(false); expect(BigInt(listener.generation)).toBeGreaterThan(BigInt(old.generation));
     await expect(member.getByRole('region', { name: 'Voice controls' })).toContainText('Connected · Muted', { timeout: 20000 });
     await expect(member.getByRole('button', { name: 'Enable microphone', exact: true })).toBeDisabled();
+    await member.getByRole('button', { name: 'Deafen', exact: true }).click();
+    await expect(member.getByRole('region', { name: 'Voice controls' })).toContainText('Deafened');
+    await member.getByRole('button', { name: 'Undeafen', exact: true }).click();
+    await expect(member.getByRole('region', { name: 'Voice controls' })).not.toContainText('Deafened');
+    await expect(member.getByRole('button', { name: 'Enable microphone', exact: true })).toBeDisabled();
     await expect.poll(() => receivedEnergy(page)).toBeLessThan(0.001);
     const replay = await context.newPage(); await replay.goto('/about');
     const observed = await replay.evaluate(async grant => {
@@ -102,6 +107,15 @@ test('members receive audio, keep voice through text navigation, mute/deafen and
     await page.getByRole('button', { name: 'Enable microphone', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Mute microphone', exact: true })).toBeEnabled();
     await expect.poll(() => receivedEnergy(member), { timeout: 15_000 }).toBeGreaterThan(0.001);
+    const ownerRow = member.locator('.voice-participants li').filter({ hasText: 'Voice owner' });
+    await expect(ownerRow.getByLabel('Speaking', { exact: true })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole('button', { name: 'Enable playback', exact: true })).toHaveCount(0);
+    // Deafen restores the previous microphone intent, including an enabled mic.
+    await page.getByRole('button', { name: 'Deafen', exact: true }).click();
+    await expect(page.getByRole('region', { name: 'Voice controls' })).toContainText('Deafened');
+    await page.getByRole('button', { name: 'Undeafen', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Mute microphone', exact: true })).toBeEnabled();
+    await expect.poll(() => receivedEnergy(member)).toBeGreaterThan(0.001);
     await expect(member.getByText('2 in voice', { exact: true })).toBeVisible();
     await page.getByRole('link', { name: 'general', exact: true }).click();
     await expect(page.getByRole('heading', { name: '#general' })).toBeVisible();
@@ -114,6 +128,7 @@ test('members receive audio, keep voice through text navigation, mute/deafen and
     await expect(member.getByRole('button', { name: 'Enable microphone', exact: true })).toBeEnabled();
     await page.getByRole('button', { name: 'Mute microphone', exact: true }).click();
     await expect.poll(() => receivedEnergy(member)).toBeLessThan(0.001);
+    await expect(ownerRow.getByLabel('Not speaking', { exact: true })).toBeVisible();
     await member.getByText('Audio devices', { exact: true }).click();
     expect(await member.getByLabel('Microphone device').isEnabled()).toBe(true);
     const input = await member.getByLabel('Microphone device').locator('option').evaluateAll(options => options.map(option => (option as HTMLOptionElement).value).find(value => value !== 'default'));
@@ -150,9 +165,9 @@ test('ban ends the member voice and an interrupted check can recover', async ({ 
     await member.getByLabel('Invitation code', { exact: true }).fill(code); await member.getByRole('button', { name: 'Join community', exact: true }).click();
     await member.getByRole('button', { name: 'Join voice', exact: true }).click();
     await expect(member.getByRole('region', { name: 'Voice controls' })).toContainText('Connected · Muted');
-    await member.route('**/voice', route => route.abort('connectionfailed'));
+    await member.route(/\/voice(?:\?.*)?$/, route => route.abort('connectionfailed'));
     await expect(member.getByRole('region', { name: 'Voice controls' })).toContainText('Voice access check interrupted.', { timeout: 10_000 });
-    await member.unroute('**/voice');
+    await member.unroute(/\/voice(?:\?.*)?$/);
     await page.reload(); await page.getByRole('button', { name: 'Ban Banned voice peer', exact: true }).click();
     await expect(member.getByRole('region', { name: 'Voice controls' })).toHaveCount(0, { timeout: 15_000 });
     await expect(member.locator('audio')).toHaveCount(0);
@@ -254,4 +269,83 @@ test('lost join response retries the same request and reconnects automatically',
   expect(requests.length).toBeGreaterThanOrEqual(2); expect(new Set(requests).size).toBe(1);
   await expect(page.getByText('1 in voice', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Leave voice', exact: true }).click();
+});
+
+test('moderator disconnect requires explicit rejoin, Russian persists and long names never overlap controls', async ({ page, browser }, info) => {
+  test.setTimeout(75_000);
+  const peerName = 'ParticipantWithALongName12345678901234567'.slice(0, 40);
+  await register(page, 'Disconnect owner'); await create(page);
+  await page.getByRole('button', { name: 'Create invitation', exact: true }).click();
+  const code = await page.getByLabel('Share this invitation code').inputValue();
+  const context = await browser.newContext({ baseURL: 'http://127.0.0.1:5174', viewport: page.viewportSize()!, permissions: ['microphone'] });
+  try {
+    const member = await context.newPage(); await register(member, peerName); await member.goto('/communities');
+    await member.getByLabel('Invitation code', { exact: true }).fill(code); await member.getByRole('button', { name: 'Join community', exact: true }).click();
+    let joins = 0;
+    member.on('request', request => { if (request.method() === 'POST' && request.url().endsWith('/voice/join')) joins++; });
+    await page.getByRole('button', { name: 'Join voice', exact: true }).click();
+    await member.getByRole('button', { name: 'Join voice', exact: true }).click();
+    await expect(member.getByRole('region', { name: 'Voice controls' })).toContainText('Connected');
+    await member.getByRole('button', { name: 'Enable microphone', exact: true }).click();
+    await expect(member.getByRole('button', { name: 'Mute microphone', exact: true })).toBeEnabled();
+    const beforeSwitch = joins;
+    await member.getByRole('button', { name: 'Русский', exact: true }).click();
+    await expect(member.getByRole('region', { name: 'Управление голосом' })).toContainText('Подключено · Микрофон включён');
+    await expect(member.locator('html')).toHaveAttribute('lang', 'ru');
+    expect(joins).toBe(beforeSwitch);
+    const row = page.locator('.voice-participants li').filter({ hasText: peerName });
+    await expect(row).toBeVisible();
+    const nameBox = await row.locator('.voice-participant-name').boundingBox();
+    const buttonBox = await row.getByRole('button', { name: `Disconnect ${peerName}`, exact: true }).boundingBox();
+    expect(nameBox && buttonBox && nameBox.x + nameBox.width + 6 <= buttonBox.x).toBe(true);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await member.screenshot({ path: info.outputPath('russian-voice.png'), fullPage: true });
+    const beforeDisconnect = joins;
+    await row.getByRole('button', { name: `Disconnect ${peerName}`, exact: true }).click();
+    await expect(member.getByRole('region', { name: 'Управление голосом' })).toHaveCount(0, { timeout: 15_000 });
+    await expect(member.getByRole('alert')).toContainText('Модератор отключил вас');
+    // Longer than the client's automatic reconnect backoff: no fresh grant after moderation.
+    await member.waitForTimeout(12_000);
+    expect(joins).toBe(beforeDisconnect);
+    await expect(member.getByRole('button', { name: 'Войти в голос', exact: true })).toBeEnabled();
+    await member.reload();
+    await expect(member.getByRole('button', { name: 'Русский', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    await member.getByRole('button', { name: 'Войти в голос', exact: true }).click();
+    await expect(member.getByRole('region', { name: 'Управление голосом' })).toContainText('Подключено · Микрофон выключен');
+    await member.getByRole('button', { name: 'Выйти из голоса', exact: true }).click();
+    await page.getByRole('button', { name: 'Leave voice', exact: true }).click();
+  } finally { await context.close(); }
+});
+
+test('blocked playback explains remote audio and the retry reports success', async ({ page, browser }) => {
+  test.setTimeout(55_000);
+  await register(page, 'Playback owner'); await create(page);
+  await page.getByRole('button', { name: 'Create invitation', exact: true }).click();
+  const code = await page.getByLabel('Share this invitation code').inputValue();
+  const context = await browser.newContext({ baseURL: 'http://127.0.0.1:5174', permissions: ['microphone'] });
+  await context.addInitScript(() => {
+    const state = window as unknown as { blockPlayback: boolean }; state.blockPlayback = true;
+    const play = HTMLMediaElement.prototype.play;
+    HTMLMediaElement.prototype.play = function () { return state.blockPlayback ? Promise.reject(new DOMException('Synthetic autoplay rejection', 'NotAllowedError')) : play.call(this); };
+    const resume = AudioContext.prototype.resume;
+    AudioContext.prototype.resume = function () { return state.blockPlayback ? Promise.reject(new DOMException('Synthetic autoplay rejection', 'NotAllowedError')) : resume.call(this); };
+  });
+  try {
+    const member = await context.newPage(); await register(member, 'Playback peer'); await member.goto('/communities');
+    await member.getByLabel('Invitation code', { exact: true }).fill(code); await member.getByRole('button', { name: 'Join community', exact: true }).click();
+    await page.getByRole('button', { name: 'Join voice', exact: true }).click();
+    await member.getByRole('button', { name: 'Join voice', exact: true }).click();
+    await page.getByRole('button', { name: 'Enable microphone', exact: true }).click();
+    await expect(member.getByRole('button', { name: 'Allow audio playback', exact: true })).toBeVisible();
+    await expect(member.getByRole('region', { name: 'Voice controls' })).toContainText('This does not play your own microphone.');
+    await member.getByRole('button', { name: 'Allow audio playback', exact: true }).click();
+    await expect(member.getByRole('alert')).toContainText('Playback could not start.');
+    await member.evaluate(() => { (window as unknown as { blockPlayback: boolean }).blockPlayback = false; });
+    await member.getByRole('button', { name: 'Allow audio playback', exact: true }).click();
+    await expect(member.getByRole('button', { name: 'Allow audio playback', exact: true })).toHaveCount(0);
+    await expect(member.getByRole('alert')).toHaveCount(0);
+    await expect.poll(() => receivedEnergy(member), { timeout: 15_000 }).toBeGreaterThan(0.001);
+    await member.getByRole('button', { name: 'Leave voice', exact: true }).click();
+    await page.getByRole('button', { name: 'Leave voice', exact: true }).click();
+  } finally { await context.close(); }
 });

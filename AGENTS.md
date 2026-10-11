@@ -14,7 +14,7 @@
 - Start with a modular monolith. Add microservices, brokers or extra stores only for a concrete need.
 - Enforce permissions on the server. SignalR groups are not authorization.
 - Keep secrets and user data out of Git. Use environment variables and safe `.env.example` templates.
-- Write UI text, working documentation and code identifiers in English, following language and framework conventions.
+- Keep English as the default UI language; Russian UI translations and a visible language switcher are user-approved. Keep working documentation and code identifiers in English, following language and framework conventions.
 
 ## Documentation
 

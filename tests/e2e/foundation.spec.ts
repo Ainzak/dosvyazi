@@ -8,9 +8,11 @@ test('real API status, honest empty workspace and navigation fit the viewport', 
   expect(await system.json()).toEqual({ product: 'Dosvyazi', milestone: 'Development foundation' });
   const readiness = await request.get('/health/ready');
   expect([200, 503]).toContain(readiness.status());
+  const displayedReadiness = page.waitForResponse(response => new URL(response.url()).pathname === '/health/ready');
   await page.goto('/');
   await expect(page.getByRole('article', { name: 'Application API' })).toContainText('Connected');
-  await expect(page.getByRole('article', { name: 'Database' })).toContainText(readiness.ok() ? 'Ready' : 'Unavailable');
+  // Match the browser's own check, not an earlier status that can recover meanwhile.
+  await expect(page.getByRole('article', { name: 'Database' })).toContainText((await displayedReadiness).ok() ? 'Ready' : 'Unavailable');
   await expect(page.getByRole('heading', { name: 'Room for your first community.' })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.screenshot({ path: testInfo.outputPath('foundation.png'), fullPage: true });

@@ -1,3 +1,4 @@
+import { useI18n } from '../../i18n/LocaleContext';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { HubConnectionBuilder, HttpTransportType, LogLevel } from '@microsoft/signalr';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -9,6 +10,7 @@ import type { MessageSnapshot } from '../../api/messages';
 import { MessageActions } from './MessageActions';
 
 export function MessageTimeline({ community, channel, user, canSend = true, canManageMessages = false, sendDeniedBy = null }: { community: string; channel: string; user: UserProfile; canSend?: boolean; canManageMessages?: boolean; sendDeniedBy?: string | null }) {
+  const { t, locale } = useI18n();
   const client = useQueryClient();
   const [connectionState, setConnectionState] = useState('Connecting…');
   const [connectionAttempt, setConnectionAttempt] = useState(0);
@@ -99,29 +101,29 @@ export function MessageTimeline({ community, channel, user, canSend = true, canM
     } else if (followLatest.current) list.scrollTop = list.scrollHeight;
   }, [feed.data, send.isPending, send.isError]);
 
-  if (feed.error instanceof ApiError && [401, 403, 404].includes(feed.error.status)) return <div className="message-error"><h3>Channel unavailable.</h3><p>Access to this channel has changed.</p></div>;
+  if (feed.error instanceof ApiError && [401, 403, 404].includes(feed.error.status)) return <div className="message-error"><h3>{t("Channel unavailable.")}</h3><p>{t("Access to this channel has changed.")}</p></div>;
   return <div className="message-timeline">
-    <div className="connection-status"><span role="status">{connectionState}</span>{connectionState !== 'Live' && <button className="secondary-button" onClick={() => setConnectionAttempt(value => value + 1)}>Reconnect</button>}</div>
-    <p className="field-hint">Live updates with automatic history recovery. Messages are plain text.</p>
-    {feed.isPending && <p role="status">Loading messages…</p>}
-    {feed.isError && <div className="message-error"><p role="alert">{feed.error.message}</p><button className="secondary-button" onClick={() => void feed.refetch()}>Retry history</button></div>}
-    {feed.data?.hasOlder && <button className="secondary-button" onClick={() => older.mutate()} disabled={older.isPending}>{older.isPending ? 'Loading older messages…' : 'Load older messages'}</button>}
-    {older.isError && <p role="alert">{older.error.message}</p>}
-    {feed.data?.messages.length === 0 && <div className="empty-messages"><h3>Start the conversation.</h3><p>Send the first message to your community.</p></div>}
-    <ol ref={listElement} className="message-list" aria-label="Messages" onScroll={event => {
+    <div className="connection-status"><span role="status">{t(connectionState)}</span>{connectionState !== 'Live' && <button className="secondary-button" onClick={() => setConnectionAttempt(value => value + 1)}>{t("Reconnect")}</button>}</div>
+    <p className="field-hint">{t("Live updates with automatic history recovery. Messages are plain text.")}</p>
+    {feed.isPending && <p role="status">{t("Loading messages…")}</p>}
+    {feed.isError && <div className="message-error"><p role="alert">{t(feed.error.message)}</p><button className="secondary-button" onClick={() => void feed.refetch()}>{t("Retry history")}</button></div>}
+    {feed.data?.hasOlder && <button className="secondary-button" onClick={() => older.mutate()} disabled={older.isPending}>{older.isPending ? t("Loading older messages…") : t("Load older messages")}</button>}
+    {older.isError && <p role="alert">{t(older.error.message)}</p>}
+    {feed.data?.messages.length === 0 && <div className="empty-messages"><h3>{t("Start the conversation.")}</h3><p>{t("Send the first message to your community.")}</p></div>}
+    <ol ref={listElement} className="message-list" aria-label={t("Messages")} onScroll={event => {
       const list = event.currentTarget;
       followLatest.current = list.scrollHeight - list.scrollTop - list.clientHeight < 64;
     }}>{feed.data?.messages.map(message => <li key={message.id} data-message-id={message.id}>
-      <div className="message-meta"><strong>{message.authorName}</strong><time dateTime={message.createdAt}>{new Date(message.createdAt).toLocaleString('en')}</time></div>
+      <div className="message-meta"><strong>{message.authorName}</strong><time dateTime={message.createdAt}>{new Date(message.createdAt).toLocaleString(locale)}</time></div>
       <p>{message.content}</p>
-      {message.updatedAt && <small>Edited</small>}
+      {message.updatedAt && <small>{t("Edited")}</small>}
       <MessageActions message={message} community={community} channel={channel} canEdit={canSend && message.authorId === user.id} canDelete={(canSend && message.authorId === user.id) || canManageMessages} refresh={async () => { await client.invalidateQueries({ queryKey: key }); }} />
-    </li>)}{(send.isPending || send.isError) && !request.current.confirmed && !feed.data?.messages.some(message => message.authorId === user.id && message.clientMessageId === request.current.id) && <li className="pending-message"><strong>{user.displayName}</strong><p>{send.variables}</p><span>{send.isPending ? 'Sending…' : 'Not confirmed. Retry with the same text.'}</span></li>}</ol>
-    {!canSend && <p role="status">Read only: {sendDeniedBy ?? 'SendMessage is not granted.'}</p>}
+    </li>)}{(send.isPending || send.isError) && !request.current.confirmed && !feed.data?.messages.some(message => message.authorId === user.id && message.clientMessageId === request.current.id) && <li className="pending-message"><strong>{user.displayName}</strong><p>{send.variables}</p><span>{send.isPending ? t("Sending…") : t("Not confirmed. Retry with the same text.")}</span></li>}</ol>
+    {!canSend && <p role="status">{t("Read only: ")}{t(sendDeniedBy ?? 'SendMessage is not granted.') }</p>}
     {canSend && <form className="message-composer" onSubmit={event => { event.preventDefault(); send.mutate(draft); }}>
-      <label htmlFor="message-content">Message</label><textarea id="message-content" value={draft} onChange={event => setDraft(event.target.value)} maxLength={4000} rows={3} required disabled={send.isPending} placeholder="Write to your community…" />
-      {send.isError && <p role="alert" className="form-error">{send.error.message}</p>}
-      <div className="composer-footer"><span className="field-hint">{draft.length} / 4000 · Stored when confirmed</span><button className="primary-button" disabled={send.isPending || !draft.trim()}>{send.isPending ? 'Sending…' : send.isError ? 'Retry send' : 'Send message'}</button></div>
+      <label htmlFor="message-content">{t("Message")}</label><textarea id="message-content" value={draft} onChange={event => setDraft(event.target.value)} maxLength={4000} rows={3} required disabled={send.isPending} placeholder={t("Write to your community…")} />
+      {send.isError && <p role="alert" className="form-error">{t(send.error.message)}</p>}
+      <div className="composer-footer"><span className="field-hint">{draft.length} {t(" / 4000 · Stored when confirmed")}</span><button className="primary-button" disabled={send.isPending || !draft.trim()}>{send.isPending ? t("Sending…") : send.isError ? t("Retry send") : t("Send message")}</button></div>
     </form>}
   </div>;
 }

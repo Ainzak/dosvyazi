@@ -1,5 +1,6 @@
-import { Room, RoomEvent, Track } from 'livekit-client';
-import type { RemoteAudioTrack } from 'livekit-client';
+import { DisconnectReason, ParticipantEvent, Room, RoomEvent, Track } from 'livekit-client';
+import type { LocalAudioTrack, Participant, RemoteAudioTrack } from 'livekit-client';
+import { AudioActivity } from './AudioActivity';
 import { endVoice, getVoice, heartbeatVoice, joinVoice } from '../../api/voice';
 import type { VoiceState } from '../../api/voice';
 import { ApiError } from '../../api/http';
@@ -8,9 +9,10 @@ export type VoiceSnapshot = {
   community: string | null; name: string; status: string; error: string | null;
   muted: boolean; deafened: boolean; input: string; output: string; canSpeak: boolean;
   devices: MediaDeviceInfo[]; participants: VoiceState['participants']; speakers: string[]; changingAudio: boolean;
+  playbackBlocked: boolean; startingPlayback: boolean;
 };
 const initial = (): VoiceSnapshot => ({ community: null, name: '', status: 'Disconnected', error: null,
-  muted: true, deafened: false, input: 'default', output: 'default', canSpeak: true, devices: [], participants: [], speakers: [], changingAudio: false });
+  muted: true, deafened: false, input: 'default', output: 'default', canSpeak: true, devices: [], participants: [], speakers: [], changingAudio: false, playbackBlocked: false, startingPlayback: false });
 
 export class VoiceClient {
   private value = initial();
@@ -25,7 +27,10 @@ export class VoiceClient {
   private polling = false;
   private lastHeartbeat = 0;
   private lastAttempt = 0;
+  private mutedBeforeDeafen = true;
   private audio = new Map<RemoteAudioTrack, HTMLMediaElement>();
+  private speakerSubscriptions = new Map<Participant, () => void>();
+  private activity: AudioActivity | undefined;
   private timer: ReturnType<typeof setInterval> | undefined;
   private disconnecting: Promise<void> = Promise.resolve();
   subscribe = (listener: () => void) => { this.listeners.add(listener); return () => { this.listeners.delete(listener); }; };
@@ -50,9 +55,34 @@ export class VoiceClient {
   private deviceChange = () => { void this.devices(); };
   private disconnect() {
     const old = this.room; this.room = undefined;
-    this.update({ changingAudio: false });
+    this.activity?.dispose(); this.activity = undefined;
+    this.update({ changingAudio: false, speakers: [], playbackBlocked: false, startingPlayback: false });
+    for (const [participant, listener] of this.speakerSubscriptions) participant.off(ParticipantEvent.IsSpeakingChanged, listener);
+    this.speakerSubscriptions.clear();
     for (const element of this.audio.values()) element.remove(); this.audio.clear();
     if (old) { old.removeAllListeners(); this.disconnecting = old.disconnect().catch(() => {}); }
+  }
+  private moderated() {
+    this.epoch++; this.disconnect(); this.lease = undefined; this.generation = undefined;
+    this.request = crypto.randomUUID();
+    this.update({ ...initial(), error: 'A moderator disconnected you from voice. Select Join voice when you are ready to return.' });
+  }
+  private observeSpeakers(room: Room, participant: Participant) {
+    if (this.speakerSubscriptions.has(participant)) return;
+    const sync = () => this.syncSpeakers(room);
+    participant.on(ParticipantEvent.IsSpeakingChanged, sync);
+    this.speakerSubscriptions.set(participant, sync);
+  }
+  private syncSpeakers(room: Room) {
+    if (this.room !== room) return;
+    const participants = [room.localParticipant, ...room.remoteParticipants.values()];
+    const active = (p: Participant) => {
+      const track = p.getTrackPublication(Track.Source.Microphone)?.audioTrack;
+      return (track ? this.activity?.speaking(track) : undefined) ?? p.isSpeaking;
+    };
+    const speakers = participants.filter(p => active(p) && p.isMicrophoneEnabled &&
+      (p !== room.localParticipant || (!this.value.muted && !this.value.deafened))).map(p => p.identity);
+    if (speakers.length !== this.value.speakers.length || speakers.some(id => !this.value.speakers.includes(id))) this.update({ speakers });
   }
   private denied(error: unknown) { return error instanceof ApiError && [401, 403, 404].includes(error.status); }
   private fail(error: unknown) {
@@ -79,21 +109,46 @@ export class VoiceClient {
       await this.disconnecting;
       if (epoch !== this.epoch) return;
       const room = new Room(); this.room = room;
+      this.activity = new AudioActivity(() => this.syncSpeakers(room));
+      this.observeSpeakers(room, room.localParticipant);
+      room.on(RoomEvent.ParticipantConnected, participant => { if (this.room === room) { this.observeSpeakers(room, participant); this.syncSpeakers(room); } });
+      room.on(RoomEvent.ParticipantDisconnected, participant => {
+        const listener = this.speakerSubscriptions.get(participant);
+        if (listener) participant.off(ParticipantEvent.IsSpeakingChanged, listener);
+        this.speakerSubscriptions.delete(participant); this.syncSpeakers(room);
+      });
       room.on(RoomEvent.TrackSubscribed, track => {
         if (this.room !== room || track.kind !== Track.Kind.Audio) return;
         const audioTrack = track as RemoteAudioTrack;
         const element = audioTrack.attach(); element.muted = this.value.deafened;
         element.hidden = true; document.body.append(element); this.audio.set(audioTrack, element);
+        this.activity?.observe(audioTrack);
       });
-      room.on(RoomEvent.TrackUnsubscribed, track => { const element = this.audio.get(track as RemoteAudioTrack); element?.remove(); this.audio.delete(track as RemoteAudioTrack); });
-      room.on(RoomEvent.Reconnecting, () => this.update({ status: 'Reconnecting', speakers: [] }));
-      room.on(RoomEvent.Reconnected, () => { this.update({ status: 'Connected' }); void this.poll(); });
-      room.on(RoomEvent.Disconnected, () => { if (this.room === room) this.update({ status: 'Reconnecting', speakers: [] }); });
-      room.on(RoomEvent.ActiveSpeakersChanged, participants => this.update({ speakers: participants.map(item => item.identity) }));
+      room.on(RoomEvent.TrackUnsubscribed, track => { const audioTrack = track as RemoteAudioTrack; const element = this.audio.get(audioTrack); element?.remove(); this.audio.delete(audioTrack); this.activity?.remove(audioTrack); this.syncSpeakers(room); });
+      room.on(RoomEvent.LocalTrackPublished, publication => { if (this.room === room && publication.track?.kind === Track.Kind.Audio) this.activity?.observe(publication.track as LocalAudioTrack); });
+      room.on(RoomEvent.LocalTrackUnpublished, publication => { if (publication.track?.kind === Track.Kind.Audio) this.activity?.remove(publication.track as LocalAudioTrack); this.syncSpeakers(room); });
+      room.on(RoomEvent.Reconnecting, () => { if (this.room === room) this.update({ status: 'Reconnecting', speakers: [] }); });
+      room.on(RoomEvent.Reconnected, () => { if (this.room === room) { this.update({ status: 'Connected' }); this.syncSpeakers(room); void this.poll(); } });
+      room.on(RoomEvent.Disconnected, reason => {
+        if (this.room !== room) return;
+        if (reason === DisconnectReason.PARTICIPANT_REMOVED) this.moderated();
+        else if (reason === DisconnectReason.DUPLICATE_IDENTITY) {
+          this.moderated(); this.update({ error: 'This voice session was opened on another device. Select Join voice to return here.' });
+        }
+        else this.update({ status: 'Reconnecting', speakers: [] });
+      });
+      room.on(RoomEvent.ActiveSpeakersChanged, () => this.syncSpeakers(room));
+      room.on(RoomEvent.TrackMuted, () => this.syncSpeakers(room));
+      room.on(RoomEvent.TrackUnmuted, () => this.syncSpeakers(room));
+      room.on(RoomEvent.AudioPlaybackStatusChanged, playing => { if (this.room === room) this.update({ playbackBlocked: !playing }); });
       await room.connect(grant.url, grant.token);
       if (epoch !== this.epoch || this.room !== room) { await room.disconnect(); return; }
       this.update({ status: 'Connected' });
-      await room.startAudio().catch(() => this.update({ error: 'Playback needs a click. Select Enable playback.' }));
+      for (const participant of room.remoteParticipants.values()) if (!this.speakerSubscriptions.has(participant)) this.observeSpeakers(room, participant);
+      this.syncSpeakers(room);
+      await room.startAudio().catch(() => { if (this.room === room) this.update({ playbackBlocked: true }); });
+      if (this.room !== room) return;
+      this.update({ playbackBlocked: !room.canPlaybackAudio });
       if (!this.value.muted && !this.value.deafened) await this.microphone(false);
       await this.devices();
       this.lastHeartbeat = 0;
@@ -125,8 +180,9 @@ export class VoiceClient {
     if (!community || this.polling || this.busy || !navigator.onLine || this.value.status === 'Leave not confirmed') return;
     this.polling = true; const epoch = this.epoch;
     try {
-      const state = await getVoice(community);
+      const state = await getVoice(community, undefined, this.lease);
       if (epoch !== this.epoch) return;
+      if (state.disconnectedByModerator) { this.moderated(); return; }
       this.update({ participants: state.participants });
       if (!state.canConnect) { this.disconnect(); this.update({ ...initial(), error: 'Voice access was revoked.' }); this.lease = undefined; return; }
       if (!state.canSpeak && !this.value.muted) await this.microphone(true);
@@ -162,22 +218,38 @@ export class VoiceClient {
     if (!room || room.state !== 'connected' || this.value.changingAudio) return;
     if (!muted && !this.value.canSpeak) { this.update({ muted: true, error: 'SpeakVoice is denied. You can listen.' }); return; }
     this.update({ changingAudio: true });
+    try { await this.setMicrophone(room, muted); }
+    finally { if (this.room === room) this.update({ changingAudio: false }); }
+  }
+  private async setMicrophone(room: Room, muted: boolean) {
     try {
       await room.localParticipant.setMicrophoneEnabled(!muted, this.value.input === 'default' ? undefined : { deviceId: this.value.input });
-      if (this.room === room) { this.update({ muted, error: null }); await this.devices(); }
+      if (this.room === room) await this.activity?.resume();
+      if (this.room === room) { this.update({ muted, error: null }); this.syncSpeakers(room); await this.devices(); }
+      return true;
     } catch {
       if (this.room === room) {
         for (const publication of room.localParticipant.audioTrackPublications.values()) publication.track?.stop();
         this.update({ muted: true, error: 'Microphone unavailable. Allow microphone access and check the selected device, then try again.' });
       }
-    } finally { if (this.room === room) this.update({ changingAudio: false }); }
+      return false;
+    }
   }
   async deafen(deafened: boolean) {
-    const epoch = this.epoch;
-    if (deafened) await this.microphone(true);
-    if (epoch !== this.epoch) return;
-    this.update({ deafened });
-    for (const element of this.audio.values()) element.muted = deafened;
+    const room = this.room;
+    if (!room || room.state !== 'connected' || this.value.changingAudio || this.value.deafened === deafened) return;
+    this.update({ changingAudio: true });
+    try {
+      if (deafened) {
+        this.mutedBeforeDeafen = this.value.muted;
+        if (!await this.setMicrophone(room, true)) return;
+      }
+      if (this.room !== room) return;
+      this.update({ deafened });
+      for (const element of this.audio.values()) element.muted = deafened;
+      if (!deafened && !this.mutedBeforeDeafen && this.value.canSpeak) await this.setMicrophone(room, false);
+      this.syncSpeakers(room);
+    } finally { if (this.room === room) this.update({ changingAudio: false }); }
   }
   async device(kind: 'audioinput' | 'audiooutput', id: string) {
     const room = this.room;
@@ -189,7 +261,14 @@ export class VoiceClient {
   }
   async playback() {
     const room = this.room;
-    try { await room?.startAudio(); if (this.room === room) this.update({ error: null }); }
+    if (!room || this.value.startingPlayback) return;
+    this.update({ startingPlayback: true });
+    try {
+      await room.startAudio();
+      if (this.room === room) await this.activity?.resume();
+      if (this.room === room) this.update({ playbackBlocked: !room.canPlaybackAudio, error: room.canPlaybackAudio ? null : 'Playback could not start. Check your browser audio settings.' });
+    }
     catch { if (this.room === room) this.update({ error: 'Playback could not start. Check your browser audio settings.' }); }
+    finally { if (this.room === room) this.update({ startingPlayback: false }); }
   }
 }

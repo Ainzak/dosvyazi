@@ -13,7 +13,9 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    leaseId?: string;
+                };
                 header?: never;
                 path: {
                     id: string;
@@ -1660,6 +1662,8 @@ export interface components {
             /** @default false */
             canModerate: boolean;
             deniedBy?: null | string;
+            /** @default false */
+            disconnectedByModerator: boolean;
         };
     };
     responses: never;

@@ -129,12 +129,17 @@ public sealed class VoiceService(AppDbContext database, IVoiceGateway gateway, I
         return await StateAsync(community, principal, ct);
     }
 
-    public async Task<VoiceStateDto> StateAsync(Guid community, ClaimsPrincipal principal, CancellationToken ct)
+    public async Task<VoiceStateDto> StateAsync(Guid community, ClaimsPrincipal principal, CancellationToken ct, Guid? leaseId = null)
     {
         await using var transaction = await database.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, ct);
         var session = await SessionAsync(principal, ct);
         var access = await AuthorizeAsync(community, session.User, ct);
         session = await SessionAsync(principal, ct);
+        // A client can inspect only its own session's exact lease. This distinguishes
+        // moderation from a room transition without exposing another member's history.
+        var disconnected = leaseId.HasValue && await database.VoiceLeases.AsNoTracking().AnyAsync(item =>
+            item.Id == leaseId.Value && item.CommunityId == community && item.UserId == session.User &&
+            item.AuthSessionId == session.Session && !item.Active && item.DisconnectedByModerator, ct);
         var room = await database.VoiceRooms.SingleOrDefaultAsync(item => item.CommunityId == community, ct);
         if (room is null) return new("Ready", "1", null, null, false, null, [], access.Connect, access.Speak, access.Has(ChannelAccess.ModerateVoice), access.VoiceDeniedBy);
         var mine = await database.VoiceLeases.Where(item => item.UserId == session.User && item.AuthSessionId == session.Session &&
@@ -155,7 +160,7 @@ public sealed class VoiceService(AppDbContext database, IVoiceGateway gateway, I
         }
         await transaction.CommitAsync(ct);
         return new(room.Status, room.Generation.ToString(System.Globalization.CultureInfo.InvariantCulture), room.OperationId?.ToString(), room.CompletedAt,
-            unavailable, mine?.ToString(), participants, access.Connect, access.Speak, access.Has(ChannelAccess.ModerateVoice), access.VoiceDeniedBy);
+            unavailable, mine?.ToString(), participants, access.Connect, access.Speak, access.Has(ChannelAccess.ModerateVoice), access.VoiceDeniedBy, disconnected);
     }
 
     public async Task<bool> DisconnectAsync(Guid community, VoiceLeaseRequest request, ClaimsPrincipal principal, CancellationToken ct)
@@ -170,6 +175,7 @@ public sealed class VoiceService(AppDbContext database, IVoiceGateway gateway, I
         if (lease.UserId != session.User && target.Rank >= actor.Rank) throw new CommunityFailure(403, "You cannot disconnect an equal/higher-ranked member.");
         if (lease.Active)
         {
+            lease.DisconnectedByModerator = true;
             await VoiceTransitions.RevokeMemberAsync(database, community, lease.UserId, ct);
             CommunityAudit.Add(database, community, session.User, "voice.disconnected", lease.UserId);
             await database.SaveChangesAsync(ct);

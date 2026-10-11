@@ -22,6 +22,11 @@ nav a.active { background: #2c403e; color: #bcf1dc; }
 .topbar { padding: 0 46px; height: 76px; border-bottom: 1px solid #e3e8e7; display: flex; align-items: center; justify-content: space-between; font-size: 12px; color: #74858c; background: #fbfcfc; }
 .breadcrumb-divider { margin: 0 13px; color: #8c9a9e; }
 .breadcrumb-current { color: #344850; }
+.topbar-actions { display: flex; align-items: center; gap: 12px; }
+.language-switcher { display: flex; align-items: center; gap: 2px; border: 1px solid #c7d8d0; background: white; padding: 3px; border-radius: 8px; }
+.language-switcher button { min-height: 36px; padding: 7px 10px; border: 0; border-radius: 5px; background: transparent; color: #3d6554; font-size: 12px; }
+.language-switcher button[aria-pressed="true"] { background: #dcefe4; color: #173e2d; font-weight: 650; }
+@media (max-width: 700px) { .topbar-breadcrumb { display: none; } .topbar { justify-content: flex-end; height: auto; min-height: 60px; padding-block: 8px; } .topbar-actions { width: 100%; justify-content: space-between; gap: 6px; } }
 .environment-label { font-size: 9px; letter-spacing: 1.4px; border: 1px solid #dde5e3; border-radius: 5px; padding: 7px 10px; color: #5d7375; }
 main { padding: 52px 46px 42px; width: 100%; max-width: 1180px; margin: 0 auto; }
 .page-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 25px; margin-bottom: 43px; }
@@ -162,7 +167,12 @@ h1 { font-size: clamp(26px, 2.6vw, 36px); line-height: 1.2; letter-spacing: -1.1
 .voice-panel { border: 1px solid #e0e8e4; border-radius: 16px; padding: 22px; margin-bottom: 24px; background: #fff; }
 .voice-panel h2 { margin-top: 0; }
 .voice-participants { display: flex; gap: 12px; flex-wrap: wrap; list-style: none; padding: 0; }
-.voice-participants li { background: #eef4f1; color: #244d3a; padding: 6px 12px; border-radius: 10px; overflow-wrap: anywhere; }
+.voice-participants li { display: flex; align-items: center; gap: 12px; max-width: 100%; min-width: 0; background: #eef4f1; color: #244d3a; padding: 10px 12px; border: 2px solid transparent; border-radius: 10px; }
+.voice-participants li.is-speaking { border-color: #358569; background: #e4f5eb; }
+.voice-participant-info { display: grid; gap: 4px; min-width: 0; overflow-wrap: anywhere; }
+.voice-participant-name { font-weight: 600; }
+.voice-speaking-state { font-size: 11px; color: #557568; }
+.voice-participants button { margin: 0; flex-shrink: 0; }
 .voice-dock { position: sticky; bottom: 12px; z-index: 20; border: 1px solid #c8d9cd; background: #f2f8f4; border-radius: 16px; padding: 20px; margin: 12px 40px; box-shadow: 0 6px 24px #18302714; }
 .voice-dock p { margin: 8px 0; }
 .voice-dock a { color: #244d3a; font-weight: 700; overflow-wrap: anywhere; }

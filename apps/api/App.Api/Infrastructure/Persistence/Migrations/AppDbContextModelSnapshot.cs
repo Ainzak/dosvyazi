@@ -670,6 +670,9 @@ namespace App.Api.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("CommunityId")
                         .HasColumnType("uuid");
 
+                    b.Property<bool>("DisconnectedByModerator")
+                        .HasColumnType("boolean");
+
                     b.Property<DateTimeOffset>("ExpiresAt")
                         .HasColumnType("timestamp with time zone");
 

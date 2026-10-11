@@ -268,10 +268,17 @@ public sealed class VoiceTests(AccountsDatabase storage) : IClassFixture<Account
         Assert.Equal(HttpStatusCode.Forbidden, (await Send(member, Path(community, "/disconnect"), command)).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await Send(owner, Path(community, "/disconnect"), command)).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await Send(owner, Path(community, "/disconnect"), command)).StatusCode);
+        Assert.True((await member.GetFromJsonAsync<VoiceStateDto>(Path(community, $"?leaseId={grant.LeaseId}")))!.DisconnectedByModerator);
+        Assert.False((await owner.GetFromJsonAsync<VoiceStateDto>(Path(community, $"?leaseId={grant.LeaseId}")))!.DisconnectedByModerator);
+        Assert.False((await member.GetFromJsonAsync<VoiceStateDto>(Path(community, $"?leaseId={Guid.NewGuid()}")))!.DisconnectedByModerator);
         await Reconcile(host, community); var fresh = await Grant(member, community);
+        Assert.True((await member.GetFromJsonAsync<VoiceStateDto>(Path(community, $"?leaseId={grant.LeaseId}")))!.DisconnectedByModerator);
+        Assert.False((await member.GetFromJsonAsync<VoiceStateDto>(Path(community, $"?leaseId={fresh.LeaseId}")))!.DisconnectedByModerator);
         Assert.Equal(HttpStatusCode.OK, (await Send(owner, Path(community, "/disconnect"), command)).StatusCode);
         using var scope = host.Services.CreateScope(); Assert.True(await scope.ServiceProvider.GetRequiredService<AppDbContext>().VoiceLeases.AnyAsync(l => l.Id == Guid.Parse(fresh.LeaseId) && l.Active));
         Assert.Single((await owner.GetFromJsonAsync<AuditDto[]>($"/api/v1/communities/{community}/audit"))!, a => a.Action == "voice.disconnected");
+        var other = await Create(member);
+        Assert.False((await member.GetFromJsonAsync<VoiceStateDto>(Path(other, $"?leaseId={grant.LeaseId}")))!.DisconnectedByModerator);
     }
 
     private sealed class FakeVoice : IVoiceGateway

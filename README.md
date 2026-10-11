@@ -11,7 +11,7 @@ A multifunctional group communication platform. This monorepo contains the brows
 - `docs/` - public technical documentation.
 - [AGENTS.md](AGENTS.md) - development rules for contributors and AI agents.
 
-The development foundation, text messaging, voice and access/moderation are implemented: an English React workspace, accounts, communities/invitations, ranked roles, categories, private resources, kick/ban, message edit/delete and moderation audit. Live text supports revision-aware recovery; voice includes devices, mute/deafen, listen-only permissions and protected room-generation transitions. The controller API includes OpenAPI, PostgreSQL migrations and readiness checks. Files, search, reactions and Gatherings remain upcoming work. The architecture remains a modular monolith with PostgreSQL and separate self-hosted LiveKit.
+The development foundation, text messaging, voice and access/moderation are implemented: a React workspace with English and Russian UI, accounts, communities/invitations, ranked roles, categories, private resources, kick/ban, message edit/delete and moderation audit. Live text supports revision-aware recovery; voice includes devices, mute/deafen, listen-only permissions and protected room-generation transitions. The controller API includes OpenAPI, PostgreSQL migrations and readiness checks. Files, search, reactions and Gatherings remain upcoming work. The architecture remains a modular monolith with PostgreSQL and separate self-hosted LiveKit.
 
 ## Development
 

@@ -8,7 +8,12 @@ export async function callApi(path: string, options: RequestInit = {}): Promise<
   try {
     return await fetch(path, { ...options, credentials: 'same-origin', cache: 'no-store',
       signal: options.signal ? AbortSignal.any([options.signal, AbortSignal.timeout(8_000)]) : AbortSignal.timeout(8_000) });
-  } catch { throw new ApiError(0, 'Cannot reach Dosvyazi. Check your connection and try again.'); }
+  } catch (error) {
+    // Query cancellation is deliberate, not a failed connection. Preserve the
+    // abort reason so canceled navigation/account changes cannot show an alert.
+    if (options.signal?.aborted) throw options.signal.reason ?? error;
+    throw new ApiError(0, 'Cannot reach Dosvyazi. Check your connection and try again.');
+  }
 }
 
 export async function readJson<T>(response: Response): Promise<T> {

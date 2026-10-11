@@ -13,7 +13,7 @@ npm run migrate:api
 npm run dev:api
 ```
 
-Start `npm run dev:web` in another terminal and open the local workspace. Create a community or join using an invitation, select Join voice, then Enable microphone. Use headphones when testing two browser sessions on one computer. Audio devices expands the microphone/speaker selectors. Output selection depends on browser support. Leave voice disconnects locally before requesting server closure; an interrupted closure remains visible with Retry leave.
+Start `npm run dev:web` in another terminal and open the local workspace. Create a community or join using an invitation, select Join voice, then Enable microphone. Use headphones when testing two browser sessions on one computer. Deafen remembers whether your microphone was enabled and restores that choice when listening resumes, provided speaking is still permitted. Audio devices expands the microphone/speaker selectors. Output selection depends on browser support. Leave voice disconnects locally before requesting server closure; an interrupted closure remains visible with Retry leave.
 
 For synthetic automation:
 
@@ -43,7 +43,7 @@ Authenticated, no-store endpoints live under `/api/v1/communities/{id}/voice`:
 
 | Method/path | Behavior |
 | --- | --- |
-| GET | Current generation, Pending/Ready operation state, control availability and actual SFU participants intersected with active leases |
+| GET | Current generation, Pending/Ready operation state, control availability and actual SFU participants intersected with active leases; optional leaseId reports moderator closure only for the caller's own account/session/community lease |
 | POST `/join` | CSRF-protected `clientRequestId`; identical valid retries return the stored grant; expired/changed retries return 409 |
 | POST `/heartbeat` | CSRF-protected `leaseId`; renews a valid current session for 90 seconds |
 | POST `/disconnect` | ModerateVoice and hierarchy protected specific-lease closure; repeat-safe for that lease |
@@ -70,3 +70,12 @@ Pipeline checks cover grant bounds, concurrent request isolation, sanitized cont
 ## Testing from another location
 
 The loopback development URL cannot be shared with another computer. Remote testing needs a reachable HTTPS application, WSS signaling and reachable media candidates; a web-only tunnel does not provide the ICE media path. Use the accepted self-hosted Linux/Compose/Caddy deployment with valid certificates and configured ICE/TURN networking, or separately plan a private network test with trusted HTTPS and correct advertised network addresses. See [LiveKit ports and firewall](https://docs.livekit.io/transport/self-hosting/ports-firewall/). This repository has not deployed that environment. Once available, each tester creates an account; the owner shares a bounded community invitation code. Neither tester needs SFU credentials.
+
+
+## Voice indicators and playback
+
+Participant names wrap independently of moderation buttons. Speaking indicators use received/published microphone audio levels when Web Audio is available, with SDK speaker events as fallback. A shared analysis context samples every 60ms and holds activity for 300ms above an RMS threshold of 0.01; this indicates audio activity, not speech recognition. Muted, departed and retired-room participants are cleared. The analysis graph never plays the local microphone, and is released when leaving/changing rooms/accounts. These settings are implementation choices rather than measured guarantees across devices.
+
+Allow audio playback appears only when the browser reports blocked remote playback. It explains that it enables other participants, shows pending/failure feedback, and disappears after success. Browser autoplay rules can require a click; see [LiveKit room events](https://docs.livekit.io/reference/client-sdk-js/types/RoomEventCallbacks.html).
+
+A moderator disconnect persists a flag on the exact closed lease. The normal client ends its local voice intent and waits for an explicit Join voice. Other authorized members still recover automatically after generation changes; interrupted admission retries the same request. Disconnect does not remove membership or ConnectVoice permission: a member may deliberately join again. Use the existing permission/ban workflows for persistent denial. Old-lease moderation retries cannot affect a newer lease; querying another account/session/community lease does not reveal its closure.

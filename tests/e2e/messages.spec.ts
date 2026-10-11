@@ -127,7 +127,8 @@ test('history loading and failure can recover without losing the composer', asyn
   await page.reload();
   await expect(page.getByText('Loading messages…', { exact: true })).toBeVisible();
   await page.screenshot({ path: info.outputPath('messages-loading.png'), fullPage: true });
-  await expect(page.getByRole('button', { name: 'Retry history', exact: true })).toBeVisible();
+  // Three delayed attempts and bounded retry backoff precede the persistent error.
+  await expect(page.getByRole('button', { name: 'Retry history', exact: true })).toBeVisible({ timeout: 15_000 });
   await page.getByLabel('Message', { exact: true }).fill('Draft retained while history recovers');
   await page.unroute('**/api/v1/communities/*/channels/*/messages');
   await page.getByRole('button', { name: 'Retry history', exact: true }).click();

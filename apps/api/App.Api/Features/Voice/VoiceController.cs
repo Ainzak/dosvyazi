@@ -16,7 +16,7 @@ public sealed class VoiceController(VoiceService voice) : ControllerBase
         catch (VoiceGatewayException) { return Problem(statusCode: 503, title: "Voice service is unavailable. Try again shortly."); }
     }
     [HttpGet]
-    public Task<ActionResult<VoiceStateDto>> State(Guid id, CancellationToken ct) => Execute(() => voice.StateAsync(id, User, ct));
+    public Task<ActionResult<VoiceStateDto>> State(Guid id, CancellationToken ct, [FromQuery] Guid? leaseId = null) => Execute(() => voice.StateAsync(id, User, ct, leaseId));
     [HttpPost("join"), EnableRateLimiting("voice-joins")]
     public Task<ActionResult<VoiceJoinDto>> Join(Guid id, JoinVoiceRequest request, CancellationToken ct) => Execute(() => voice.JoinAsync(id, request, User, ct));
     [HttpPost("leave"), EnableRateLimiting("community-commands")]
