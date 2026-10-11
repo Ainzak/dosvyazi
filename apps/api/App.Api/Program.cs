@@ -10,10 +10,23 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using System.Threading.RateLimiting;
 using System.Globalization;
+using Microsoft.AspNetCore.HttpOverrides;
+using System.Net;
 
 CultureInfo.DefaultThreadCurrentUICulture = CultureInfo.GetCultureInfo("en");
 
 var builder = WebApplication.CreateBuilder(args);
+
+// This deployment uses one local TLS proxy; never trust arbitrary forwarding sources.
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.ForwardLimit = 1;
+    options.KnownIPNetworks.Clear();
+    options.KnownProxies.Clear();
+    options.KnownProxies.Add(IPAddress.Loopback);
+    options.KnownProxies.Add(IPAddress.IPv6Loopback);
+});
 
 builder.Services.AddControllers(options => options.Filters.Add<CsrfFilter>());
 builder.Services.AddProblemDetails();
@@ -125,6 +138,7 @@ if (args.Contains("--migrate", StringComparer.Ordinal))
 }
 
 // Keep dependency failures observable without exposing configuration or exception details.
+if (builder.Configuration.GetValue<bool>("ReverseProxy:Enabled")) app.UseForwardedHeaders();
 app.UseExceptionHandler();
 app.UseStatusCodePages();
 if (!app.Environment.IsDevelopment())

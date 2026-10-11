@@ -22,6 +22,7 @@
     "restore:api": "node scripts/development.mjs dotnet restore Dosvyazi.slnx --locked-mode",
     "build:api": "node scripts/development.mjs dotnet build Dosvyazi.slnx --no-restore --disable-build-servers -m:1",
     "build:web": "npm run build --workspace @dosvyazi/web",
+    "package:vps": "npm run build:web && node scripts/package-vps.mjs",
     "lint": "eslint apps/web scripts tests/e2e",
     "typecheck": "npm run typecheck --workspace @dosvyazi/web && tsc -p tests/e2e/tsconfig.json",
     "test:api": "node scripts/development.mjs dotnet test Dosvyazi.slnx --no-build --no-restore -m:1 --filter Category!=PostgreSQL --logger trx --results-directory .local/artifacts/dotnet-tests",

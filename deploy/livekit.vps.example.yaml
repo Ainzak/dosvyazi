@@ -1,0 +1,17 @@
+# Replace these placeholders on the server; the completed file is a secret.
+port: 7880
+rtc:
+  tcp_port: 7881
+  port_range_start: 50000
+  port_range_end: 60000
+  use_external_ip: false
+  node_ip: replace_with_public_ipv4
+  interfaces:
+    includes:
+      - replace_with_public_interface_name
+keys:
+  replace_with_api_key: replace_with_api_secret
+logging:
+  level: warn
+room:
+  max_participants: 16

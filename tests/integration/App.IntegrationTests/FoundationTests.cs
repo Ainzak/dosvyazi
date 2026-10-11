@@ -10,7 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace App.IntegrationTests;
 
-public sealed class FoundationFactory(string environment = "Development", string? connection = null, int permitLimit = 30, IVoiceGateway? voice = null)
+public sealed class FoundationFactory(string environment = "Development", string? connection = null, int permitLimit = 30, IVoiceGateway? voice = null, bool reverseProxy = false)
     : WebApplicationFactory<Program>
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -26,6 +26,8 @@ public sealed class FoundationFactory(string environment = "Development", string
                 ["Voice:WorkerEnabled"] = "false",
                 ["Voice:ApiKey"] = "test_key",
                 ["Voice:ApiSecret"] = "synthetic_test_secret_32_characters_minimum",
+                ["ReverseProxy:Enabled"] = reverseProxy.ToString(),
+                ["https_port"] = reverseProxy ? "443" : null,
                 ["DataProtection:KeyPath"] = Path.Combine(Path.GetFullPath("../../..", _.HostingEnvironment.ContentRootPath), ".local", "artifacts", "test-keys"),
             }));
         if (voice is not null) builder.ConfigureServices(services => services.AddSingleton(voice));

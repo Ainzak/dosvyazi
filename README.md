@@ -49,6 +49,8 @@ See [development instructions](docs/development.md), [accounts](docs/accounts.md
 
 See [local voice development](docs/voice-development.md) for application voice setup, physical audio testing and `npm run test:voice`. Automated fixtures use generated audio; physical devices and remote networks require separate manual checks.
 
+See [VPS test deployment](docs/vps-deployment.md) for a small Linux host, HTTPS and remote audio testing.
+
 ## Local Materials
 
 The entire `.local/` directory is excluded from Git: `plans/` for working plans, `research/` for private exploratory notes, and `artifacts/` for reports and experiment results. It is not included in clones and needs a separate backup.

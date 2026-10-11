@@ -1,0 +1,8 @@
+# Build context: a release bundle with `api/` from dotnet publish (framework-dependent net10.0).
+# Verified ASP.NET Core runtime 10.0.11.
+ARG ASPNET_IMAGE=mcr.microsoft.com/dotnet/aspnet@sha256:011bb5f30180717b1c8b65822ff2c99bcb96bc65af0164589751b83c7b4949f7
+FROM ${ASPNET_IMAGE}
+WORKDIR /app
+COPY api/ ./
+USER $APP_UID
+ENTRYPOINT ["dotnet", "App.Api.dll"]

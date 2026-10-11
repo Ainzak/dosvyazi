@@ -1,0 +1,84 @@
+# Linux single-host test deployment. Host networking keeps UFW in control of ingress.
+# PostgreSQL and the application bind to loopback; never add public Docker port mappings.
+name: dosvyazi-vps
+
+services:
+  database:
+    image: postgres:18.6-bookworm@sha256:afc7e2d441324c0388fa80c3d24f733b4194a4eb7f47dd8ee2b08eb1a24a647c
+    network_mode: host
+    restart: unless-stopped
+    mem_limit: 192m
+    command: ["postgres", "-c", "listen_addresses=127.0.0.1", "-c", "port=15432", "-c", "shared_buffers=32MB", "-c", "max_connections=30", "-c", "work_mem=2MB"]
+    environment:
+      POSTGRES_DB: dosvyazi
+      POSTGRES_USER: dosvyazi
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Configure a private server env file}
+    volumes:
+      - /opt/dosvyazi/data/postgres:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 15432 -U dosvyazi -d dosvyazi"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  api:
+    image: ${API_IMAGE:?Build the release image first}
+    network_mode: host
+    restart: unless-stopped
+    mem_limit: 256m
+    depends_on:
+      database:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://127.0.0.1:5080
+      ASPNETCORE_HTTPS_PORT: "443"
+      AllowedHosts: ${DOMAIN:?Configure the public hostname}
+      ReverseProxy__Enabled: "true"
+      DataProtection__KeyPath: /var/lib/dosvyazi/keys
+      ConnectionStrings__Dosvyazi: Host=127.0.0.1;Port=15432;Database=dosvyazi;Username=dosvyazi;Password=${POSTGRES_PASSWORD};Maximum Pool Size=20;Timeout=5;GSS Encryption Mode=Disable
+      Voice__Enabled: "true"
+      Voice__ControlUrl: http://127.0.0.1:7880
+      Voice__BrowserUrl: wss://${DOMAIN}/livekit
+      Voice__ApiKey: ${LIVEKIT_API_KEY:?Configure private LiveKit credentials}
+      Voice__ApiSecret: ${LIVEKIT_API_SECRET:?Configure private LiveKit credentials}
+      DOTNET_GCHeapHardLimit: "0x08000000"
+      Logging__LogLevel__Default: Warning
+    volumes:
+      - /opt/dosvyazi/data/keys:/var/lib/dosvyazi/keys
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+
+  livekit:
+    image: livekit/livekit-server:v1.13.9@sha256:d0c04791bf63ca8dcea123571827d56ba9504bd57c8d5de60ee03b5408cc3154
+    network_mode: host
+    restart: unless-stopped
+    mem_limit: 192m
+    command: ["--config", "/etc/livekit.yaml"]
+    volumes:
+      - /opt/dosvyazi/config/livekit.yaml:/etc/livekit.yaml:ro
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+
+  caddy:
+    image: ${CADDY_IMAGE:?Use the verified official Caddy digest}
+    network_mode: host
+    restart: unless-stopped
+    mem_limit: 64m
+    environment:
+      DOMAIN: ${DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./web:/srv/web:ro
+      - /opt/dosvyazi/data/caddy:/data
+      - /opt/dosvyazi/data/caddy-config:/config
+    security_opt:
+      - no-new-privileges:true
