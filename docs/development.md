@@ -88,4 +88,4 @@ If a port is busy or reserved, change `POSTGRES_PORT` in ignored `deploy/.env` a
 
 PostgreSQL 18's official image uses `/var/lib/postgresql/18/docker` and declares its volume at `/var/lib/postgresql`. This Compose configuration uses that new mount location. Do not apply older PostgreSQL 17 volume instructions to this image or delete a volume to fix configuration.
 
-Persisted Data Protection keys are already used for sessions. Keep this development Compose file local; production TLS, Caddy/static UI hosting, least-privilege database roles, backup/key management and LiveKit networking will be implemented and verified in their authorized stages. Private files and attachments will remain outside the public web root when implemented.
+Persisted Data Protection keys are already used for sessions. Keep this development Compose file local; production TLS, Caddy/static UI hosting, least-privilege database roles, backup/key management and LiveKit networking will be implemented and verified in their authorized stages. Private attachments stay outside the public web root; see [attachment configuration and limits](attachments.md).

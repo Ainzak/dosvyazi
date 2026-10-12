@@ -38,6 +38,51 @@ async function send(page: Page, text: string) {
   await expect(page.getByRole('list', { name: 'Messages', exact: true }).getByText(text, { exact: true })).toBeVisible();
 }
 
+test('attachments deliver live, download after reload and disappear after deletion', async ({ page, browser }, info) => {
+  await register(page, 'File owner'); const room = await community(page); const second = await member(browser, page, room.code);
+  const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
+  try {
+    await page.getByLabel('Attach a file', { exact: true }).setInputFiles({ name: 'shared-notes.txt', mimeType: 'text/plain', buffer: Buffer.from('Verified attachment body') });
+    await page.getByRole('button', { name: 'Send message', exact: true }).click();
+    const button = second.page.getByRole('button', { name: 'Download file: shared-notes.txt', exact: true });
+    await expect(button).toBeVisible(); await second.page.reload(); await expect(button).toBeVisible();
+    await second.page.route('**/attachments/*', route => route.fulfill({ status: 503, contentType: 'application/problem+json', body: JSON.stringify({ title: 'Attachment storage is unavailable. Try again later.' }) }));
+    await button.click(); await expect(second.page.getByRole('alert')).toContainText('Attachment storage is unavailable.');
+    await second.page.unroute('**/attachments/*');
+    const received = second.page.waitForEvent('download'); await button.click(); const download = await received;
+    expect(download.suggestedFilename()).toBe('shared-notes.txt');
+    const stream = await download.createReadStream(); const chunks: Buffer[] = []; for await (const chunk of stream!) chunks.push(Buffer.from(chunk));
+    expect(Buffer.concat(chunks).toString()).toBe('Verified attachment body');
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({ path: info.outputPath('attachments.png'), fullPage: true });
+    await page.getByRole('button', { name: 'Delete message by File owner', exact: true }).click();
+    await page.getByRole('button', { name: 'Confirm delete', exact: true }).click();
+    await expect(button).toHaveCount(0); expect(errors).toEqual([]);
+  } finally { await second.context.close(); }
+});
+
+test('attachments retain retry identity and reject invalid selections with translated guidance', async ({ page }) => {
+  await register(page, 'Retry file owner'); await community(page);
+  await page.getByLabel('Attach a file', { exact: true }).setInputFiles({ name: 'unsafe.svg', mimeType: 'image/svg+xml', buffer: Buffer.from('<svg/>') });
+  await expect(page.getByRole('alert')).toContainText('Choose a nonempty');
+  await page.getByRole('button', { name: 'Remove selected file', exact: true }).click();
+  await expect(page.getByRole('alert')).toHaveCount(0);
+  await page.getByLabel('Attach a file', { exact: true }).setInputFiles({ name: 'retry.txt', mimeType: 'text/plain', buffer: Buffer.from('Retained retry file') });
+  const ids: string[] = [];
+  await page.route('**/channels/*/attachments', async route => {
+    const data = route.request().postDataBuffer()!.toString(); ids.push(/name="clientMessageId"\r\n\r\n([^\r]+)/.exec(data)![1]!);
+    const response = await route.fetch(); if (ids.length === 1) await route.abort(); else await route.fulfill({ response });
+  });
+  await page.getByRole('button', { name: 'Send message', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Retry send', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Retry send', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Send message', exact: true })).toBeVisible();
+  expect(ids).toHaveLength(2); expect(ids[0]).toBe(ids[1]);
+  await expect(page.getByRole('button', { name: 'Download file: retry.txt', exact: true })).toHaveCount(1);
+  await page.getByRole('button', { name: 'Русский', exact: true }).click();
+  await expect(page.getByLabel('Прикрепить файл', { exact: true })).toBeVisible();
+});
+
 test('two users exchange live safe text and a third user cannot read it', async ({ page, browser }, info) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));

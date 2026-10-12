@@ -258,6 +258,102 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/communities/{community}/channels/{channel}/attachments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    community: string;
+                    channel: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/x-www-form-urlencoded": {
+                        /** Format: uuid */
+                        clientMessageId?: string;
+                    } & {
+                        ContentType?: string;
+                        ContentDisposition?: string;
+                        Headers?: {
+                            [key: string]: string[];
+                        };
+                        /** Format: int64 */
+                        Length?: number | string;
+                        Name?: string;
+                        FileName?: string;
+                    } & {
+                        content?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["MessageDto"];
+                        "application/json": components["schemas"]["MessageDto"];
+                        "text/json": components["schemas"]["MessageDto"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/communities/{community}/channels/{channel}/attachments/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    community: string;
+                    channel: string;
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/communities/{community}/channels/{channel}/messages": {
         parameters: {
             query?: never;
@@ -1478,6 +1574,12 @@ export interface components {
             version: string;
             appliedVersion: string;
         };
+        AttachmentDto: {
+            id: string;
+            name: string;
+            /** Format: int64 */
+            size: number | string;
+        };
         AuditDto: {
             id: string;
             actorName: string;
@@ -1639,6 +1741,7 @@ export interface components {
             updatedAt?: null | string;
             /** @default false */
             deleted: boolean;
+            attachment?: null | components["schemas"]["AttachmentDto"];
         };
         MessageEvent: {
             eventId: string;

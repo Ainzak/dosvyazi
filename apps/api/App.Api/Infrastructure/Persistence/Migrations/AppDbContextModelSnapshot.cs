@@ -552,6 +552,42 @@ namespace App.Api.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("App.Api.Features.Messages.MessageAttachment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Hash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<Guid>("MessageId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<bool>("Purged")
+                        .HasColumnType("boolean");
+
+                    b.Property<long>("Size")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MessageId")
+                        .IsUnique();
+
+                    b.ToTable("MessageAttachments", t =>
+                        {
+                            t.HasCheckConstraint("CK_MessageAttachments_Size", "\"Size\" BETWEEN 1 AND 5242880");
+                        });
+                });
+
             modelBuilder.Entity("App.Api.Features.Messages.MessageCommand", b =>
                 {
                     b.Property<Guid>("ChannelId")
@@ -1036,6 +1072,17 @@ namespace App.Api.Infrastructure.Persistence.Migrations
                     b.Navigation("Channel");
                 });
 
+            modelBuilder.Entity("App.Api.Features.Messages.MessageAttachment", b =>
+                {
+                    b.HasOne("App.Api.Features.Messages.Message", "Message")
+                        .WithOne("Attachment")
+                        .HasForeignKey("App.Api.Features.Messages.MessageAttachment", "MessageId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Message");
+                });
+
             modelBuilder.Entity("App.Api.Features.Messages.MessageCommand", b =>
                 {
                     b.HasOne("App.Api.Features.Accounts.AppUser", null)
@@ -1145,6 +1192,11 @@ namespace App.Api.Infrastructure.Persistence.Migrations
                     b.Navigation("Channels");
 
                     b.Navigation("Members");
+                });
+
+            modelBuilder.Entity("App.Api.Features.Messages.Message", b =>
+                {
+                    b.Navigation("Attachment");
                 });
 #pragma warning restore 612, 618
         }

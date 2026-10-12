@@ -184,6 +184,9 @@ h1 { font-size: clamp(26px, 2.6vw, 36px); line-height: 1.2; letter-spacing: -1.1
 .voice-devices select { width: 100%; min-width: 0; padding: 8px; border-radius: 8px; border: 1px solid #c8d9cd; background: white; }
 .voice-volume { display: grid; grid-template-columns: 1fr auto; gap: 6px; max-width: 320px; margin-top: 14px; }
 .voice-volume input { grid-column: 1 / -1; width: 100%; min-height: 32px; margin: 0; }
+.message-attachment { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 0; }
+.message-attachment button { max-width: 100%; overflow-wrap: anywhere; }
+.message-composer input[type=file] { width: 100%; min-width: 0; }
 .voice-notice { margin: 12px 40px; }
 @media (max-width: 700px) { .voice-dock, .voice-notice { margin: 12px 16px; } .voice-panel { padding: 16px; } .voice-actions button { flex: 1 1 130px; } }
 /* Owner text-access controls remain a single column on narrow screens. */

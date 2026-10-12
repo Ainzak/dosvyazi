@@ -51,7 +51,7 @@ Create `/opt/dosvyazi/config` and `/opt/dosvyazi/data` with restrictive access. 
 
 Resolve/pin the official ASP.NET Core 10.0.11 runtime image digest before building the release API image. The Caddy template pins the verified 2.11.7 image digest; PostgreSQL 18.6 and LiveKit 1.13.9 retain the project's existing pins.
 
-Create persistent `data/postgres`, `data/keys`, `data/caddy` and `data/caddy-config` directories. The PostgreSQL mount root must be traversable by its image's PostgreSQL UID/GID (999:999 for the pinned image); root-owned mode 700 prevents startup even if the nested PGDATA is correctly owned. Keys need ownership 1654:1654 and mode 700 for the API's non-root user. Keep the parent directories root-only.
+Create persistent `data/postgres`, `data/keys`, `data/files`, `data/caddy` and `data/caddy-config` directories. The PostgreSQL mount root must be traversable by its image's PostgreSQL UID/GID (999:999 for the pinned image); root-owned mode 700 prevents startup even if the nested PGDATA is correctly owned. Keys and private attachment files need ownership 1654:1654 and mode 700 for the API's non-root user. Keep the parent directories root-only.
 
 From the extracted release directory, with `ASPNET_IMAGE` set to the verified runtime image digest:
 
@@ -77,4 +77,4 @@ docker compose --env-file /opt/dosvyazi/config/deployment.env -f /opt/dosvyazi/c
 
 Keep database storage, key files, certificates and backup archives. Never use `down -v`, remove volumes, flush firewall rules or roll migrations backwards to undo a service installation. Remove only firewall rules specifically added for this deployment. Restore individual original configuration files after review; a full UFW restore could discard newer bans or user changes. If Docker must be removed, first stop this project and use the exact logged new package list without `autoremove` or deleting its data.
 
-Before later application/schema updates, back up PostgreSQL with `pg_dump` and separately protect the private configuration and Data Protection keys. Restoring an older API against changed schema requires a compatibility review. Revoke temporary deployment SSH access once verification is finished.
+Before later application/schema updates, back up PostgreSQL with `pg_dump`, back up the private attachment directory, and separately protect the private configuration and Data Protection keys. Restoring an older API against changed schema requires a compatibility review. Revoke temporary deployment SSH access once verification is finished.

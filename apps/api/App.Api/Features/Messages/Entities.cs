@@ -18,6 +18,18 @@ public sealed class Message
     public DateTimeOffset? UpdatedAt { get; set; }
     public bool Deleted { get; set; }
     public string? OriginalContentHash { get; set; }
+    public MessageAttachment? Attachment { get; set; }
+}
+
+public sealed class MessageAttachment
+{
+    public Guid Id { get; set; }
+    public Guid MessageId { get; set; }
+    public Message Message { get; set; } = null!;
+    public string Name { get; set; } = "";
+    public string Hash { get; set; } = "";
+    public long Size { get; set; }
+    public bool Purged { get; set; }
 }
 
 public sealed class ChannelEvent

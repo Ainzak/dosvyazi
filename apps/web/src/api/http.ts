@@ -4,10 +4,10 @@ export class ApiError extends Error {
   constructor(public status: number, message: string, public code?: string) { super(message); }
 }
 
-export async function callApi(path: string, options: RequestInit = {}): Promise<Response> {
+export async function callApi(path: string, options: RequestInit = {}, timeout = 8_000): Promise<Response> {
   try {
     return await fetch(path, { ...options, credentials: 'same-origin', cache: 'no-store',
-      signal: options.signal ? AbortSignal.any([options.signal, AbortSignal.timeout(8_000)]) : AbortSignal.timeout(8_000) });
+      signal: options.signal ? AbortSignal.any([options.signal, AbortSignal.timeout(timeout)]) : AbortSignal.timeout(timeout) });
   } catch (error) {
     // Query cancellation is deliberate, not a failed connection. Preserve the
     // abort reason so canceled navigation/account changes cannot show an alert.

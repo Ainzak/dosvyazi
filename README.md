@@ -11,7 +11,7 @@ A multifunctional group communication platform. This monorepo contains the brows
 - `docs/` - public technical documentation.
 - [AGENTS.md](AGENTS.md) - development rules for contributors and AI agents.
 
-The development foundation, text messaging, voice and access/moderation are implemented: a React workspace with English and Russian UI, accounts with password recovery (development preview/operator delivery until email is enabled), communities/invitations, ranked roles, categories, private resources, kick/ban, message edit/delete and moderation audit. Live text supports revision-aware recovery; voice includes devices, mute/deafen, saved output volume, listen-only permissions and protected room-generation transitions. The controller API includes OpenAPI, PostgreSQL migrations and readiness checks. Files, search, reactions and Gatherings remain upcoming work. The architecture remains a modular monolith with PostgreSQL and separate self-hosted LiveKit.
+The development foundation, text messaging, voice and access/moderation are implemented: a React workspace with English and Russian UI, accounts with password recovery (development preview/operator delivery until email is enabled), communities/invitations, ranked roles, categories, private resources, kick/ban, message edit/delete and moderation audit. Live text supports revision-aware recovery; voice includes devices, mute/deafen, saved output volume, listen-only permissions and protected room-generation transitions. The controller API includes OpenAPI, PostgreSQL migrations and readiness checks. Authorized single-file chat attachments are implemented with private storage and authenticated downloads. Search, reactions and Gatherings remain upcoming work. The architecture remains a modular monolith with PostgreSQL and separate self-hosted LiveKit.
 
 ## Development
 
@@ -45,7 +45,7 @@ npm run install:browser
 npm run test:e2e
 ```
 
-See [development instructions](docs/development.md), [accounts](docs/accounts.md), [communities](docs/communities.md), [access/moderation](docs/text-access.md) and [messaging](docs/messaging.md) for configuration, contracts, checks and troubleshooting. This setup is for local development.
+See [development instructions](docs/development.md), [accounts](docs/accounts.md), [communities](docs/communities.md), [access/moderation](docs/text-access.md), [messaging](docs/messaging.md) and [attachments](docs/attachments.md) for configuration, contracts, checks and troubleshooting. This setup is for local development.
 
 See [local voice development](docs/voice-development.md) for application voice setup, physical audio testing and `npm run test:voice`. Automated fixtures use generated audio; physical devices and remote networks require separate manual checks.
 

@@ -36,6 +36,7 @@ services:
       AllowedHosts: ${DOMAIN:?Configure the public hostname}
       ReverseProxy__Enabled: "true"
       DataProtection__KeyPath: /var/lib/dosvyazi/keys
+      Files__RootPath: /var/lib/dosvyazi/files
       ConnectionStrings__Dosvyazi: Host=127.0.0.1;Port=15432;Database=dosvyazi;Username=dosvyazi;Password=${POSTGRES_PASSWORD};Maximum Pool Size=20;Timeout=5;GSS Encryption Mode=Disable
       Voice__Enabled: "true"
       Voice__ControlUrl: http://127.0.0.1:7880
@@ -46,6 +47,7 @@ services:
       Logging__LogLevel__Default: Warning
     volumes:
       - /opt/dosvyazi/data/keys:/var/lib/dosvyazi/keys
+      - /opt/dosvyazi/data/files:/var/lib/dosvyazi/files
     read_only: true
     tmpfs:
       - /tmp:size=32m

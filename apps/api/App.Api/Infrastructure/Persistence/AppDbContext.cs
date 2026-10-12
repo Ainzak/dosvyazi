@@ -23,6 +23,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : Ident
     public DbSet<AuditEntry> AuditEntries => Set<AuditEntry>();
     public DbSet<CommunityInvite> CommunityInvites => Set<CommunityInvite>();
     public DbSet<Message> Messages => Set<Message>();
+    public DbSet<MessageAttachment> MessageAttachments => Set<MessageAttachment>();
     public DbSet<MessageCommand> MessageCommands => Set<MessageCommand>();
     public DbSet<ChannelEvent> ChannelEvents => Set<ChannelEvent>();
     public DbSet<OutboxEntry> OutboxEntries => Set<OutboxEntry>();
@@ -35,6 +36,13 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : Ident
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
+        builder.Entity<MessageAttachment>(attachment =>
+        {
+            attachment.HasOne(a => a.Message).WithOne(m => m.Attachment).HasForeignKey<MessageAttachment>(a => a.MessageId).OnDelete(DeleteBehavior.Restrict);
+            attachment.Property(a => a.Name).HasMaxLength(120);
+            attachment.Property(a => a.Hash).HasMaxLength(64);
+            attachment.ToTable(t => t.HasCheckConstraint("CK_MessageAttachments_Size", "\"Size\" BETWEEN 1 AND 5242880"));
+        });
         builder.Entity<CommunityRole>(role =>
         {
             role.HasAlternateKey(r => new { r.CommunityId, r.Id });

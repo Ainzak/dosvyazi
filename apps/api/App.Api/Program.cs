@@ -55,6 +55,8 @@ builder.Services.AddScoped<AccountService>();
 builder.Services.AddScoped<CommunityService>();
 builder.Services.AddScoped<AccessService>();
 builder.Services.AddScoped<MessageService>();
+builder.Services.AddSingleton<AttachmentStore>();
+if (builder.Configuration.GetValue("Files:WorkerEnabled", true)) builder.Services.AddHostedService<AttachmentCleanup>();
 builder.Services.AddOptions<VoiceOptions>().Bind(builder.Configuration.GetSection("Voice"))
     .Validate(voice => !voice.Enabled || (!string.IsNullOrWhiteSpace(voice.ApiKey) && voice.ApiSecret.Length >= 32 &&
         Uri.TryCreate(voice.ControlUrl, UriKind.Absolute, out var control) && control.Scheme is "http" or "https" &&
@@ -107,6 +109,8 @@ if (OperatingSystem.IsWindows()) protection.ProtectKeysWithDpapi();
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy("attachment-uploads", _ => RateLimitPartition.GetConcurrencyLimiter("uploads", _ => new ConcurrencyLimiterOptions
+        { PermitLimit = 2, QueueLimit = 0 }));
     options.AddPolicy("voice-joins", context => RateLimitPartition.GetFixedWindowLimiter(
         context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "anonymous", _ => new FixedWindowRateLimiterOptions
         { PermitLimit = 12, Window = TimeSpan.FromMinutes(1), QueueLimit = 0, AutoReplenishment = true }));
@@ -123,8 +127,9 @@ builder.Services.AddRateLimiter(options =>
         }));
     options.OnRejected = async (context, cancellationToken) =>
     {
-        context.HttpContext.Response.Headers.RetryAfter = "60";
-        await Results.Problem(statusCode: 429, title: "Too many attempts. Try again in a minute.").ExecuteAsync(context.HttpContext);
+        var upload = context.HttpContext.GetEndpoint()?.Metadata.GetMetadata<Microsoft.AspNetCore.RateLimiting.EnableRateLimitingAttribute>()?.PolicyName == "attachment-uploads";
+        context.HttpContext.Response.Headers.RetryAfter = upload ? "2" : "60";
+        await Results.Problem(statusCode: 429, title: upload ? "Uploads are busy. Try again shortly." : "Too many attempts. Try again in a minute.").ExecuteAsync(context.HttpContext);
     };
 });
 

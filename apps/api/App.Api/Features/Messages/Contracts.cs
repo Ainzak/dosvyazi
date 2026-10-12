@@ -4,7 +4,8 @@ namespace App.Api.Features.Messages;
 
 public sealed record SendMessageRequest(Guid ClientMessageId, [Required, StringLength(4000, MinimumLength = 1)] string Content);
 public sealed record MessageDto(string Id, string ChannelId, string AuthorId, string AuthorName, string ClientMessageId,
-    string Sequence, string Content, DateTimeOffset CreatedAt, string Version = "1", DateTimeOffset? UpdatedAt = null, bool Deleted = false);
+    string Sequence, string Content, DateTimeOffset CreatedAt, string Version = "1", DateTimeOffset? UpdatedAt = null, bool Deleted = false, AttachmentDto? Attachment = null);
+public sealed record AttachmentDto(string Id, string Name, long Size);
 public sealed record MessageSnapshot(MessageDto[] Messages, string Watermark, bool HasOlder);
 public sealed record MessageEvent(string EventId, string ChannelId, string Sequence, string Kind, int SchemaVersion, MessageDto? Payload, string MessageId = "", string Version = "1");
 public sealed record CatchUpPage(MessageEvent[] Events, string NextSequence, string Watermark, bool HasMore);

@@ -11,6 +11,12 @@ export const catchUp = (community: string, channel: string, after: string, signa
   callApi(`${root(community, channel)}/events?after=${encodeURIComponent(after)}`, { signal }).then(readJson<CatchUpPage>);
 export const sendMessage = (community: string, channel: string, clientMessageId: string, content: string) =>
   mutateApi<Message>(`${root(community, channel)}/messages`, 'POST', { clientMessageId, content });
+export async function sendAttachment(community: string, channel: string, id: string, content: string, file: File) {
+  const token = await readJson<components['schemas']['CsrfResponse']>(await callApi('/api/v1/account/csrf'));
+  const body = new FormData(); body.append('clientMessageId', id); body.append('content', content); body.append('file', file);
+  return readJson<Message>(await callApi(`${root(community, channel)}/attachments`, { method: 'POST', body, headers: { 'X-CSRF-TOKEN': token.requestToken } }, 30_000));
+}
+export const attachmentUrl = (community: string, channel: string, id: string) => `${root(community, channel)}/attachments/${id}`;
 export const editMessage = (community: string, channel: string, id: string, clientRequestId: string, expectedVersion: string, content: string) =>
   mutateApi<components['schemas']['MessageCommandResult']>(`${root(community, channel)}/messages/${id}`, 'PUT', { clientRequestId, expectedVersion, content });
 export const deleteMessage = (community: string, channel: string, id: string, clientRequestId: string, expectedVersion: string) =>

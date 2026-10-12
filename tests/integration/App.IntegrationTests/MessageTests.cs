@@ -19,6 +19,114 @@ namespace App.IntegrationTests;
 public sealed class MessageTests(AccountsDatabase database) : IClassFixture<AccountsDatabase>
 {
     private FoundationFactory Factory() => new(connection: database.Connection, permitLimit: 120);
+    private static async Task<HttpResponseMessage> Upload(HttpClient client, string path, Guid id, string name = "notes.txt", byte[]? bytes = null, bool csrf = true)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, path + "/attachments");
+        if (csrf) request.Headers.Add("X-CSRF-TOKEN", (await client.GetFromJsonAsync<CsrfResponse>("/api/v1/account/csrf"))!.RequestToken);
+        var body = new MultipartFormDataContent(); body.Add(new StringContent(id.ToString()), "clientMessageId");
+        body.Add(new ByteArrayContent(bytes ?? "Synthetic attachment content"u8.ToArray()), "file", name);
+        request.Content = body;
+        return await client.SendAsync(request);
+    }
+
+    [Fact]
+    public async Task AttachmentsAreIdempotentPersistedAndProtectedAfterBanDeletionAndRestart()
+    {
+        await using var host = Factory(); using var owner = await User(host); using var member = await User(host); using var outsider = await User(host);
+        var community = await Create(owner); await Join(owner, member, community); var path = PathFor(community); var id = Guid.NewGuid();
+        var replies = await Task.WhenAll(Upload(owner.Client, path, id), Upload(owner.Client, path, id));
+        foreach (var reply in replies) Assert.Equal(HttpStatusCode.Created, reply.StatusCode);
+        var message = (await replies[0].Content.ReadFromJsonAsync<MessageDto>())!;
+        Assert.Equal(message.Attachment, (await replies[1].Content.ReadFromJsonAsync<MessageDto>())!.Attachment);
+        foreach (var reply in replies) reply.Dispose();
+        var url = path + "/attachments/" + message.Attachment!.Id;
+        using var anonymous = host.CreateClient();
+        Assert.Equal(HttpStatusCode.Unauthorized, (await anonymous.GetAsync(url)).StatusCode);
+        using var download = await member.Client.GetAsync(url);
+        Assert.Equal(HttpStatusCode.OK, download.StatusCode); Assert.Equal("application/octet-stream", download.Content.Headers.ContentType!.MediaType);
+        Assert.Equal("attachment", download.Content.Headers.ContentDisposition!.DispositionType);
+        Assert.Equal("nosniff", download.Headers.GetValues("X-Content-Type-Options").Single());
+        Assert.Equal("Synthetic attachment content", await download.Content.ReadAsStringAsync());
+        Assert.Equal(HttpStatusCode.NotFound, (await outsider.Client.GetAsync(url)).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await Upload(outsider.Client, path, Guid.NewGuid())).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await Upload(owner.Client, path, id, bytes: "Changed bytes"u8.ToArray())).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await Command(owner.Client, path + "/messages", new { ClientMessageId = id, Content = "Changed text" })).StatusCode);
+        using var edited = await Command(owner.Client, path + $"/messages/{message.Id}", new { ClientRequestId = Guid.NewGuid(), ExpectedVersion = "1", Content = "Attachment caption" }, "PUT");
+        Assert.Equal(HttpStatusCode.OK, edited.StatusCode);
+        Assert.Equal(message.Attachment, (await edited.Content.ReadFromJsonAsync<MessageCommandResult>())!.Current.Attachment);
+        await using (var restarted = Factory())
+        {
+            using var client = restarted.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false }); client.DefaultRequestHeaders.Add("Cookie", owner.Cookie);
+            Assert.Equal(HttpStatusCode.OK, (await client.GetAsync(url)).StatusCode);
+            Assert.Single((await owner.Client.GetFromJsonAsync<MessageSnapshot>(path + "/messages"))!.Messages);
+            Assert.All((await owner.Client.GetFromJsonAsync<CatchUpPage>(path + "/events?after=0"))!.Events, e => Assert.Equal(message.Attachment, e.Payload!.Attachment));
+        }
+        Assert.Equal(HttpStatusCode.OK, (await Command(owner.Client, $"/api/v1/communities/{community.Id}/members/{member.Profile.Id}/ban", new { Banned = true }, "PUT")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await member.Client.GetAsync(url)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await Command(owner.Client, path + $"/messages/{message.Id}/delete", new { ClientRequestId = Guid.NewGuid(), ExpectedVersion = "2" })).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await owner.Client.GetAsync(url)).StatusCode);
+        using var scope = host.Services.CreateScope(); var db = scope.ServiceProvider.GetRequiredService<AppDbContext>(); var store = scope.ServiceProvider.GetRequiredService<AttachmentStore>();
+        await AttachmentCleanup.PurgeAsync(db, store, default); await AttachmentCleanup.PurgeAsync(db, store, default);
+        Assert.True((await db.MessageAttachments.SingleAsync(a => a.Id == Guid.Parse(message.Attachment.Id))).Purged);
+        Assert.Throws<FileNotFoundException>(() => store.Open(Guid.Parse(message.Attachment.Id)));
+    }
+
+    [Fact]
+    public async Task InvalidAttachmentsAndMissingCsrfDoNotCreateMessages()
+    {
+        await using var host = Factory(); using var owner = await User(host); var community = await Create(owner); var path = PathFor(community);
+        Assert.Equal(HttpStatusCode.BadRequest, (await Upload(owner.Client, path, Guid.NewGuid(), csrf: false)).StatusCode);
+        foreach (var name in new[] { "bad.svg", "fake.png", "../escape.txt", "folder\\escape.txt" })
+            Assert.Equal(HttpStatusCode.UnprocessableEntity, (await Upload(owner.Client, path, Guid.NewGuid(), name)).StatusCode);
+        Assert.Equal(HttpStatusCode.RequestEntityTooLarge, (await Upload(owner.Client, path, Guid.NewGuid(), bytes: new byte[AttachmentStore.MaxBytes + 1])).StatusCode);
+        Assert.Equal(HttpStatusCode.RequestEntityTooLarge, (await Upload(owner.Client, path, Guid.NewGuid(), bytes: [])).StatusCode);
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, (await Upload(owner.Client, path, Guid.NewGuid(), bytes: new byte[] { 255, 255 })).StatusCode);
+        Assert.Empty((await owner.Client.GetFromJsonAsync<MessageSnapshot>(path + "/messages"))!.Messages);
+    }
+
+    [Fact]
+    public async Task AttachmentQuotaRejectsWithoutPublishing()
+    {
+        await using var host = new FoundationFactory(connection: database.Connection, fileQuota: 1);
+        using var owner = await User(host); var community = await Create(owner);
+        Assert.Equal(HttpStatusCode.Conflict, (await Upload(owner.Client, PathFor(community), Guid.NewGuid())).StatusCode);
+        Assert.Empty((await owner.Client.GetFromJsonAsync<MessageSnapshot>(PathFor(community) + "/messages"))!.Messages);
+    }
+
+    [Fact]
+    public async Task UnavailableAttachmentStorageFailsWithoutPublishing()
+    {
+        var root = Path.GetFullPath("../../../../../..", AppContext.BaseDirectory);
+        var blocked = Path.Combine(root, ".local", "artifacts", $"blocked-file-storage-{Guid.NewGuid():N}.txt");
+        await File.WriteAllTextAsync(blocked, "Synthetic blocked storage path");
+        await using var host = new FoundationFactory(connection: database.Connection, fileRoot: blocked);
+        using var owner = await User(host); var community = await Create(owner);
+        using var response = await Upload(owner.Client, PathFor(community), Guid.NewGuid());
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+        Assert.DoesNotContain(blocked, await response.Content.ReadAsStringAsync());
+        Assert.Empty((await owner.Client.GetFromJsonAsync<MessageSnapshot>(PathFor(community) + "/messages"))!.Messages);
+    }
+
+    [Fact]
+    public async Task AttachmentDownloadsFollowPrivateChannelAndReadOnlyPermissionChanges()
+    {
+        await using var host = Factory(); using var owner = await User(host); using var member = await User(host);
+        var community = await Create(owner); await Join(owner, member, community); var path = PathFor(community);
+        using var upload = await Upload(owner.Client, path, Guid.NewGuid());
+        var message = (await upload.Content.ReadFromJsonAsync<MessageDto>())!;
+        var url = path + "/attachments/" + message.Attachment!.Id;
+        var policy = (await owner.Client.GetFromJsonAsync<AccessPolicy>($"/api/v1/communities/{community.Id}/access"))!;
+        using var readOnly = await Command(owner.Client, $"/api/v1/communities/{community.Id}/access", new SaveAccessRequest(Guid.NewGuid(), policy with { Roles = policy.Roles.Select(r => r with { Grants = ChannelAccess.View }).ToArray() }), "PUT");
+        Assert.Equal(HttpStatusCode.OK, readOnly.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await member.Client.GetAsync(url)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await Upload(member.Client, path, Guid.NewGuid())).StatusCode);
+        policy = (await owner.Client.GetFromJsonAsync<AccessPolicy>($"/api/v1/communities/{community.Id}/access"))!;
+        using var privatePolicy = await Command(owner.Client, $"/api/v1/communities/{community.Id}/access", new SaveAccessRequest(Guid.NewGuid(), policy with { Roles = policy.Roles.Select(r => r with { Grants = 0 }).ToArray() }), "PUT");
+        Assert.Equal(HttpStatusCode.OK, privatePolicy.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await member.Client.GetAsync(url)).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await Upload(member.Client, path, Guid.NewGuid())).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await owner.Client.GetAsync(url)).StatusCode);
+    }
     private sealed record Person(HttpClient Client, UserProfile Profile, string Cookie) : IDisposable { public void Dispose() => Client.Dispose(); }
     private static async Task<HttpResponseMessage> Command(HttpClient client, string path, object? body = null, string method = "POST")
     {
