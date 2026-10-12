@@ -9,10 +9,14 @@ export type VoiceSnapshot = {
   community: string | null; name: string; status: string; error: string | null;
   muted: boolean; deafened: boolean; input: string; output: string; canSpeak: boolean;
   devices: MediaDeviceInfo[]; participants: VoiceState['participants']; speakers: string[]; changingAudio: boolean;
-  playbackBlocked: boolean; startingPlayback: boolean;
+  playbackBlocked: boolean; startingPlayback: boolean; volume: number;
 };
+function savedVolume() {
+  try { const stored = localStorage.getItem('dosvyazi-output-volume'); const n = stored === null ? 100 : Number(stored); return Number.isFinite(n) && n >= 0 && n <= 100 ? n : 100; }
+  catch { return 100; }
+}
 const initial = (): VoiceSnapshot => ({ community: null, name: '', status: 'Disconnected', error: null,
-  muted: true, deafened: false, input: 'default', output: 'default', canSpeak: true, devices: [], participants: [], speakers: [], changingAudio: false, playbackBlocked: false, startingPlayback: false });
+  muted: true, deafened: false, input: 'default', output: 'default', canSpeak: true, devices: [], participants: [], speakers: [], changingAudio: false, playbackBlocked: false, startingPlayback: false, volume: savedVolume() });
 
 export class VoiceClient {
   private value = initial();
@@ -88,7 +92,8 @@ export class VoiceClient {
   private fail(error: unknown) {
     if (this.denied(error)) {
       this.epoch++; this.disconnect(); this.lease = undefined;
-      this.update({ community: null, participants: [], speakers: [], status: 'Disconnected', error: 'Voice access ended. Sign in or check your community membership.' });
+      this.generation = undefined; this.request = crypto.randomUUID();
+      this.update({ ...initial(), error: 'Voice access ended. Sign in or check your community membership.' });
     } else this.update({ error: error instanceof ApiError ? error.message : 'Voice connection failed. Check your network and try again.', status: 'Connection interrupted' });
   }
 
@@ -120,7 +125,7 @@ export class VoiceClient {
       room.on(RoomEvent.TrackSubscribed, track => {
         if (this.room !== room || track.kind !== Track.Kind.Audio) return;
         const audioTrack = track as RemoteAudioTrack;
-        const element = audioTrack.attach(); element.muted = this.value.deafened;
+        const element = audioTrack.attach(); element.muted = this.value.deafened; element.volume = this.value.volume / 100;
         element.hidden = true; document.body.append(element); this.audio.set(audioTrack, element);
         this.activity?.observe(audioTrack);
       });
@@ -154,7 +159,11 @@ export class VoiceClient {
       this.lastHeartbeat = 0;
     } catch (error) {
       if (epoch === this.epoch) {
-        if (error instanceof ApiError && error.status === 409) { this.request = crypto.randomUUID(); this.update({ status: 'Access updating', error: error.message }); }
+        if (error instanceof ApiError && error.code === 'voice_join_stale') {
+          this.disconnect(); this.request = crypto.randomUUID();
+          this.update({ status: 'Join failed', error: 'Your previous voice session ended. Select Reconnect voice to start a new session.' });
+        }
+        else if (error instanceof ApiError && error.status === 409) { this.request = crypto.randomUUID(); this.update({ status: 'Access updating', error: error.message }); }
         else this.fail(error);
       }
     } finally { this.busy = false; }
@@ -177,7 +186,7 @@ export class VoiceClient {
 
   private async poll() {
     const community = this.value.community;
-    if (!community || this.polling || this.busy || !navigator.onLine || this.value.status === 'Leave not confirmed') return;
+    if (!community || this.polling || this.busy || !navigator.onLine || ['Leave not confirmed', 'Join failed'].includes(this.value.status)) return;
     this.polling = true; const epoch = this.epoch;
     try {
       const state = await getVoice(community, undefined, this.lease);
@@ -212,6 +221,13 @@ export class VoiceClient {
     const epoch = this.epoch;
     try { const devices = await Room.getLocalDevices(undefined, false); if (epoch === this.epoch) this.update({ devices }); }
     catch { if (epoch === this.epoch) this.update({ error: 'Audio devices could not be listed.' }); }
+  }
+  volume(percent: number) {
+    if (!Number.isFinite(percent)) return;
+    const volume = Math.max(0, Math.min(100, percent));
+    for (const element of this.audio.values()) element.volume = volume / 100;
+    this.update({ volume });
+    try { localStorage.setItem('dosvyazi-output-volume', String(volume)); } catch { /* Volume remains usable without browser storage. */ }
   }
   async microphone(muted: boolean) {
     const room = this.room;

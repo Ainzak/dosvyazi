@@ -11,7 +11,7 @@ namespace App.Api.Features.Accounts;
 [Route("api/v1/account")]
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 public sealed class AccountsController(AccountService accounts, UserManager<AppUser> users,
-    IAntiforgery antiforgery) : ControllerBase
+    IAntiforgery antiforgery, IWebHostEnvironment environment) : ControllerBase
 {
     [AllowAnonymous]
     [HttpGet("csrf")]
@@ -39,6 +39,32 @@ public sealed class AccountsController(AccountService accounts, UserManager<AppU
     {
         var profile = await accounts.LoginAsync(request, User, cancellationToken);
         return profile is null ? Problem(statusCode: 401, title: "Unable to sign in. Check your email and password or try again later.") : Ok(profile);
+    }
+
+    [AllowAnonymous]
+    [EnableRateLimiting("accounts")]
+    [HttpPost("forgot-password")]
+    [ProducesResponseType<PasswordRecoveryResponse>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<PasswordRecoveryResponse>> ForgotPassword(ForgotPasswordRequest request)
+    {
+        // TODO: replace development preview/operator delivery with verified email delivery.
+        // Never return a reset credential to an unauthenticated production caller.
+        if (!environment.IsDevelopment()) return Ok(new PasswordRecoveryResponse(
+            "Email delivery is not enabled yet. Ask the server operator for a password reset link."));
+        return Ok(new PasswordRecoveryResponse("Development only: a reset link is shown for an existing account. Email delivery will be required in a future release.",
+            await accounts.CreateResetLinkAsync(request.Email)));
+    }
+
+    [AllowAnonymous]
+    [EnableRateLimiting("accounts")]
+    [HttpPost("reset-password")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<IActionResult> ResetPassword(ResetPasswordRequest request, CancellationToken ct)
+    {
+        if (!await accounts.ResetPasswordAsync(request, ct))
+            return Problem(statusCode: 422, title: "The reset link is invalid or expired, or the password does not meet the requirements. Request a new link or check your password.");
+        await HttpContext.SignOutAsync(IdentityConstants.ApplicationScheme);
+        return NoContent();
     }
 
     [AllowAnonymous]

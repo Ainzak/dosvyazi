@@ -317,6 +317,59 @@ test('moderator disconnect requires explicit rejoin, Russian persists and long n
   } finally { await context.close(); }
 });
 
+test('kick and invitation rejoin use a fresh voice grant and output volume survives deafen/reconnect', async ({ page, browser }, info) => {
+  test.setTimeout(85_000);
+  await register(page, 'Kick owner'); await create(page);
+  await page.getByRole('button', { name: 'Create invitation', exact: true }).click();
+  const code = await page.getByLabel('Share this invitation code').inputValue();
+  const context = await browser.newContext({ baseURL: 'http://127.0.0.1:5174', viewport: page.viewportSize()!, permissions: ['microphone'] });
+  try {
+    const member = await context.newPage(); await register(member, 'Kick peer'); await member.goto('/communities');
+    await member.getByLabel('Invitation code', { exact: true }).fill(code); await member.getByRole('button', { name: 'Join community', exact: true }).click();
+    const ids: string[] = [];
+    member.on('request', request => { if (request.method() === 'POST' && request.url().endsWith('/voice/join')) ids.push((request.postDataJSON() as { clientRequestId: string }).clientRequestId); });
+    await page.getByRole('button', { name: 'Join voice', exact: true }).click();
+    await page.getByRole('button', { name: 'Enable microphone', exact: true }).click();
+    await member.getByRole('button', { name: 'Join voice', exact: true }).click();
+    await expect(member.getByRole('region', { name: 'Voice controls' })).toContainText('Connected');
+    await expect.poll(() => member.locator('audio').count()).toBeGreaterThan(0);
+    const slider = member.getByRole('slider', { name: 'Output volume', exact: true });
+    await slider.focus(); await slider.press('Home'); for (let i = 0; i < 25; i++) await slider.press('ArrowRight');
+    await expect(slider).toHaveValue('25');
+    await expect.poll(() => member.locator('audio').evaluateAll(elements => elements.every(e => (e as HTMLAudioElement).volume === 0.25))).toBe(true);
+    await member.getByRole('button', { name: 'Deafen', exact: true }).click();
+    await expect.poll(() => member.locator('audio').evaluateAll(elements => elements.every(e => (e as HTMLAudioElement).muted))).toBe(true);
+    await member.getByRole('button', { name: 'Undeafen', exact: true }).click();
+    await expect(slider).toHaveValue('25');
+    await page.getByRole('button', { name: 'Remove Kick peer', exact: true }).click();
+    await expect(member.getByRole('region', { name: 'Voice controls' })).toHaveCount(0, { timeout: 20_000 });
+    const old = ids[0];
+    await member.goto('/communities'); await member.getByLabel('Invitation code', { exact: true }).fill(code);
+    await member.getByRole('button', { name: 'Join community', exact: true }).click();
+    await member.getByRole('button', { name: 'Join voice', exact: true }).click();
+    await expect(member.getByRole('region', { name: 'Voice controls' })).toContainText('Connected');
+    expect(ids.at(-1)).not.toBe(old);
+    await expect(member.getByRole('alert')).toHaveCount(0);
+    await expect(slider).toHaveValue('25');
+    await expect.poll(() => member.locator('audio').count()).toBeGreaterThan(0);
+    await expect.poll(() => member.locator('audio').evaluateAll(elements => elements.every(e => (e as HTMLAudioElement).volume === 0.25))).toBe(true);
+    expect(await member.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await member.screenshot({ path: info.outputPath('voice-volume.png'), fullPage: true });
+    await member.getByRole('button', { name: 'Leave voice', exact: true }).click();
+    let attempts = 0;
+    await member.route('**/voice/join', async route => { attempts++; await route.fulfill({ status: 409, contentType: 'application/problem+json', body: JSON.stringify({ title: 'This voice request expired or changed. Start a new join.', code: 'voice_join_stale' }) }); });
+    await member.getByRole('button', { name: 'Join voice', exact: true }).click();
+    await expect(member.getByRole('alert')).toContainText('Select Reconnect voice');
+    await member.waitForTimeout(6000);
+    await expect(member.getByRole('alert')).toContainText('Select Reconnect voice'); expect(attempts).toBe(1);
+    await member.unroute('**/voice/join');
+    await member.getByRole('button', { name: 'Reconnect voice', exact: true }).click();
+    await expect(member.getByRole('region', { name: 'Voice controls' })).toContainText('Connected');
+    await member.getByRole('button', { name: 'Leave voice', exact: true }).click();
+    await page.getByRole('button', { name: 'Leave voice', exact: true }).click();
+  } finally { await context.close(); }
+});
+
 test('blocked playback explains remote audio and the retry reports success', async ({ page, browser }) => {
   test.setTimeout(55_000);
   await register(page, 'Playback owner'); await create(page);

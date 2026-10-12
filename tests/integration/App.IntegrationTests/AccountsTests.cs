@@ -1,8 +1,10 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Diagnostics;
 using App.Api.Features.Accounts;
 using App.Api.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
@@ -42,6 +44,38 @@ public sealed class AccountsTests(AccountsDatabase database) : IClassFixture<Acc
 {
     private const string Password = "Synthetic passphrase 42";
     private FoundationFactory Factory(int permitLimit = 30) => new(connection: database.Connection, permitLimit: permitLimit);
+
+    [Fact]
+    public async Task OperatorCommandIssuesAUsableProductionRecoveryLink()
+    {
+        await using var factory = Factory();
+        using var client = Client(factory);
+        var email = Email();
+        Assert.Equal(HttpStatusCode.Created, (await Send(client, "register", new { Email = email, Password, DisplayName = "Operator recovery" })).StatusCode);
+        using var scope = factory.Services.CreateScope();
+        var keys = scope.ServiceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<Microsoft.AspNetCore.DataProtection.KeyManagement.KeyManagementOptions>>().Value;
+        var repository = Assert.IsType<Microsoft.AspNetCore.DataProtection.Repositories.FileSystemXmlRepository>(keys.XmlRepository);
+        var root = Path.GetFullPath("../../../../../..", AppContext.BaseDirectory);
+        var start = new ProcessStartInfo("dotnet") { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false };
+        start.ArgumentList.Add(Path.Combine(root, "apps", "api", "App.Api", "bin", "Debug", "net10.0", "App.Api.dll"));
+        start.ArgumentList.Add("--create-password-reset-link");
+        start.ArgumentList.Add(email);
+        start.Environment["ASPNETCORE_ENVIRONMENT"] = "Production";
+        start.Environment["ConnectionStrings__Dosvyazi"] = database.Connection;
+        start.Environment["DataProtection__KeyPath"] = repository.Directory.FullName;
+        start.Environment["Accounts__RecoveryBaseUrl"] = "https://recovery.example.test";
+        using var process = Process.Start(start)!;
+        var output = process.StandardOutput.ReadToEndAsync();
+        var errors = process.StandardError.ReadToEndAsync();
+        await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(30));
+        Assert.Equal(0, process.ExitCode);
+        await errors;
+        // Capture the bearer link in memory; do not print credentials into test artifacts.
+        var link = new Uri((await output).Split('\n').Single(line => line.StartsWith("https://recovery.example.test/reset-password#", StringComparison.Ordinal)).Trim());
+        var values = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(link.Fragment[1..]);
+        Assert.Equal(email, values["email"].ToString());
+        Assert.Equal(HttpStatusCode.NoContent, (await Send(client, "reset-password", new { Email = email, Code = values["code"].ToString(), Password = "Changed operator passphrase 63" })).StatusCode);
+    }
     private static string Email() => $"test-{Guid.NewGuid():N}@example.test";
     private static HttpClient Client(FoundationFactory factory) => factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
 
@@ -61,6 +95,72 @@ public sealed class AccountsTests(AccountsDatabase database) : IClassFixture<Acc
         using var response = await Send(client, "register", new { Email = email ?? Email(), Password, DisplayName = "Test member" });
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         return (await response.Content.ReadFromJsonAsync<UserProfile>())!;
+    }
+
+    private static string ResetCode(string link) => link.Split("&code=", StringSplitOptions.None)[1];
+
+    [Fact]
+    public async Task PasswordResetRequiresValidAccountBoundTokenAndRevokesCopiedSessions()
+    {
+        await using var host = Factory(); using var client = Client(host); var profile = await Register(client);
+        using var other = Client(host); var otherProfile = await Register(other);
+        using var copy = host.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
+        using var login = await Send(client, "login", new { profile.Email, Password });
+        var cookie = login.Headers.GetValues("Set-Cookie").Single(c => c.StartsWith("dosvyazi.session=", StringComparison.Ordinal)).Split(';')[0];
+        copy.DefaultRequestHeaders.Add("Cookie", cookie);
+        using var preview = await Send(client, "forgot-password", new { profile.Email });
+        var link = (await preview.Content.ReadFromJsonAsync<PasswordRecoveryResponse>())!.DevelopmentLink!;
+        var code = ResetCode(link); const string next = "New synthetic passphrase 73";
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.PostAsJsonAsync("/api/v1/account/reset-password", new { profile.Email, Code = code, Password = next })).StatusCode);
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, (await Send(client, "reset-password", new { otherProfile.Email, Code = code, Password = next })).StatusCode);
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, (await Send(client, "reset-password", new { profile.Email, Code = "malformed!", Password = next })).StatusCode);
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, (await Send(client, "reset-password", new { profile.Email, Code = code, Password = "aaaaaaaaaaaa" })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await copy.GetAsync("/api/v1/account/me")).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await Send(client, "reset-password", new { profile.Email, Code = code, Password = next })).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await copy.GetAsync("/api/v1/account/me")).StatusCode);
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, (await Send(client, "reset-password", new { profile.Email, Code = code, Password = "Another synthetic password 85" })).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await Send(client, "login", new { profile.Email, Password })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await Send(client, "login", new { profile.Email, Password = next })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await other.GetAsync("/api/v1/account/me")).StatusCode);
+    }
+
+    [Fact]
+    public async Task ConcurrentResetConsumesTokenOnlyOnce()
+    {
+        await using var host = Factory(); using var client = Client(host); var profile = await Register(client);
+        using var preview = await Send(client, "forgot-password", new { profile.Email });
+        var code = ResetCode((await preview.Content.ReadFromJsonAsync<PasswordRecoveryResponse>())!.DevelopmentLink!);
+        using var first = Client(host); using var second = Client(host);
+        var replies = await Task.WhenAll(Send(first, "reset-password", new { profile.Email, Code = code, Password = "Concurrent reset passphrase 63" }), Send(second, "reset-password", new { profile.Email, Code = code, Password = "Concurrent reset passphrase 64" }));
+        Assert.Single(replies, r => r.StatusCode == HttpStatusCode.NoContent);
+        Assert.Single(replies, r => r.StatusCode == HttpStatusCode.UnprocessableEntity);
+        foreach (var r in replies) r.Dispose();
+    }
+
+    [Fact]
+    public async Task ExpiredResetTokenCannotChangePassword()
+    {
+        await using var foundation = Factory();
+        await using var host = foundation.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
+            services.Configure<DataProtectionTokenProviderOptions>(options => options.TokenLifespan = TimeSpan.FromSeconds(-1))));
+        using var client = host.CreateClient(); var profile = await Register(client);
+        using var preview = await Send(client, "forgot-password", new { profile.Email });
+        var code = ResetCode((await preview.Content.ReadFromJsonAsync<PasswordRecoveryResponse>())!.DevelopmentLink!);
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, (await Send(client, "reset-password", new { profile.Email, Code = code, Password = "Expired synthetic password 56" })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await Send(client, "login", new { profile.Email, Password })).StatusCode);
+    }
+
+    [Fact]
+    public async Task ProductionForgotPasswordNeverReturnsCredentialsOrAccountExistence()
+    {
+        await using var dev = Factory(); using var user = Client(dev); var profile = await Register(user);
+        await using var host = new FoundationFactory(environment: "Production", connection: database.Connection);
+        using var client = host.CreateClient(new WebApplicationFactoryClientOptions { BaseAddress = new Uri("https://localhost") });
+        using var known = await Send(client, "forgot-password", new { profile.Email });
+        using var unknown = await Send(client, "forgot-password", new { Email = Email() });
+        Assert.Equal(HttpStatusCode.OK, known.StatusCode); Assert.Equal(HttpStatusCode.OK, unknown.StatusCode);
+        Assert.Equal(await known.Content.ReadAsStringAsync(), await unknown.Content.ReadAsStringAsync());
+        Assert.Null((await known.Content.ReadFromJsonAsync<PasswordRecoveryResponse>())!.DevelopmentLink);
     }
 
     [Fact]

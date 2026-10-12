@@ -396,7 +396,26 @@ export const russian: Readonly<Record<string, string>> = {
   "Add category": "Добавить категорию",
   "Add channel": "Добавить канал",
   "Microphone {value}": "Микрофон {value}",
-  "Speaker {value}": "Динамик {value}"
+  "Speaker {value}": "Динамик {value}",
+  "Output volume": "Громкость звука",
+  "Join failed": "Не удалось войти",
+  "Your previous voice session ended. Select Reconnect voice to start a new session.": "Предыдущий голосовой сеанс завершён. Нажмите «Переподключить голос», чтобы начать новый.",
+  "You are banned from this community. Ask a moderator to review the ban.": "Вы заблокированы в этом сообществе. Попросите модератора пересмотреть блокировку.",
+  "Forgot your password?": "Забыли пароль?",
+  "Reset your password": "Сброс пароля",
+  "During development, local builds show a reset link without sending email. On a public server, ask the operator for a link. Email delivery is planned for a future release.": "Во время разработки локальная версия показывает ссылку без отправки письма. На публичном сервере запросите ссылку у администратора. Отправка по почте появится в будущем.",
+  "Password reset. Your previous sessions have been signed out.": "Пароль изменён. Предыдущие сеансы завершены.",
+  "This reset link is incomplete. Request a new link.": "Ссылка сброса неполная. Запросите новую ссылку.",
+  "Request a reset link": "Запросить ссылку сброса",
+  "New password": "Новый пароль",
+  "Confirm new password": "Повторите новый пароль",
+  "Passwords must match.": "Пароли должны совпадать.",
+  "Reset password": "Сбросить пароль",
+  "Open development reset link": "Открыть ссылку сброса для разработки",
+  "Back to sign in": "Вернуться ко входу",
+  "Email delivery is not enabled yet. Ask the server operator for a password reset link.": "Отправка писем ещё не настроена. Запросите ссылку сброса у администратора сервера.",
+  "Development only: a reset link is shown for an existing account. Email delivery will be required in a future release.": "Только для разработки: ссылка показывается для существующего аккаунта. В будущем потребуется отправка по почте.",
+  "The reset link is invalid or expired, or the password does not meet the requirements. Request a new link or check your password.": "Ссылка неверна или истекла, либо пароль не соответствует требованиям. Запросите новую ссылку или проверьте пароль."
 };
 
 export function translate(locale: Locale, text: string, values: Record<string, string | number> = {}) {

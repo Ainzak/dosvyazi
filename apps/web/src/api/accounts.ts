@@ -16,3 +16,5 @@ export const register = (request: RegisterRequest) => mutateApi<UserProfile>('/a
 export const login = (request: LoginRequest) => mutateApi<UserProfile>('/api/v1/account/login', 'POST', request);
 export const updateProfile = (request: UpdateProfileRequest) => mutateApi<UserProfile>('/api/v1/account/me', 'PUT', request);
 export const logout = () => mutateApi<void>('/api/v1/account/logout', 'POST');
+export const forgotPassword = (request: components['schemas']['ForgotPasswordRequest']) => mutateApi<components['schemas']['PasswordRecoveryResponse']>('/api/v1/account/forgot-password', 'POST', request);
+export const resetPassword = (request: components['schemas']['ResetPasswordRequest']) => mutateApi<void>('/api/v1/account/reset-password', 'POST', request);

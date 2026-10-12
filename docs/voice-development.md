@@ -13,7 +13,7 @@ npm run migrate:api
 npm run dev:api
 ```
 
-Start `npm run dev:web` in another terminal and open the local workspace. Create a community or join using an invitation, select Join voice, then Enable microphone. Use headphones when testing two browser sessions on one computer. Deafen remembers whether your microphone was enabled and restores that choice when listening resumes, provided speaking is still permitted. Audio devices expands the microphone/speaker selectors. Output selection depends on browser support. Leave voice disconnects locally before requesting server closure; an interrupted closure remains visible with Retry leave.
+Start `npm run dev:web` in another terminal and open the local workspace. Create a community or join using an invitation, select Join voice, then Enable microphone. Use headphones when testing two browser sessions on one computer. Deafen remembers whether your microphone was enabled and restores that choice when listening resumes, provided speaking is still permitted. Audio devices expands the microphone/speaker selectors. Output selection depends on browser support. Output volume controls received audio from 0–100%, is saved locally on this browser, applies to new tracks/reconnects, and remains separate from deafen and microphone gain. Explicit Join/Reconnect starts a fresh request after membership changes; an unexpected stale-request error stays visible until manual retry. Leave voice disconnects locally before requesting server closure; an interrupted closure remains visible with Retry leave.
 
 For synthetic automation:
 

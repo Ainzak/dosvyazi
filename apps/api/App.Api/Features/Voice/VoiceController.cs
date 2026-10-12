@@ -12,7 +12,8 @@ public sealed class VoiceController(VoiceService voice) : ControllerBase
     private async Task<ActionResult<T>> Execute<T>(Func<Task<T>> action)
     {
         try { return Ok(await action()); }
-        catch (CommunityFailure error) { return Problem(statusCode: error.Status, title: error.Message); }
+        catch (CommunityFailure error) { return Problem(statusCode: error.Status, title: error.Message,
+            extensions: error.Code is null ? null : new Dictionary<string, object?> { ["code"] = error.Code }); }
         catch (VoiceGatewayException) { return Problem(statusCode: 503, title: "Voice service is unavailable. Try again shortly."); }
     }
     [HttpGet]

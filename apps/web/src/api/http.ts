@@ -1,7 +1,7 @@
 import type { components } from './schema';
 
 export class ApiError extends Error {
-  constructor(public status: number, message: string) { super(message); }
+  constructor(public status: number, message: string, public code?: string) { super(message); }
 }
 
 export async function callApi(path: string, options: RequestInit = {}): Promise<Response> {
@@ -18,10 +18,10 @@ export async function callApi(path: string, options: RequestInit = {}): Promise<
 
 export async function readJson<T>(response: Response): Promise<T> {
   if (!response.ok) {
-    const problem: { title?: string; errors?: Record<string, string[]> } = await response.json().catch(() => ({}));
+    const problem: { title?: string; code?: string; errors?: Record<string, string[]> } = await response.json().catch(() => ({}));
     const validation = Object.values(problem.errors ?? {}).flat()[0];
     throw new ApiError(response.status, validation ?? (response.status === 400
-      ? 'Your session may have changed. Check the form and try again.' : problem.title ?? 'The request could not be completed. Try again.'));
+      ? 'Your session may have changed. Check the form and try again.' : problem.title ?? 'The request could not be completed. Try again.'), problem.code);
   }
   return response.status === 204 ? undefined as T : response.json();
 }

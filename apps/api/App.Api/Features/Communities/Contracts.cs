@@ -13,7 +13,8 @@ public sealed record MemberSummary(string UserId, string DisplayName, string Sta
 public sealed record InviteSummary(string Id, int MaxUses, int Uses, DateTimeOffset ExpiresAt, bool Revoked);
 public sealed record CreatedInvite(InviteSummary Invite, string Code);
 
-public sealed class CommunityFailure(int status, string message) : Exception(message)
+public sealed class CommunityFailure(int status, string message, string? code = null) : Exception(message)
 {
     public int Status { get; } = status;
+    public string? Code { get; } = code;
 }

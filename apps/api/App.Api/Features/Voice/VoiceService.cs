@@ -61,7 +61,7 @@ public sealed class VoiceService(AppDbContext database, IVoiceGateway gateway, I
         {
             if (!existing.Lease.Active || existing.Lease.CommunityId != community || existing.Lease.AuthSessionId != session.Session ||
                 existing.Lease.Generation != room.Generation || existing.Lease.CanSpeak != access.Speak || existing.ExpiresAt <= DateTimeOffset.UtcNow || existing.Lease.ExpiresAt <= DateTimeOffset.UtcNow)
-                throw new CommunityFailure(409, "This voice request expired or changed. Start a new join.");
+                throw new CommunityFailure(409, "This voice request expired or changed. Start a new join.", "voice_join_stale");
             var retry = Dto(existing, room);
             await transaction.CommitAsync(ct);
             return retry;

@@ -1,0 +1,53 @@
+import { test, expect } from '@playwright/test';
+
+test('development recovery changes password, clears the link and requires a fresh login', async ({ page }, info) => {
+  const email = `reset-${crypto.randomUUID()}@example.test`;
+  await page.goto('/register');
+  await page.getByLabel('Display name', { exact: true }).fill('Recovery member');
+  await page.getByLabel('Email address', { exact: true }).fill(email);
+  await page.getByLabel('Password', { exact: true }).fill('Original synthetic passphrase 42');
+  await page.getByRole('button', { name: 'Create account', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Welcome, Recovery member.' })).toBeVisible();
+  await page.getByRole('button', { name: 'Sign out', exact: true }).click();
+  await expect(page).toHaveURL(/\/login$/);
+  await page.getByRole('link', { name: 'Forgot your password?', exact: true }).click();
+  await expect(page).toHaveURL(/\/forgot-password$/);
+  await expect(page.getByRole('heading', { name: 'Forgot your password?', exact: true })).toBeVisible();
+  await page.getByLabel('Email address', { exact: true }).fill(email);
+  await page.getByRole('button', { name: 'Request a reset link', exact: true }).click();
+  const link = page.getByRole('link', { name: 'Open development reset link', exact: true });
+  await expect(link).toBeVisible();
+  await link.click();
+  await expect(page.getByLabel('New password', { exact: true })).toBeVisible();
+  expect(new URL(page.url()).hash).toBe('');
+  await page.getByLabel('New password', { exact: true }).fill('Changed synthetic passphrase 63');
+  await page.getByLabel('Confirm new password', { exact: true }).fill('Different synthetic passphrase 64');
+  await page.getByRole('button', { name: 'Reset password', exact: true }).click();
+  expect(await page.getByLabel('Confirm new password', { exact: true }).evaluate(input => (input as HTMLInputElement).validity.valid)).toBe(false);
+  await page.getByLabel('Confirm new password', { exact: true }).fill('Changed synthetic passphrase 63');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: info.outputPath('password-recovery.png'), fullPage: true });
+  await page.getByRole('button', { name: 'Reset password', exact: true }).click();
+  await expect(page.getByRole('status')).toContainText('Password reset.');
+  await page.getByRole('link', { name: 'Sign in', exact: true }).last().click();
+  await expect(page).toHaveURL(/\/login$/);
+  await page.getByLabel('Email address', { exact: true }).fill(email);
+  await page.getByLabel('Password', { exact: true }).fill('Changed synthetic passphrase 63');
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Welcome, Recovery member.' })).toBeVisible();
+  await page.goto('/reset-password');
+  await expect(page.getByRole('alert')).toContainText('This reset link is incomplete.');
+});
+
+test('invalid recovery link error persists and recovery forms translate', async ({ page }) => {
+  await page.goto('/reset-password#email=unknown%40example.test&code=invalid');
+  await page.getByLabel('New password', { exact: true }).fill('Synthetic recovery passphrase 42');
+  await page.getByLabel('Confirm new password', { exact: true }).fill('Synthetic recovery passphrase 42');
+  await page.getByRole('button', { name: 'Reset password', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('The reset link is invalid or expired');
+  await page.waitForTimeout(6000);
+  await expect(page.getByRole('alert')).toContainText('The reset link is invalid or expired');
+  await page.getByRole('button', { name: 'Русский', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Сброс пароля', exact: true })).toBeVisible();
+  await expect(page.getByLabel('Новый пароль', { exact: true })).toBeVisible();
+});

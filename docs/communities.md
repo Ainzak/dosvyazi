@@ -22,7 +22,7 @@ All paths below start with `/api/v1/communities`, require a valid account sessio
 | `PUT /{id}/members/{memberId}/ban` | BanMembers and hierarchy: `{ banned }`; 200 member state |
 | `POST /{id}/leave` | Nonowner member leaves; repeated leave is safe; 200 `true` |
 
-Anonymous requests return 401. Nonmembers, banned members and unavailable/cross-community resources receive generic 404 errors. Active members lacking a management permission or sufficient rank receive 403. Invalid fields return 400; changed payloads under an existing creation request ID and attempts to ban/leave as the owner return 409. Failures use ProblemDetails. Community names are trimmed, 2–80 characters, without control characters.
+Anonymous requests return 401. Nonmembers, banned members and unavailable/cross-community resources receive generic 404 errors. Joining with an existing, unexpired and unrevoked invitation reports403 with a clear ban message for a banned account; unknown/expired/revoked invitations remain generic404. Active members lacking a management permission or sufficient rank receive 403. Invalid fields return 400; changed payloads under an existing creation request ID and attempts to ban/leave as the owner return 409. Failures use ProblemDetails. Community names are trimmed, 2–80 characters, without control characters.
 
 ## Invitations and retries
 

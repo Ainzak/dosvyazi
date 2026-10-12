@@ -160,7 +160,8 @@ public sealed class CommunityService(AppDbContext database, IDataProtectionProvi
         var community = await LockAsync(communityId, cancellationToken);
         var invite = await database.CommunityInvites.SingleAsync(item => item.CodeHash == hash, cancellationToken);
         var member = await database.Memberships.SingleOrDefaultAsync(item => item.CommunityId == communityId && item.UserId == user, cancellationToken);
-        if (member?.Status == "Banned" || invite.RevokedAt != null || invite.ExpiresAt <= DateTimeOffset.UtcNow) throw InvalidInvite();
+        if (invite.RevokedAt != null || invite.ExpiresAt <= DateTimeOffset.UtcNow) throw InvalidInvite();
+        if (member?.Status == "Banned") throw new CommunityFailure(403, "You are banned from this community. Ask a moderator to review the ban.");
         if (member?.Status != "Active")
         {
             if (invite.Uses >= invite.MaxUses) throw InvalidInvite();

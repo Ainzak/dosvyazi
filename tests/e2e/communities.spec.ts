@@ -87,6 +87,10 @@ test('ban clears a cached channel, lifting requires rejoin, leave and revocation
     await expect(member.getByRole('heading', { name: 'Community unavailable.' })).toBeVisible({ timeout: 20_000 });
     await expect(member.getByRole('heading', { name: '#general' })).toHaveCount(0);
     await expect(member.getByRole('heading', { name: 'Weekend crew', exact: true })).toHaveCount(0);
+    await member.goto('/communities');
+    await member.getByLabel('Invitation code', { exact: true }).fill(code);
+    await member.getByRole('button', { name: 'Join community', exact: true }).click();
+    await expect(member.getByRole('alert')).toContainText('You are banned from this community.');
     await page.getByRole('button', { name: 'Lift ban for Invited member' }).click();
     await expect(page.getByRole('button', { name: 'Ban Invited member', exact: true })).toBeVisible();
     await member.goto(channelUrl);

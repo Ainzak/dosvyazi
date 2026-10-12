@@ -60,6 +60,7 @@ function SignInForm({ mode }: { mode: 'login' | 'register' }) {
       <button className="primary-button" disabled={submit.isPending}>{submit.isPending ? t("Please wait…") : isRegister ? t("Create account") : t("Sign in")}</button>
     </form>
     <p className="account-switch">{isRegister ? t("Already have an account? ") : t("New to Dosvyazi? ")}<Link to={isRegister ? '/login' : '/register'}>{isRegister ? t("Sign in") : t("Create an account")}</Link></p>
+    {!isRegister && <p className="account-switch"><Link to="/forgot-password">{t('Forgot your password?')}</Link></p>}
   </section>;
 }
 

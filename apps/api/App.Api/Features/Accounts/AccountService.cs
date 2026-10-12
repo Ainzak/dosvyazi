@@ -4,6 +4,8 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using App.Api.Features.Voice;
+using System.Text;
+using Microsoft.AspNetCore.WebUtilities;
 
 namespace App.Api.Features.Accounts;
 
@@ -40,6 +42,41 @@ public sealed class AccountService(AppDbContext database, UserManager<AppUser> u
         var session = await NewSessionAsync(user, current, cancellationToken);
         await SetCookieAsync(user, session);
         return Profile(user);
+    }
+
+    public async Task<string?> CreateResetLinkAsync(string email)
+    {
+        var user = await users.FindByEmailAsync(email.Trim());
+        if (user is null) return null;
+        var token = await users.GeneratePasswordResetTokenAsync(user);
+        // Fragment keeps the bearer credential out of server access logs/referrers.
+        var code = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(token));
+        return $"/reset-password#email={Uri.EscapeDataString(user.Email!)}&code={code}";
+    }
+
+    public async Task<bool> ResetPasswordAsync(ResetPasswordRequest request, CancellationToken ct)
+    {
+        string token;
+        try { token = Encoding.UTF8.GetString(WebEncoders.Base64UrlDecode(request.Code)); }
+        catch (FormatException) { return false; }
+        var id = await database.Users.AsNoTracking().Where(u => u.NormalizedEmail == users.NormalizeEmail(request.Email.Trim()))
+            .Select(u => (Guid?)u.Id).SingleOrDefaultAsync(ct);
+        if (id is null) return false;
+        await using var transaction = await database.Database.BeginTransactionAsync(ct);
+        var user = await database.Users.FromSqlInterpolated($"SELECT * FROM \"AspNetUsers\" WHERE \"Id\" = {id.Value} FOR UPDATE").SingleAsync(ct);
+        if (!(await users.ResetPasswordAsync(user, token, request.Password)).Succeeded) return false;
+        var communities = await database.VoiceLeases.Where(l => l.UserId == user.Id && l.Active)
+            .Select(l => l.CommunityId).Distinct().OrderBy(c => c).ToArrayAsync(ct);
+        foreach (var community in communities)
+        {
+            await database.Communities.FromSqlInterpolated($"SELECT * FROM \"Communities\" WHERE \"Id\" = {community} FOR UPDATE").AnyAsync(ct);
+            await VoiceTransitions.RevokeMemberAsync(database, community, user.Id, ct);
+        }
+        await database.Sessions.Where(s => s.UserId == user.Id && s.RevokedAt == null)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(s => s.RevokedAt, DateTimeOffset.UtcNow), ct);
+        await database.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
+        return true;
     }
 
     public async Task RevokeCurrentAsync(ClaimsPrincipal current, CancellationToken cancellationToken)

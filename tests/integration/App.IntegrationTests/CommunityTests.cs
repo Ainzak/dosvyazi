@@ -167,7 +167,9 @@ public sealed class CommunityTests(AccountsDatabase database) : IClassFixture<Ac
         var target = $"/api/v1/communities/{community.Id}/members/{member.Profile.Id}/ban";
         for (var attempt = 0; attempt < 2; attempt++) Assert.Equal(HttpStatusCode.OK, (await Send(owner.Client, target, new { Banned = true }, "PUT")).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await member.Client.GetAsync($"/api/v1/communities/{community.Id}")).StatusCode);
-        Assert.Equal(HttpStatusCode.NotFound, (await Join(member, invite)).StatusCode);
+        using var bannedJoin = await Join(member, invite);
+        Assert.Equal(HttpStatusCode.Forbidden, bannedJoin.StatusCode);
+        Assert.Contains("You are banned from this community", await bannedJoin.Content.ReadAsStringAsync());
         Assert.Equal(HttpStatusCode.NotFound, (await Send(member.Client, $"/api/v1/communities/{community.Id}/leave")).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await member.Client.GetAsync($"/api/v1/communities/{other.Id}")).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await Send(owner.Client, target, new { Banned = false }, "PUT")).StatusCode);
@@ -283,7 +285,7 @@ public sealed class CommunityTests(AccountsDatabase database) : IClassFixture<Ac
         Assert.False(waiting.IsCompleted);
         await transaction.CommitAsync();
         using var response = await waiting.WaitAsync(TimeSpan.FromSeconds(5));
-        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        Assert.Equal(ban ? HttpStatusCode.Forbidden : HttpStatusCode.NotFound, response.StatusCode);
         Assert.Empty((await member.Client.GetFromJsonAsync<CommunitySummary[]>("/api/v1/communities"))!);
     }
 }

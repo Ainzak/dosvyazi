@@ -1276,6 +1276,88 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/account/forgot-password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ForgotPasswordRequest"];
+                    "text/json": components["schemas"]["ForgotPasswordRequest"];
+                    "application/*+json": components["schemas"]["ForgotPasswordRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["PasswordRecoveryResponse"];
+                        "application/json": components["schemas"]["PasswordRecoveryResponse"];
+                        "text/json": components["schemas"]["PasswordRecoveryResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/account/reset-password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ResetPasswordRequest"];
+                    "text/json": components["schemas"]["ResetPasswordRequest"];
+                    "application/*+json": components["schemas"]["ResetPasswordRequest"];
+                };
+            };
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/account/logout": {
         parameters: {
             query?: never;
@@ -1492,6 +1574,9 @@ export interface components {
             expectedVersion: string;
             content: string;
         };
+        ForgotPasswordRequest: {
+            email: string;
+        };
         FoundationInfo: {
             product: string;
             milestone: string;
@@ -1573,6 +1658,10 @@ export interface components {
             watermark: string;
             hasOlder: boolean;
         };
+        PasswordRecoveryResponse: {
+            message: string;
+            developmentLink?: null | string;
+        };
         ReadinessResponse: {
             status: string;
             checks: {
@@ -1583,6 +1672,11 @@ export interface components {
             email: string;
             password: string;
             displayName: string;
+        };
+        ResetPasswordRequest: {
+            email: string;
+            code: string;
+            password: string;
         };
         ResourceRule: {
             /** Format: uuid */

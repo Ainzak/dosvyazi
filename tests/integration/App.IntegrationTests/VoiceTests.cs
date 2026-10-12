@@ -58,6 +58,22 @@ public sealed class VoiceTests(AccountsDatabase storage) : IClassFixture<Account
     }
 
     [Fact]
+    public async Task PasswordResetRevokesVoiceLeaseAndRequestsDurableTransition()
+    {
+        await using var host = Factory(new FakeVoice()); using var client = host.CreateClient();
+        var profile = await Register(client); var community = await Create(client); var grant = await Grant(client, community);
+        using var preview = await Send(client, "/api/v1/account/forgot-password", new { profile.Email });
+        var code = (await preview.Content.ReadFromJsonAsync<PasswordRecoveryResponse>())!.DevelopmentLink!.Split("&code=", StringSplitOptions.None)[1];
+        using var reset = await Send(client, "/api/v1/account/reset-password", new { profile.Email, Code = code, Password = "Changed voice passphrase 42" });
+        Assert.Equal(HttpStatusCode.NoContent, reset.StatusCode);
+        using var scope = host.Services.CreateScope(); var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        Assert.False((await db.VoiceLeases.SingleAsync(l => l.Id == Guid.Parse(grant.LeaseId))).Active);
+        Assert.Equal("Pending", (await db.VoiceRooms.SingleAsync(r => r.CommunityId == Guid.Parse(community))).Status);
+        Assert.False(await db.Sessions.AnyAsync(s => s.UserId == Guid.Parse(profile.Id) && s.RevokedAt == null));
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync(Path(community))).StatusCode);
+    }
+
+    [Fact]
     public async Task GrantsAreMemberOnlyCsrfProtectedIdempotentAndBoundToCommunity()
     {
         var voice = new FakeVoice();
@@ -81,7 +97,9 @@ public sealed class VoiceTests(AccountsDatabase storage) : IClassFixture<Account
         var saved = await db.VoiceGrantRequests.SingleAsync(item => item.ClientRequestId == request.ClientRequestId);
         Assert.DoesNotContain(first.Token, saved.ProtectedToken);
         saved.ExpiresAt = DateTimeOffset.UtcNow.AddSeconds(-1); await db.SaveChangesAsync();
-        Assert.Equal(HttpStatusCode.Conflict, (await Send(owner, Path(community, "/join"), request)).StatusCode);
+        using var stale = await Send(owner, Path(community, "/join"), request);
+        Assert.Equal(HttpStatusCode.Conflict, stale.StatusCode);
+        Assert.Contains("voice_join_stale", await stale.Content.ReadAsStringAsync());
         foreach (var result in results) result.Dispose();
     }
 

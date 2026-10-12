@@ -49,7 +49,8 @@ builder.Services.AddIdentityCore<AppUser>(options =>
     options.Password.RequireNonAlphanumeric = false;
     options.Lockout.MaxFailedAccessAttempts = 5;
     options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
-}).AddEntityFrameworkStores<AppDbContext>().AddSignInManager();
+}).AddEntityFrameworkStores<AppDbContext>().AddSignInManager().AddDefaultTokenProviders();
+builder.Services.Configure<DataProtectionTokenProviderOptions>(options => options.TokenLifespan = TimeSpan.FromMinutes(15));
 builder.Services.AddScoped<AccountService>();
 builder.Services.AddScoped<CommunityService>();
 builder.Services.AddScoped<AccessService>();
@@ -134,6 +135,21 @@ if (args.Contains("--migrate", StringComparer.Ordinal))
 {
     using var scope = app.Services.CreateScope();
     await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.MigrateAsync();
+    return;
+}
+
+// Temporary recovery without email delivery. Only an operator with host/database/key
+// access can issue a production link. Never expose this preview on a public endpoint.
+var recoveryIndex = Array.IndexOf(args, "--create-password-reset-link");
+if (recoveryIndex >= 0)
+{
+    if (recoveryIndex + 1 >= args.Length || !Uri.TryCreate(builder.Configuration["Accounts:RecoveryBaseUrl"], UriKind.Absolute, out var origin) ||
+        origin.Scheme != "https" || origin.AbsolutePath != "/" || !string.IsNullOrEmpty(origin.Query) || !string.IsNullOrEmpty(origin.Fragment) || !string.IsNullOrEmpty(origin.UserInfo))
+        throw new InvalidOperationException("Supply an email and configure Accounts:RecoveryBaseUrl as the trusted HTTPS origin.");
+    using var scope = app.Services.CreateScope();
+    var link = await scope.ServiceProvider.GetRequiredService<AccountService>().CreateResetLinkAsync(args[recoveryIndex + 1]);
+    if (link is null) throw new InvalidOperationException("Account not found.");
+    Console.WriteLine(new Uri(origin, link));
     return;
 }
 
