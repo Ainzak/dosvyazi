@@ -4,7 +4,13 @@ namespace App.Api.Features.Messages;
 
 public sealed record SendMessageRequest(Guid ClientMessageId, [Required, StringLength(4000, MinimumLength = 1)] string Content);
 public sealed record MessageDto(string Id, string ChannelId, string AuthorId, string AuthorName, string ClientMessageId,
-    string Sequence, string Content, DateTimeOffset CreatedAt, string Version = "1", DateTimeOffset? UpdatedAt = null, bool Deleted = false, AttachmentDto? Attachment = null);
+    string Sequence, string Content, DateTimeOffset CreatedAt, string Version = "1", DateTimeOffset? UpdatedAt = null, bool Deleted = false, AttachmentDto? Attachment = null, ReactionDto[]? Reactions = null);
+public sealed record ReactionDto(string Emoji, int Count, bool Mine);
+public sealed record ReactionRequest(Guid ClientRequestId, [Required, StringLength(80)] string Emoji, bool Active);
+public sealed record ReadStateRequest([Required] string Sequence);
+public sealed record ReadStateDto(string Sequence, int Unread);
+public sealed record SearchPage(MessageDto[] Messages, string? Before, bool HasMore);
+public sealed record EmojiDto(string Id, string Name);
 public sealed record AttachmentDto(string Id, string Name, long Size);
 public sealed record MessageSnapshot(MessageDto[] Messages, string Watermark, bool HasOlder);
 public sealed record MessageEvent(string EventId, string ChannelId, string Sequence, string Kind, int SchemaVersion, MessageDto? Payload, string MessageId = "", string Version = "1");

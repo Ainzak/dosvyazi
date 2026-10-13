@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
+using NpgsqlTypes;
 
 #nullable disable
 
@@ -28,6 +29,11 @@ namespace App.Api.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<string>("About")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
                     b.Property<int>("AccessFailedCount")
                         .HasColumnType("integer");
 
@@ -48,11 +54,26 @@ namespace App.Api.Infrastructure.Persistence.Migrations
                     b.Property<bool>("EmailConfirmed")
                         .HasColumnType("boolean");
 
+                    b.Property<string>("Games")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("Interests")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
                     b.Property<bool>("LockoutEnabled")
                         .HasColumnType("boolean");
 
                     b.Property<DateTimeOffset?>("LockoutEnd")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LookingFor")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
 
                     b.Property<string>("NormalizedEmail")
                         .IsRequired()
@@ -499,6 +520,67 @@ namespace App.Api.Infrastructure.Persistence.Migrations
                     b.ToTable("ChannelEvents");
                 });
 
+            modelBuilder.Entity("App.Api.Features.Messages.ChannelReadState", b =>
+                {
+                    b.Property<Guid>("ChannelId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<long>("Sequence")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("ChannelId", "UserId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("ChannelReadStates", t =>
+                        {
+                            t.HasCheckConstraint("CK_ChannelReadStates_Sequence", "\"Sequence\" >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("App.Api.Features.Messages.CommunityEmoji", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ClientRequestId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CommunityId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("Deleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Hash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<bool>("Purged")
+                        .HasColumnType("boolean");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CommunityId", "ClientRequestId")
+                        .IsUnique();
+
+                    b.HasIndex("CommunityId", "Name")
+                        .IsUnique()
+                        .HasFilter("NOT \"Deleted\"");
+
+                    b.ToTable("CommunityEmojis");
+                });
+
             modelBuilder.Entity("App.Api.Features.Messages.Message", b =>
                 {
                     b.Property<Guid>("Id")
@@ -529,6 +611,13 @@ namespace App.Api.Infrastructure.Persistence.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
 
+                    b.Property<NpgsqlTsVector>("SearchVector")
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("tsvector")
+                        .HasAnnotation("Npgsql:TsVectorConfig", "simple")
+                        .HasAnnotation("Npgsql:TsVectorProperties", new[] { "Content" });
+
                     b.Property<long>("Sequence")
                         .HasColumnType("bigint");
 
@@ -539,6 +628,10 @@ namespace App.Api.Infrastructure.Persistence.Migrations
                         .HasColumnType("bigint");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("SearchVector");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("SearchVector"), "GIN");
 
                     b.HasIndex("ChannelId", "Sequence")
                         .IsUnique();
@@ -617,6 +710,25 @@ namespace App.Api.Infrastructure.Persistence.Migrations
                     b.HasIndex("MessageId", "ChannelId");
 
                     b.ToTable("MessageCommands");
+                });
+
+            modelBuilder.Entity("App.Api.Features.Messages.MessageReaction", b =>
+                {
+                    b.Property<Guid>("MessageId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Emoji")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.HasKey("MessageId", "UserId", "Emoji");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("MessageReactions");
                 });
 
             modelBuilder.Entity("App.Api.Features.Messages.OutboxEntry", b =>
@@ -1053,6 +1165,30 @@ namespace App.Api.Infrastructure.Persistence.Migrations
                     b.Navigation("Message");
                 });
 
+            modelBuilder.Entity("App.Api.Features.Messages.ChannelReadState", b =>
+                {
+                    b.HasOne("App.Api.Features.Communities.TextChannel", null)
+                        .WithMany()
+                        .HasForeignKey("ChannelId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("App.Api.Features.Accounts.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("App.Api.Features.Messages.CommunityEmoji", b =>
+                {
+                    b.HasOne("App.Api.Features.Communities.Community", null)
+                        .WithMany()
+                        .HasForeignKey("CommunityId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("App.Api.Features.Messages.Message", b =>
                 {
                     b.HasOne("App.Api.Features.Accounts.AppUser", "Author")
@@ -1097,6 +1233,23 @@ namespace App.Api.Infrastructure.Persistence.Migrations
                         .HasPrincipalKey("Id", "ChannelId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("App.Api.Features.Messages.MessageReaction", b =>
+                {
+                    b.HasOne("App.Api.Features.Messages.Message", "Message")
+                        .WithMany("Reactions")
+                        .HasForeignKey("MessageId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("App.Api.Features.Accounts.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Message");
                 });
 
             modelBuilder.Entity("App.Api.Features.Messages.OutboxEntry", b =>
@@ -1197,6 +1350,8 @@ namespace App.Api.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("App.Api.Features.Messages.Message", b =>
                 {
                     b.Navigation("Attachment");
+
+                    b.Navigation("Reactions");
                 });
 #pragma warning restore 612, 618
         }

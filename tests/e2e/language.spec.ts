@@ -28,6 +28,8 @@ test('language is visible, saved and preserves user input and permission option 
   await page.getByLabel('Сообщение', { exact: true }).fill('Owner and Community content stays English');
   await page.getByRole('button', { name: 'Отправить сообщение', exact: true }).click();
   await expect(page.locator('.message-list')).toContainText('Owner and Community content stays English');
+  // A pending row is visible before persistence; reload only after acknowledgement.
+  await expect(page.getByLabel('Сообщение', { exact: true })).toHaveValue('');
   await page.reload();
   await expect(page.getByRole('button', { name: 'Русский', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('.message-list')).toContainText('Owner and Community content stays English');

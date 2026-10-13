@@ -20,6 +20,14 @@ public sealed class MessagesController(MessageService messages) : ControllerBase
     [HttpGet("messages")]
     public Task<ActionResult<MessageSnapshot>> History(Guid community, Guid channel, [FromQuery] string? before, CancellationToken ct)
         => Execute(() => messages.HistoryAsync(community, channel, UserId, before, ct));
+    [HttpPut("messages/{id:guid}/reaction"), EnableRateLimiting("community-commands"), RequestSizeLimit(4096)]
+    public Task<ActionResult<MessageDto>> React(Guid community, Guid channel, Guid id, ReactionRequest request, CancellationToken ct) => Execute(() => messages.ReactAsync(community, channel, UserId, id, request, ct));
+    [HttpGet("search")]
+    public Task<ActionResult<SearchPage>> Search(Guid community, Guid channel, [FromQuery] string query, [FromQuery] string? before, CancellationToken ct) => Execute(() => messages.SearchAsync(community, channel, UserId, query, before, ct));
+    [HttpGet("read-state")]
+    public Task<ActionResult<ReadStateDto>> Read(Guid community, Guid channel, CancellationToken ct) => Execute(() => messages.ReadAsync(community, channel, UserId, null, ct));
+    [HttpPut("read-state"), EnableRateLimiting("community-commands"), RequestSizeLimit(1024)]
+    public Task<ActionResult<ReadStateDto>> MarkRead(Guid community, Guid channel, ReadStateRequest request, CancellationToken ct) => Execute(() => messages.ReadAsync(community, channel, UserId, request.Sequence, ct));
 
     [HttpPost("messages"), EnableRateLimiting("community-commands")]
     [ProducesResponseType<MessageDto>(201)]

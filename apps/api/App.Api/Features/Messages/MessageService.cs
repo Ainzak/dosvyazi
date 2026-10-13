@@ -9,14 +9,15 @@ using System.Text.Json;
 
 namespace App.Api.Features.Messages;
 
-public sealed class MessageService(AppDbContext database, AttachmentStore files)
+public sealed partial class MessageService(AppDbContext database, AttachmentStore files)
 {
     public static MessageDto Dto(Message message) => new(message.Id.ToString(), message.ChannelId.ToString(), message.AuthorId.ToString(),
         message.Author.DisplayName, message.ClientMessageId.ToString(), message.Sequence.ToString(CultureInfo.InvariantCulture), message.Deleted ? "" : message.Content, message.CreatedAt,
         message.Version.ToString(CultureInfo.InvariantCulture), message.UpdatedAt, message.Deleted,
         message.Deleted || message.Attachment is null ? null : new(message.Attachment.Id.ToString(), message.Attachment.Name, message.Attachment.Size));
 
-    private static MessageDto DtoFor(Message message, Guid user, EffectiveChannelAccess access) => Dto(message);
+    private static MessageDto DtoFor(Message message, Guid user, EffectiveChannelAccess access) => Dto(message) with
+    { Reactions = message.Reactions.Count == 0 ? null : message.Reactions.GroupBy(r => r.Emoji).OrderBy(g => g.Key).Select(g => new ReactionDto(g.Key, g.Count(), g.Any(r => r.UserId == user))).ToArray() };
     private static string ContentHash(string content) => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(content)));
 
     public async Task<TextChannel> LockAuthorizedAsync(Guid community, Guid channel, Guid user, CancellationToken ct)
@@ -46,7 +47,7 @@ public sealed class MessageService(AppDbContext database, AttachmentStore files)
         var textChannel = await LockAuthorizedAsync(community, channel, user, ct);
         if (!(await ChannelAccess.ResolveAsync(database, community, textChannel, user, ct)).Send) throw new CommunityFailure(403, "You cannot send messages in this channel.");
         var hash = attachment is null ? ContentHash(request.Content) : ContentHash(JsonSerializer.Serialize(new { request.Content, attachment.Name, attachment.Hash }));
-        var message = await database.Messages.Include(item => item.Author).Include(item => item.Attachment).SingleOrDefaultAsync(item => item.ChannelId == channel && item.AuthorId == user && item.ClientMessageId == request.ClientMessageId, ct);
+        var message = await database.Messages.Include(item => item.Author).Include(item => item.Attachment).Include(item => item.Reactions).SingleOrDefaultAsync(item => item.ChannelId == channel && item.AuthorId == user && item.ClientMessageId == request.ClientMessageId, ct);
         if (message is null)
         {
             var now = DateTimeOffset.UtcNow;
@@ -83,7 +84,7 @@ public sealed class MessageService(AppDbContext database, AttachmentStore files)
         await using var transaction = await database.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, ct);
         var textChannel = await LockAuthorizedAsync(community, channel, user, ct);
         if (boundary > textChannel.LastSequence) throw new CommunityFailure(400, "The cursor is ahead of this channel.");
-        var messages = await database.Messages.AsNoTracking().Include(item => item.Author).Include(item => item.Attachment)
+        var messages = await database.Messages.AsNoTracking().Include(item => item.Author).Include(item => item.Attachment).Include(item => item.Reactions)
             .Where(item => item.ChannelId == channel && !item.Deleted && (boundary == null || item.Sequence < boundary))
             .OrderByDescending(item => item.Sequence).Take(51).ToArrayAsync(ct);
         var access = await ChannelAccess.ResolveAsync(database, community, textChannel, user, ct);
@@ -104,6 +105,7 @@ public sealed class MessageService(AppDbContext database, AttachmentStore files)
             throw new CommunityFailure(409, "Recovery cursor expired. Reload the channel history.");
         var events = await database.ChannelEvents.AsNoTracking().Include(item => item.Message).ThenInclude(item => item.Author)
             .Include(item => item.Message).ThenInclude(item => item.Attachment)
+            .Include(item => item.Message).ThenInclude(item => item.Reactions)
             .Where(item => item.ChannelId == channel && item.Sequence > cursor).OrderBy(item => item.Sequence).Take(101).ToArrayAsync(ct);
         var access = await ChannelAccess.ResolveAsync(database, community, textChannel, user, ct);
         var page = events.Take(100).Select(item => new MessageEvent(item.Id.ToString(), channel.ToString(), item.Sequence.ToString(CultureInfo.InvariantCulture), item.Message.Deleted ? "message.deleted" : item.Kind, 1,
@@ -125,7 +127,7 @@ public sealed class MessageService(AppDbContext database, AttachmentStore files)
         await using var tx = await database.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, ct);
         var textChannel = await LockAuthorizedAsync(community, channel, user, ct);
         var access = await ChannelAccess.ResolveAsync(database, community, textChannel, user, ct);
-        var message = await database.Messages.Include(m => m.Author).Include(m => m.Attachment).SingleOrDefaultAsync(m => m.Id == id && m.ChannelId == channel, ct) ?? throw new CommunityFailure(404, "Message is unavailable.");
+        var message = await database.Messages.Include(m => m.Author).Include(m => m.Attachment).Include(m => m.Reactions).SingleOrDefaultAsync(m => m.Id == id && m.ChannelId == channel, ct) ?? throw new CommunityFailure(404, "Message is unavailable.");
         if (delete ? !((message.AuthorId == user && access.Send) || access.Has(ChannelAccess.ManageMessages)) : !(message.AuthorId == user && access.Send))
             throw new CommunityFailure(403, "You cannot change this message.");
         var prior = await database.MessageCommands.SingleOrDefaultAsync(c => c.ChannelId == channel && c.ActorId == user && c.ClientRequestId == requestId, ct);

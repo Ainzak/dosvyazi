@@ -5,6 +5,10 @@ namespace App.Api.Features.Accounts;
 public sealed class AppUser : IdentityUser<Guid>
 {
     public string DisplayName { get; set; } = string.Empty;
+    public string About { get; set; } = "";
+    public string Interests { get; set; } = "";
+    public string Games { get; set; } = "";
+    public string LookingFor { get; set; } = "";
 }
 
 public sealed class UserSession

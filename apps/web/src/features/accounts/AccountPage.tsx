@@ -20,6 +20,7 @@ function Profile({ user }: { user: UserProfile }) {
     <p className="eyebrow">{t("YOUR ACCOUNT")}</p><h1>{t("Welcome, ")}{user.displayName}.</h1>
     <p className="account-intro">{t("Your profile is ready. ")}<Link to="/communities">{t("Explore your communities.")}</Link></p>
     <div className="account-email"><span>{t("Email address")}</span><strong>{user.email}</strong></div>
+    <p><Link to={`/profiles/${user.id}`}>{t('Edit games, interests and profile details')}</Link></p>
     <form onSubmit={event => { event.preventDefault(); const data = new FormData(event.currentTarget); update.mutate({ displayName: String(data.get('displayName') ?? '') }); }}>
       <label htmlFor="displayName">{t("Display name")}</label>
       <input key={user.displayName} id="displayName" name="displayName" autoComplete="nickname" minLength={2} maxLength={40} defaultValue={user.displayName} required />

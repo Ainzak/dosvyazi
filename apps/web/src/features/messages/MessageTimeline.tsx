@@ -9,6 +9,8 @@ import { applyEvents, catchUp, history, mergeMessages, RecoveryRequired, sendMes
 import type { MessageSnapshot } from '../../api/messages';
 import { MessageActions } from './MessageActions';
 import { AttachmentDownload } from './AttachmentDownload';
+import { MessageExtras, MessageReactions, MessageContent, EmojiPicker } from './Completeness';
+import { Link } from 'react-router';
 
 export function MessageTimeline({ community, channel, user, canSend = true, canManageMessages = false, sendDeniedBy = null }: { community: string; channel: string; user: UserProfile; canSend?: boolean; canManageMessages?: boolean; sendDeniedBy?: string | null }) {
   const { t, locale } = useI18n();
@@ -110,6 +112,7 @@ export function MessageTimeline({ community, channel, user, canSend = true, canM
   return <div className="message-timeline">
     <div className="connection-status"><span role="status">{t(connectionState)}</span>{connectionState !== 'Live' && <button className="secondary-button" onClick={() => setConnectionAttempt(value => value + 1)}>{t("Reconnect")}</button>}</div>
     <p className="field-hint">{t("Live updates with automatic history recovery. Messages are plain text.")}</p>
+    {feed.data && <MessageExtras user={user.id} community={community} channel={channel} watermark={feed.data.watermark} />}
     {feed.isPending && <p role="status">{t("Loading messages…")}</p>}
     {feed.isError && <div className="message-error"><p role="alert">{t(feed.error.message)}</p><button className="secondary-button" onClick={() => void feed.refetch()}>{t("Retry history")}</button></div>}
     {feed.data?.hasOlder && <button className="secondary-button" onClick={() => older.mutate()} disabled={older.isPending}>{older.isPending ? t("Loading older messages…") : t("Load older messages")}</button>}
@@ -119,15 +122,17 @@ export function MessageTimeline({ community, channel, user, canSend = true, canM
       const list = event.currentTarget;
       followLatest.current = list.scrollHeight - list.scrollTop - list.clientHeight < 64;
     }}>{feed.data?.messages.map(message => <li key={message.id} data-message-id={message.id}>
-      <div className="message-meta"><strong>{message.authorName}</strong><time dateTime={message.createdAt}>{new Date(message.createdAt).toLocaleString(locale)}</time></div>
-      <p>{message.content}</p>
+      <div className="message-meta"><Link to={`/profiles/${message.authorId}`}><strong>{message.authorName}</strong></Link><time dateTime={message.createdAt}>{new Date(message.createdAt).toLocaleString(locale)}</time></div>
+      <MessageContent content={message.content} community={community} user={user.id} />
       {message.attachment && <AttachmentDownload attachment={message.attachment} community={community} channel={channel} />}
       {message.updatedAt && <small>{t("Edited")}</small>}
+      <MessageReactions message={message} user={user.id} community={community} channel={channel} canSend={canSend} />
       <MessageActions message={message} community={community} channel={channel} canEdit={canSend && message.authorId === user.id} canDelete={(canSend && message.authorId === user.id) || canManageMessages} refresh={async () => { await client.invalidateQueries({ queryKey: key }); }} />
     </li>)}{(send.isPending || send.isError) && !request.current.confirmed && !feed.data?.messages.some(message => message.authorId === user.id && message.clientMessageId === request.current.id) && <li className="pending-message"><strong>{user.displayName}</strong><p>{send.variables}</p><span>{send.isPending ? t("Sending…") : t("Not confirmed. Retry with the same text.")}</span></li>}</ol>
     {!canSend && <p role="status">{t("Read only: ")}{t(sendDeniedBy ?? 'SendMessage is not granted.') }</p>}
     {canSend && <form className="message-composer" onSubmit={event => { event.preventDefault(); send.mutate(draft); }}>
       <label htmlFor="message-content">{t("Message")}</label><textarea id="message-content" value={draft} onChange={event => setDraft(event.target.value)} maxLength={4000} rows={3} required={!file} disabled={send.isPending} placeholder={t("Write to your community…")} />
+      <EmojiPicker community={community} user={user.id} disabled={send.isPending} pick={text => setDraft(value => (value + text).slice(0, 4000))} />
       <label htmlFor="message-file">{t('Attach a file')}</label><input ref={fileInput} id="message-file" type="file" accept=".txt,.png,.jpg,.jpeg,.pdf" disabled={send.isPending} onChange={event => {
         const next = event.currentTarget.files?.[0] ?? null;
         const valid = !next || (next.size > 0 && next.size <= 5 * 1024 * 1024 && /\.(txt|png|jpe?g|pdf)$/i.test(next.name));

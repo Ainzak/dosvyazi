@@ -354,6 +354,159 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/communities/{community}/emoji": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    community: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["EmojiDto"][];
+                        "application/json": components["schemas"]["EmojiDto"][];
+                        "text/json": components["schemas"]["EmojiDto"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    community: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/x-www-form-urlencoded": {
+                        /** Format: uuid */
+                        clientRequestId?: string;
+                    } & {
+                        name?: string;
+                    } & {
+                        ContentType?: string;
+                        ContentDisposition?: string;
+                        Headers?: {
+                            [key: string]: string[];
+                        };
+                        /** Format: int64 */
+                        Length?: number | string;
+                        Name?: string;
+                        FileName?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["EmojiDto"];
+                        "application/json": components["schemas"]["EmojiDto"];
+                        "text/json": components["schemas"]["EmojiDto"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/communities/{community}/emoji/{id}/delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    community: string;
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/communities/{community}/emoji/{id}/image": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    community: string;
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/communities/{community}/channels/{channel}/messages": {
         parameters: {
             query?: never;
@@ -420,6 +573,166 @@ export interface paths {
                 };
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/communities/{community}/channels/{channel}/messages/{id}/reaction": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    community: string;
+                    channel: string;
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ReactionRequest"];
+                    "text/json": components["schemas"]["ReactionRequest"];
+                    "application/*+json": components["schemas"]["ReactionRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["MessageDto"];
+                        "application/json": components["schemas"]["MessageDto"];
+                        "text/json": components["schemas"]["MessageDto"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/communities/{community}/channels/{channel}/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    query?: string;
+                    before?: string;
+                };
+                header?: never;
+                path: {
+                    community: string;
+                    channel: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["SearchPage"];
+                        "application/json": components["schemas"]["SearchPage"];
+                        "text/json": components["schemas"]["SearchPage"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/communities/{community}/channels/{channel}/read-state": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    community: string;
+                    channel: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ReadStateDto"];
+                        "application/json": components["schemas"]["ReadStateDto"];
+                        "text/json": components["schemas"]["ReadStateDto"];
+                    };
+                };
+            };
+        };
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    community: string;
+                    channel: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ReadStateRequest"];
+                    "text/json": components["schemas"]["ReadStateRequest"];
+                    "application/*+json": components["schemas"]["ReadStateRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ReadStateDto"];
+                        "application/json": components["schemas"]["ReadStateDto"];
+                        "text/json": components["schemas"]["ReadStateDto"];
+                    };
+                };
+            };
+        };
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1551,6 +1864,88 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/profiles/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["PublicProfileDto"];
+                        "application/json": components["schemas"]["PublicProfileDto"];
+                        "text/json": components["schemas"]["PublicProfileDto"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/profiles/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ProfileDetailsRequest"];
+                    "text/json": components["schemas"]["ProfileDetailsRequest"];
+                    "application/*+json": components["schemas"]["ProfileDetailsRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["PublicProfileDto"];
+                        "application/json": components["schemas"]["PublicProfileDto"];
+                        "text/json": components["schemas"]["PublicProfileDto"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1676,6 +2071,10 @@ export interface components {
             expectedVersion: string;
             content: string;
         };
+        EmojiDto: {
+            id: string;
+            name: string;
+        };
         ForgotPasswordRequest: {
             email: string;
         };
@@ -1742,6 +2141,7 @@ export interface components {
             /** @default false */
             deleted: boolean;
             attachment?: null | components["schemas"]["AttachmentDto"];
+            reactions?: null | components["schemas"]["ReactionDto"][];
         };
         MessageEvent: {
             eventId: string;
@@ -1765,11 +2165,45 @@ export interface components {
             message: string;
             developmentLink?: null | string;
         };
+        ProfileDetailsRequest: {
+            about: string;
+            interests: string;
+            games: string;
+            lookingFor: string;
+        };
+        PublicProfileDto: {
+            id: string;
+            displayName: string;
+            about: string;
+            interests: string;
+            games: string;
+            lookingFor: string;
+        };
+        ReactionDto: {
+            emoji: string;
+            /** Format: int32 */
+            count: number | string;
+            mine: boolean;
+        };
+        ReactionRequest: {
+            /** Format: uuid */
+            clientRequestId: string;
+            emoji: string;
+            active: boolean;
+        };
         ReadinessResponse: {
             status: string;
             checks: {
                 [key: string]: string;
             };
+        };
+        ReadStateDto: {
+            sequence: string;
+            /** Format: int32 */
+            unread: number | string;
+        };
+        ReadStateRequest: {
+            sequence: string;
         };
         RegisterRequest: {
             email: string;
@@ -1807,6 +2241,11 @@ export interface components {
             /** Format: uuid */
             clientRequestId: string;
             policy: components["schemas"]["AccessPolicy"];
+        };
+        SearchPage: {
+            messages: components["schemas"]["MessageDto"][];
+            before: null | string;
+            hasMore: boolean;
         };
         SendMessageRequest: {
             /** Format: uuid */

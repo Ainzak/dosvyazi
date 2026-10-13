@@ -24,6 +24,9 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : Ident
     public DbSet<CommunityInvite> CommunityInvites => Set<CommunityInvite>();
     public DbSet<Message> Messages => Set<Message>();
     public DbSet<MessageAttachment> MessageAttachments => Set<MessageAttachment>();
+    public DbSet<MessageReaction> MessageReactions => Set<MessageReaction>();
+    public DbSet<ChannelReadState> ChannelReadStates => Set<ChannelReadState>();
+    public DbSet<CommunityEmoji> CommunityEmojis => Set<CommunityEmoji>();
     public DbSet<MessageCommand> MessageCommands => Set<MessageCommand>();
     public DbSet<ChannelEvent> ChannelEvents => Set<ChannelEvent>();
     public DbSet<OutboxEntry> OutboxEntries => Set<OutboxEntry>();
@@ -36,6 +39,32 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : Ident
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
+        builder.Entity<Message>().HasGeneratedTsVectorColumn(m => m.SearchVector, "simple", m => m.Content).HasIndex(m => m.SearchVector).HasMethod("GIN");
+        builder.Entity<MessageReaction>(reaction =>
+        {
+            reaction.HasKey(r => new { r.MessageId, r.UserId, r.Emoji });
+            reaction.Property(r => r.Emoji).HasMaxLength(80);
+            reaction.HasOne(r => r.Message).WithMany(m => m.Reactions).HasForeignKey(r => r.MessageId).OnDelete(DeleteBehavior.Cascade);
+            reaction.HasOne<AppUser>().WithMany().HasForeignKey(r => r.UserId).OnDelete(DeleteBehavior.Restrict);
+        });
+        builder.Entity<ChannelReadState>(state =>
+        {
+            state.HasKey(s => new { s.ChannelId, s.UserId });
+            state.HasOne<TextChannel>().WithMany().HasForeignKey(s => s.ChannelId).OnDelete(DeleteBehavior.Cascade);
+            state.HasOne<AppUser>().WithMany().HasForeignKey(s => s.UserId).OnDelete(DeleteBehavior.Restrict);
+            state.ToTable(t => t.HasCheckConstraint("CK_ChannelReadStates_Sequence", "\"Sequence\" >= 0"));
+        });
+        builder.Entity<CommunityEmoji>(emoji =>
+        {
+            emoji.Property(e => e.Name).HasMaxLength(32); emoji.Property(e => e.Hash).HasMaxLength(64);
+            emoji.HasIndex(e => new { e.CommunityId, e.Name }).IsUnique().HasFilter("NOT \"Deleted\"");
+            emoji.HasIndex(e => new { e.CommunityId, e.ClientRequestId }).IsUnique();
+            emoji.HasOne<Community>().WithMany().HasForeignKey(e => e.CommunityId).OnDelete(DeleteBehavior.Restrict);
+        });
+        builder.Entity<AppUser>().Property(u => u.About).HasMaxLength(1000);
+        builder.Entity<AppUser>().Property(u => u.Interests).HasMaxLength(500);
+        builder.Entity<AppUser>().Property(u => u.Games).HasMaxLength(500);
+        builder.Entity<AppUser>().Property(u => u.LookingFor).HasMaxLength(500);
         builder.Entity<MessageAttachment>(attachment =>
         {
             attachment.HasOne(a => a.Message).WithOne(m => m.Attachment).HasForeignKey<MessageAttachment>(a => a.MessageId).OnDelete(DeleteBehavior.Restrict);

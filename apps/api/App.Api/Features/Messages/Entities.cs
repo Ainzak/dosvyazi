@@ -19,6 +19,32 @@ public sealed class Message
     public bool Deleted { get; set; }
     public string? OriginalContentHash { get; set; }
     public MessageAttachment? Attachment { get; set; }
+    public List<MessageReaction> Reactions { get; set; } = [];
+    public NpgsqlTypes.NpgsqlTsVector SearchVector { get; set; } = null!;
+}
+
+public sealed class MessageReaction
+{
+    public Guid MessageId { get; set; }
+    public Message Message { get; set; } = null!;
+    public Guid UserId { get; set; }
+    public string Emoji { get; set; } = "";
+}
+public sealed class ChannelReadState
+{
+    public Guid ChannelId { get; set; }
+    public Guid UserId { get; set; }
+    public long Sequence { get; set; }
+}
+public sealed class CommunityEmoji
+{
+    public Guid Id { get; set; }
+    public Guid CommunityId { get; set; }
+    public Guid ClientRequestId { get; set; }
+    public string Name { get; set; } = "";
+    public string Hash { get; set; } = "";
+    public bool Deleted { get; set; }
+    public bool Purged { get; set; }
 }
 
 public sealed class MessageAttachment

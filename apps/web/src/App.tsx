@@ -6,6 +6,7 @@ import type { LucideIcon } from 'lucide-react';
 import { getReadiness, getSystem } from './api/client';
 import { AccountPage, SessionLink } from './features/accounts/AccountPage';
 import { PasswordRecoveryPage } from './features/accounts/PasswordRecoveryPage';
+import { PublicProfilePage } from './features/accounts/PublicProfilePage';
 import { CommunitiesPage, CommunityPage } from './features/communities/CommunitiesPage';
 import { PrivateCacheBoundary } from './features/communities/PrivateCacheBoundary';
 import { VoiceProvider } from './features/voice/VoiceProvider';
@@ -95,7 +96,7 @@ export default function App() {
         <NavLink to="/communities"><Hash size={18} aria-hidden="true" /> {t(" Communities")}</NavLink>
       </nav><div className="sidebar-footer"><span className="development-dot" /> {t(" Development build")}<span className="version">{t("v0.1 · Text and voice")}</span></div>
     </aside><div className="main-shell"><header className="topbar"><span className="topbar-breadcrumb">{t("Workspace ")}<span className="breadcrumb-divider">/</span> <span className="breadcrumb-current">{t("Dosvyazi")}</span></span><div className="topbar-actions"><LanguageSwitcher /><SessionLink /></div></header>
-      <main id="main" tabIndex={-1}><Routes><Route path="/" element={<Workspace />} /><Route path="/about" element={<About />} /><Route path="/account" element={<AccountPage />} /><Route path="/forgot-password" element={<PasswordRecoveryPage key="request" />} /><Route path="/reset-password" element={<PasswordRecoveryPage key="reset" reset />} /><Route path="/login" element={<AccountPage mode="login" />} /><Route path="/register" element={<AccountPage mode="register" />} /><Route path="/communities" element={<CommunitiesPage />} /><Route path="/communities/:id" element={<CommunityPage />} /><Route path="/communities/:id/channels/:channelId" element={<CommunityPage />} /><Route path="*" element={<NotFound />} /></Routes></main>
+      <main id="main" tabIndex={-1}><Routes><Route path="/profiles/:id" element={<PublicProfilePage />} /><Route path="/" element={<Workspace />} /><Route path="/about" element={<About />} /><Route path="/account" element={<AccountPage />} /><Route path="/forgot-password" element={<PasswordRecoveryPage key="request" />} /><Route path="/reset-password" element={<PasswordRecoveryPage key="reset" reset />} /><Route path="/login" element={<AccountPage mode="login" />} /><Route path="/register" element={<AccountPage mode="register" />} /><Route path="/communities" element={<CommunitiesPage />} /><Route path="/communities/:id" element={<CommunityPage />} /><Route path="/communities/:id/channels/:channelId" element={<CommunityPage />} /><Route path="*" element={<NotFound />} /></Routes></main>
       <VoiceDock /><footer className="page-footer"><span>{t("Dosvyazi ")}<span aria-hidden="true">·</span> ДоСвязи</span><span>{t("Built for shared moments.")}</span></footer>
     </div></div></VoiceProvider>;
 }

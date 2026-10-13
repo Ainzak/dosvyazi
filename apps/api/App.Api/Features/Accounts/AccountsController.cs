@@ -3,6 +3,9 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using App.Api.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
 
 namespace App.Api.Features.Accounts;
@@ -11,7 +14,7 @@ namespace App.Api.Features.Accounts;
 [Route("api/v1/account")]
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 public sealed class AccountsController(AccountService accounts, UserManager<AppUser> users,
-    IAntiforgery antiforgery, IWebHostEnvironment environment) : ControllerBase
+    IAntiforgery antiforgery, IWebHostEnvironment environment, AppDbContext database) : ControllerBase
 {
     [AllowAnonymous]
     [HttpGet("csrf")]
@@ -93,10 +96,13 @@ public sealed class AccountsController(AccountService accounts, UserManager<AppU
     {
         if (!AccountService.ValidDisplayName(request.DisplayName))
             return Problem(statusCode: 400, title: "Display name must contain 2 to 40 characters and no control characters.");
-        var user = await users.GetUserAsync(User);
+        await using var tx = await database.Database.BeginTransactionAsync();
+        var id = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        var user = await database.Users.FromSqlInterpolated($"SELECT * FROM \"AspNetUsers\" WHERE \"Id\" = {id} FOR UPDATE").SingleOrDefaultAsync();
         if (user is null) return Unauthorized();
         user.DisplayName = request.DisplayName.Trim();
         var result = await users.UpdateAsync(user);
+        if (result.Succeeded) await tx.CommitAsync();
         return result.Succeeded ? Ok(AccountService.Profile(user)) : Problem(statusCode: 409, title: "Your profile changed. Reload it and try again.");
     }
 }
