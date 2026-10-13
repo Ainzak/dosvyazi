@@ -7,6 +7,7 @@ import { getReadiness, getSystem } from './api/client';
 import { AccountPage, SessionLink } from './features/accounts/AccountPage';
 import { PasswordRecoveryPage } from './features/accounts/PasswordRecoveryPage';
 import { PublicProfilePage } from './features/accounts/PublicProfilePage';
+import { GatheringsPage } from './features/gatherings/GatheringsPage';
 import { CommunitiesPage, CommunityPage } from './features/communities/CommunitiesPage';
 import { PrivateCacheBoundary } from './features/communities/PrivateCacheBoundary';
 import { VoiceProvider } from './features/voice/VoiceProvider';
@@ -74,8 +75,8 @@ function About() {
   const { t } = useI18n();
   return <><div className="page-heading"><div><p className="eyebrow">{t("ABOUT THIS BUILD")}</p>
     <h1>{t("One verified step at a time.")}</h1><p className="page-description">{t("Dosvyazi is taking shape, starting with a connected foundation.")}</p></div></div>
-    <section className="about-panel"><h2>{t("Available now")}</h2><p>{t("Accounts, communities, membership, bounded invitations, owner bans, live text messages, community voice rooms and reconnect recovery, alongside live service checks.")}</p>
-      <h2>{t("Coming in later milestones")}</h2><p>{t("Roles and private channel configuration, and Gatherings with invitations and responses.")}</p>
+    <section className="about-panel"><h2>{t("Available now")}</h2><p>{t("Accounts, communities, roles, private text and voice, moderation, attachments, reactions, emoji, search, profiles and Gatherings with invitations, responses and reconfirmation.")}</p>
+      <h2>{t("Coming in later milestones")}</h2><p>{t("Further refinements follow separately verified milestones.")}</p>
       <p>{t("This build supports shared text and voice conversations; the remaining features follow in separate milestones.")}</p><Link className="about-link" to="/">{t("Back to workspace ")}<ArrowRight size={16} aria-hidden="true" /></Link>
     </section></>;
 }
@@ -96,7 +97,7 @@ export default function App() {
         <NavLink to="/communities"><Hash size={18} aria-hidden="true" /> {t(" Communities")}</NavLink>
       </nav><div className="sidebar-footer"><span className="development-dot" /> {t(" Development build")}<span className="version">{t("v0.1 · Text and voice")}</span></div>
     </aside><div className="main-shell"><header className="topbar"><span className="topbar-breadcrumb">{t("Workspace ")}<span className="breadcrumb-divider">/</span> <span className="breadcrumb-current">{t("Dosvyazi")}</span></span><div className="topbar-actions"><LanguageSwitcher /><SessionLink /></div></header>
-      <main id="main" tabIndex={-1}><Routes><Route path="/profiles/:id" element={<PublicProfilePage />} /><Route path="/" element={<Workspace />} /><Route path="/about" element={<About />} /><Route path="/account" element={<AccountPage />} /><Route path="/forgot-password" element={<PasswordRecoveryPage key="request" />} /><Route path="/reset-password" element={<PasswordRecoveryPage key="reset" reset />} /><Route path="/login" element={<AccountPage mode="login" />} /><Route path="/register" element={<AccountPage mode="register" />} /><Route path="/communities" element={<CommunitiesPage />} /><Route path="/communities/:id" element={<CommunityPage />} /><Route path="/communities/:id/channels/:channelId" element={<CommunityPage />} /><Route path="*" element={<NotFound />} /></Routes></main>
+      <main id="main" tabIndex={-1}><Routes><Route path="/communities/:id/gatherings/:gatheringId?" element={<GatheringsPage />} /><Route path="/profiles/:id" element={<PublicProfilePage />} /><Route path="/" element={<Workspace />} /><Route path="/about" element={<About />} /><Route path="/account" element={<AccountPage />} /><Route path="/forgot-password" element={<PasswordRecoveryPage key="request" />} /><Route path="/reset-password" element={<PasswordRecoveryPage key="reset" reset />} /><Route path="/login" element={<AccountPage mode="login" />} /><Route path="/register" element={<AccountPage mode="register" />} /><Route path="/communities" element={<CommunitiesPage />} /><Route path="/communities/:id" element={<CommunityPage />} /><Route path="/communities/:id/channels/:channelId" element={<CommunityPage />} /><Route path="*" element={<NotFound />} /></Routes></main>
       <VoiceDock /><footer className="page-footer"><span>{t("Dosvyazi ")}<span aria-hidden="true">·</span> ДоСвязи</span><span>{t("Built for shared moments.")}</span></footer>
     </div></div></VoiceProvider>;
 }

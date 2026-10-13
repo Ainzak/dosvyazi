@@ -1,0 +1,23 @@
+import type { components } from './schema';
+import { callApi, mutateApi, readJson } from './http';
+export type Gathering = components['schemas']['GatheringDto'];
+export type Plan = components['schemas']['GatheringPlanRequest'];
+const root = (community: string) => `/api/v1/communities/${community}/gatherings`;
+export const gatheringKeys = (user: string, community: string) => ['private', user, 'community', community, 'gatherings'] as const;
+export const listGatherings = (community: string, offset: number, signal: AbortSignal) => callApi(`${root(community)}?offset=${offset}`, { signal }).then(readJson<components['schemas']['GatheringList']>);
+export const gatheringCandidates = (community: string, offset: number, signal: AbortSignal) => callApi(`${root(community)}/candidates?offset=${offset}`, { signal }).then(readJson<components['schemas']['GatheringCandidates']>);
+export const gatheringNotices = (community: string, offset: number, signal: AbortSignal) => callApi(`${root(community)}/notices?offset=${offset}`, { signal }).then(readJson<components['schemas']['GatheringNotices']>);
+export const getGathering = (community: string, id: string, signal: AbortSignal) => callApi(`${root(community)}/${id}`, { signal }).then(readJson<Gathering>);
+export const gatheringRevisions = (community: string, id: string, signal: AbortSignal) => callApi(`${root(community)}/${id}/revisions`, { signal }).then(readJson<components['schemas']['GatheringRevisionDto'][]>);
+export const saveGathering = (community: string, id: string | null, plan: Plan) => mutateApi<Gathering>(`${root(community)}${id ? `/${id}` : ''}`, id ? 'PUT' : 'POST', plan);
+export const respondGathering = (community: string, id: string, response: components['schemas']['GatheringResponseRequest']) => mutateApi<Gathering>(`${root(community)}/${id}/response`, 'PUT', response);
+export const discussGathering = (community: string, id: string, comment: components['schemas']['GatheringCommentRequest']) => mutateApi<Gathering>(`${root(community)}/${id}/comments`, 'POST', comment);
+export const closeGathering = (community: string, id: string, request: components['schemas']['GatheringStatusRequest']) => mutateApi<Gathering>(`${root(community)}/${id}/status`, 'PUT', request);
+export const seenGatheringNotice = (community: string, id: string) => mutateApi<void>(`${root(community)}/notices/${id}/seen`, 'POST');
+export const gatheringCoverUrl = (community: string, id: string, cover: string) => `${root(community)}/${id}/cover/${cover}`;
+export const removeGatheringCover = (community: string, id: string, request: components['schemas']['GatheringCoverRequest']) => mutateApi<Gathering>(`${root(community)}/${id}/cover/remove`, 'POST', request);
+export async function uploadGatheringCover(community: string, id: string, clientRequestId: string, expectedVersion: string, file: File) {
+  const token = await readJson<components['schemas']['CsrfResponse']>(await callApi('/api/v1/account/csrf'));
+  const body = new FormData(); body.append('clientRequestId', clientRequestId); body.append('expectedVersion', expectedVersion); body.append('file', file);
+  return readJson<Gathering>(await callApi(`${root(community)}/${id}/cover`, { method: 'POST', body, headers: { 'X-CSRF-TOKEN': token.requestToken } }, 30_000));
+}

@@ -487,6 +487,285 @@ namespace App.Api.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("App.Api.Features.Gatherings.Gathering", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CommunityId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("CoverId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("Game")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<string>("LocalStart")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<Guid>("OrganizerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Revision")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("StartAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<string>("TimeZoneId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<long>("Version")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrganizerId");
+
+                    b.HasIndex("CommunityId", "CreatedAt", "Id");
+
+                    b.ToTable("Gatherings", t =>
+                        {
+                            t.HasCheckConstraint("CK_Gatherings_State", "\"Revision\" > 0 AND \"Version\" > 0 AND \"Status\" IN ('Scheduled','Cancelled','Completed')");
+                        });
+                });
+
+            modelBuilder.Entity("App.Api.Features.Gatherings.GatheringCommand", b =>
+                {
+                    b.Property<Guid>("CommunityId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ActorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ClientRequestId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("GatheringId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Hash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.HasKey("CommunityId", "ActorId", "ClientRequestId");
+
+                    b.HasIndex("ActorId");
+
+                    b.HasIndex("CommunityId", "GatheringId");
+
+                    b.ToTable("GatheringCommands");
+                });
+
+            modelBuilder.Entity("App.Api.Features.Gatherings.GatheringComment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AuthorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("GatheringId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Revision")
+                        .HasColumnType("integer");
+
+                    b.Property<long>("Sequence")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AuthorId");
+
+                    b.HasIndex("GatheringId", "Sequence")
+                        .IsUnique();
+
+                    b.HasIndex("GatheringId", "CreatedAt", "Id");
+
+                    b.ToTable("GatheringComments");
+                });
+
+            modelBuilder.Entity("App.Api.Features.Gatherings.GatheringCover", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid>("GatheringId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("Purged")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("Retired")
+                        .HasColumnType("boolean");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("GatheringId");
+
+                    b.ToTable("GatheringCovers");
+                });
+
+            modelBuilder.Entity("App.Api.Features.Gatherings.GatheringEvent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CommunityId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("GatheringId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("PublishedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("RemovedUsersJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<long>("Version")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PublishedAt")
+                        .HasFilter("\"PublishedAt\" IS NULL");
+
+                    b.HasIndex("CommunityId", "GatheringId");
+
+                    b.ToTable("GatheringEvents");
+                });
+
+            modelBuilder.Entity("App.Api.Features.Gatherings.GatheringInvite", b =>
+                {
+                    b.Property<Guid>("GatheringId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("Active")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.HasKey("GatheringId", "UserId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("GatheringInvites", t =>
+                        {
+                            t.HasCheckConstraint("CK_GatheringInvites_State", "\"State\" IN ('Pending','Accepted','Declined','NeedsClarification')");
+                        });
+                });
+
+            modelBuilder.Entity("App.Api.Features.Gatherings.GatheringNotice", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("GatheringId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<int>("Revision")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("Seen")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<long>("Version")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("GatheringId");
+
+                    b.HasIndex("UserId", "CreatedAt");
+
+                    b.ToTable("GatheringNotices");
+                });
+
+            modelBuilder.Entity("App.Api.Features.Gatherings.GatheringRevision", b =>
+                {
+                    b.Property<Guid>("GatheringId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Revision")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("PlanJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("ResponsesJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("GatheringId", "Revision");
+
+                    b.ToTable("GatheringRevisions");
+                });
+
             modelBuilder.Entity("App.Api.Features.Messages.ChannelEvent", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1153,6 +1432,112 @@ namespace App.Api.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("App.Api.Features.Gatherings.Gathering", b =>
+                {
+                    b.HasOne("App.Api.Features.Communities.Community", null)
+                        .WithMany()
+                        .HasForeignKey("CommunityId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("App.Api.Features.Accounts.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("OrganizerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("App.Api.Features.Gatherings.GatheringCommand", b =>
+                {
+                    b.HasOne("App.Api.Features.Accounts.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("ActorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("App.Api.Features.Gatherings.Gathering", null)
+                        .WithMany()
+                        .HasForeignKey("CommunityId", "GatheringId")
+                        .HasPrincipalKey("CommunityId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("App.Api.Features.Gatherings.GatheringComment", b =>
+                {
+                    b.HasOne("App.Api.Features.Accounts.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("AuthorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("App.Api.Features.Gatherings.Gathering", null)
+                        .WithMany()
+                        .HasForeignKey("GatheringId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("App.Api.Features.Gatherings.GatheringCover", b =>
+                {
+                    b.HasOne("App.Api.Features.Gatherings.Gathering", null)
+                        .WithMany()
+                        .HasForeignKey("GatheringId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("App.Api.Features.Gatherings.GatheringEvent", b =>
+                {
+                    b.HasOne("App.Api.Features.Gatherings.Gathering", null)
+                        .WithMany()
+                        .HasForeignKey("CommunityId", "GatheringId")
+                        .HasPrincipalKey("CommunityId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("App.Api.Features.Gatherings.GatheringInvite", b =>
+                {
+                    b.HasOne("App.Api.Features.Gatherings.Gathering", "Gathering")
+                        .WithMany("Invites")
+                        .HasForeignKey("GatheringId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("App.Api.Features.Accounts.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Gathering");
+                });
+
+            modelBuilder.Entity("App.Api.Features.Gatherings.GatheringNotice", b =>
+                {
+                    b.HasOne("App.Api.Features.Gatherings.Gathering", null)
+                        .WithMany()
+                        .HasForeignKey("GatheringId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("App.Api.Features.Accounts.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("App.Api.Features.Gatherings.GatheringRevision", b =>
+                {
+                    b.HasOne("App.Api.Features.Gatherings.Gathering", null)
+                        .WithMany()
+                        .HasForeignKey("GatheringId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("App.Api.Features.Messages.ChannelEvent", b =>
                 {
                     b.HasOne("App.Api.Features.Messages.Message", "Message")
@@ -1345,6 +1730,11 @@ namespace App.Api.Infrastructure.Persistence.Migrations
                     b.Navigation("Channels");
 
                     b.Navigation("Members");
+                });
+
+            modelBuilder.Entity("App.Api.Features.Gatherings.Gathering", b =>
+                {
+                    b.Navigation("Invites");
                 });
 
             modelBuilder.Entity("App.Api.Features.Messages.Message", b =>

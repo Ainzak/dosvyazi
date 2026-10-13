@@ -23,6 +23,7 @@ public sealed class FoundationFactory(string environment = "Development", string
                 ["ConnectionStrings:Dosvyazi"] = connection,
                 ["Accounts:PermitLimit"] = permitLimit.ToString(),
                 ["Messages:WorkerEnabled"] = "false",
+                ["Gatherings:WorkerEnabled"] = "false",
                 ["Files:WorkerEnabled"] = "false",
                 ["Files:QuotaBytes"] = fileQuota.ToString(),
                 ["Files:RootPath"] = fileRoot ?? Path.Combine(Path.GetFullPath("../../..", _.HostingEnvironment.ContentRootPath), ".local", "artifacts", "test-files"),

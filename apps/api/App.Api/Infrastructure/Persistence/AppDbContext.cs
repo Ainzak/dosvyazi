@@ -4,6 +4,7 @@ using App.Api.Features.Accounts;
 using App.Api.Features.Communities;
 using App.Api.Features.Messages;
 using App.Api.Features.Voice;
+using App.Api.Features.Gatherings;
 
 namespace App.Api.Infrastructure.Persistence;
 
@@ -24,6 +25,14 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : Ident
     public DbSet<CommunityInvite> CommunityInvites => Set<CommunityInvite>();
     public DbSet<Message> Messages => Set<Message>();
     public DbSet<MessageAttachment> MessageAttachments => Set<MessageAttachment>();
+    public DbSet<Gathering> Gatherings => Set<Gathering>();
+    public DbSet<GatheringInvite> GatheringInvites => Set<GatheringInvite>();
+    public DbSet<GatheringComment> GatheringComments => Set<GatheringComment>();
+    public DbSet<GatheringRevision> GatheringRevisions => Set<GatheringRevision>();
+    public DbSet<GatheringCommand> GatheringCommands => Set<GatheringCommand>();
+    public DbSet<GatheringNotice> GatheringNotices => Set<GatheringNotice>();
+    public DbSet<GatheringEvent> GatheringEvents => Set<GatheringEvent>();
+    public DbSet<GatheringCover> GatheringCovers => Set<GatheringCover>();
     public DbSet<MessageReaction> MessageReactions => Set<MessageReaction>();
     public DbSet<ChannelReadState> ChannelReadStates => Set<ChannelReadState>();
     public DbSet<CommunityEmoji> CommunityEmojis => Set<CommunityEmoji>();
@@ -39,6 +48,48 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : Ident
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
+        builder.Entity<Gathering>(g =>
+        {
+            g.HasAlternateKey(x => new { x.CommunityId, x.Id });
+            g.Property(x => x.Title).HasMaxLength(80); g.Property(x => x.Description).HasMaxLength(2000); g.Property(x => x.Game).HasMaxLength(80);
+            g.Property(x => x.LocalStart).HasMaxLength(16); g.Property(x => x.TimeZoneId).HasMaxLength(100); g.Property(x => x.Status).HasMaxLength(16);
+            g.HasIndex(x => new { x.CommunityId, x.CreatedAt, x.Id });
+            g.HasOne<Community>().WithMany().HasForeignKey(x => x.CommunityId).OnDelete(DeleteBehavior.Restrict);
+            g.HasOne<AppUser>().WithMany().HasForeignKey(x => x.OrganizerId).OnDelete(DeleteBehavior.Restrict);
+            g.ToTable(t => t.HasCheckConstraint("CK_Gatherings_State", "\"Revision\" > 0 AND \"Version\" > 0 AND \"Status\" IN ('Scheduled','Cancelled','Completed')"));
+        });
+        builder.Entity<GatheringInvite>(i =>
+        {
+            i.HasKey(x => new { x.GatheringId, x.UserId }); i.Property(x => x.State).HasMaxLength(20);
+            i.HasOne(x => x.Gathering).WithMany(x => x.Invites).HasForeignKey(x => x.GatheringId).OnDelete(DeleteBehavior.Restrict);
+            i.HasOne<AppUser>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Restrict);
+            i.ToTable(t => t.HasCheckConstraint("CK_GatheringInvites_State", "\"State\" IN ('Pending','Accepted','Declined','NeedsClarification')"));
+        });
+        builder.Entity<GatheringComment>(c =>
+        {
+            c.Property(x => x.Text).HasMaxLength(2000); c.HasIndex(x => new { x.GatheringId, x.CreatedAt, x.Id });
+            c.HasIndex(x => new { x.GatheringId, x.Sequence }).IsUnique();
+            c.HasOne<Gathering>().WithMany().HasForeignKey(x => x.GatheringId).OnDelete(DeleteBehavior.Restrict);
+            c.HasOne<AppUser>().WithMany().HasForeignKey(x => x.AuthorId).OnDelete(DeleteBehavior.Restrict);
+        });
+        builder.Entity<GatheringRevision>().HasKey(x => new { x.GatheringId, x.Revision });
+        builder.Entity<GatheringRevision>().HasOne<Gathering>().WithMany().HasForeignKey(x => x.GatheringId).OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<GatheringCommand>(c =>
+        {
+            c.HasKey(x => new { x.CommunityId, x.ActorId, x.ClientRequestId }); c.Property(x => x.Hash).HasMaxLength(64);
+            c.HasOne<Gathering>().WithMany().HasForeignKey(x => new { x.CommunityId, x.GatheringId }).HasPrincipalKey(x => new { x.CommunityId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+            c.HasOne<AppUser>().WithMany().HasForeignKey(x => x.ActorId).OnDelete(DeleteBehavior.Restrict);
+        });
+        builder.Entity<GatheringNotice>(n =>
+        {
+            n.Property(x => x.Kind).HasMaxLength(32); n.HasIndex(x => new { x.UserId, x.CreatedAt });
+            n.HasOne<Gathering>().WithMany().HasForeignKey(x => x.GatheringId).OnDelete(DeleteBehavior.Restrict);
+            n.HasOne<AppUser>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Restrict);
+        });
+        builder.Entity<GatheringEvent>().HasIndex(x => x.PublishedAt).HasFilter("\"PublishedAt\" IS NULL");
+        builder.Entity<GatheringEvent>().HasOne<Gathering>().WithMany().HasForeignKey(x => new { x.CommunityId, x.GatheringId }).HasPrincipalKey(x => new { x.CommunityId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<GatheringCover>().HasOne<Gathering>().WithMany().HasForeignKey(x => x.GatheringId).OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<GatheringCover>().Property(x => x.ContentType).HasMaxLength(20);
         builder.Entity<Message>().HasGeneratedTsVectorColumn(m => m.SearchVector, "simple", m => m.Content).HasIndex(m => m.SearchVector).HasMethod("GIN");
         builder.Entity<MessageReaction>(reaction =>
         {

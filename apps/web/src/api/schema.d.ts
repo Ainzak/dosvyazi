@@ -875,6 +875,584 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/communities/{community}/gatherings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    offset?: number | string;
+                };
+                header?: never;
+                path: {
+                    community: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["GatheringList"];
+                        "application/json": components["schemas"]["GatheringList"];
+                        "text/json": components["schemas"]["GatheringList"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    community: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["GatheringPlanRequest"];
+                    "text/json": components["schemas"]["GatheringPlanRequest"];
+                    "application/*+json": components["schemas"]["GatheringPlanRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["GatheringDto"];
+                        "application/json": components["schemas"]["GatheringDto"];
+                        "text/json": components["schemas"]["GatheringDto"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/communities/{community}/gatherings/candidates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    offset?: number | string;
+                };
+                header?: never;
+                path: {
+                    community: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["GatheringCandidates"];
+                        "application/json": components["schemas"]["GatheringCandidates"];
+                        "text/json": components["schemas"]["GatheringCandidates"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/communities/{community}/gatherings/notices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    offset?: number | string;
+                };
+                header?: never;
+                path: {
+                    community: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["GatheringNotices"];
+                        "application/json": components["schemas"]["GatheringNotices"];
+                        "text/json": components["schemas"]["GatheringNotices"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/communities/{community}/gatherings/notices/{id}/seen": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    community: string;
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/communities/{community}/gatherings/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    community: string;
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["GatheringDto"];
+                        "application/json": components["schemas"]["GatheringDto"];
+                        "text/json": components["schemas"]["GatheringDto"];
+                    };
+                };
+            };
+        };
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    community: string;
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["GatheringPlanRequest"];
+                    "text/json": components["schemas"]["GatheringPlanRequest"];
+                    "application/*+json": components["schemas"]["GatheringPlanRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["GatheringDto"];
+                        "application/json": components["schemas"]["GatheringDto"];
+                        "text/json": components["schemas"]["GatheringDto"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/communities/{community}/gatherings/{id}/revisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    community: string;
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["GatheringRevisionDto"][];
+                        "application/json": components["schemas"]["GatheringRevisionDto"][];
+                        "text/json": components["schemas"]["GatheringRevisionDto"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/communities/{community}/gatherings/{id}/response": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    community: string;
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["GatheringResponseRequest"];
+                    "text/json": components["schemas"]["GatheringResponseRequest"];
+                    "application/*+json": components["schemas"]["GatheringResponseRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["GatheringDto"];
+                        "application/json": components["schemas"]["GatheringDto"];
+                        "text/json": components["schemas"]["GatheringDto"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/communities/{community}/gatherings/{id}/comments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    community: string;
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["GatheringCommentRequest"];
+                    "text/json": components["schemas"]["GatheringCommentRequest"];
+                    "application/*+json": components["schemas"]["GatheringCommentRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["GatheringDto"];
+                        "application/json": components["schemas"]["GatheringDto"];
+                        "text/json": components["schemas"]["GatheringDto"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/communities/{community}/gatherings/{id}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    community: string;
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["GatheringStatusRequest"];
+                    "text/json": components["schemas"]["GatheringStatusRequest"];
+                    "application/*+json": components["schemas"]["GatheringStatusRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["GatheringDto"];
+                        "application/json": components["schemas"]["GatheringDto"];
+                        "text/json": components["schemas"]["GatheringDto"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/communities/{community}/gatherings/{id}/cover": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    community: string;
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/x-www-form-urlencoded": {
+                        /** Format: uuid */
+                        clientRequestId?: string;
+                    } & {
+                        expectedVersion?: string;
+                    } & {
+                        ContentType?: string;
+                        ContentDisposition?: string;
+                        Headers?: {
+                            [key: string]: string[];
+                        };
+                        /** Format: int64 */
+                        Length?: number | string;
+                        Name?: string;
+                        FileName?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["GatheringDto"];
+                        "application/json": components["schemas"]["GatheringDto"];
+                        "text/json": components["schemas"]["GatheringDto"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/communities/{community}/gatherings/{id}/cover/remove": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    community: string;
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["GatheringCoverRequest"];
+                    "text/json": components["schemas"]["GatheringCoverRequest"];
+                    "application/*+json": components["schemas"]["GatheringCoverRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["GatheringDto"];
+                        "application/json": components["schemas"]["GatheringDto"];
+                        "text/json": components["schemas"]["GatheringDto"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/communities/{community}/gatherings/{id}/cover/{cover}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    community: string;
+                    id: string;
+                    cover: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health/live": {
         parameters: {
             query?: never;
@@ -2081,6 +2659,121 @@ export interface components {
         FoundationInfo: {
             product: string;
             milestone: string;
+        };
+        GatheringCandidate: {
+            id: string;
+            name: string;
+        };
+        GatheringCandidates: {
+            items: components["schemas"]["GatheringCandidate"][];
+            hasMore: boolean;
+            /** Format: int32 */
+            nextOffset: number | string;
+        };
+        GatheringCommentDto: {
+            id: string;
+            authorId: string;
+            authorName: string;
+            /** Format: int32 */
+            revision: number | string;
+            text: string;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        GatheringCommentRequest: {
+            /** Format: uuid */
+            clientRequestId: string;
+            /** Format: int32 */
+            expectedRevision: number | string;
+            text: string;
+        };
+        GatheringCoverRequest: {
+            /** Format: uuid */
+            clientRequestId: string;
+            expectedVersion: string;
+        };
+        GatheringDto: {
+            id: string;
+            communityId: string;
+            organizerId: string;
+            organizerName: string;
+            title: string;
+            description: string;
+            game: string;
+            localStart: string;
+            timeZoneId: string;
+            /** Format: date-time */
+            startAt: string;
+            status: string;
+            /** Format: int32 */
+            revision: number | string;
+            version: string;
+            coverId: null | string;
+            canManage: boolean;
+            canRespond: boolean;
+            invites: components["schemas"]["GatheringInviteDto"][];
+            comments: components["schemas"]["GatheringCommentDto"][];
+        };
+        GatheringInviteDto: {
+            userId: string;
+            name: string;
+            state: string;
+            currentMember: boolean;
+        };
+        GatheringList: {
+            items: components["schemas"]["GatheringDto"][];
+            hasMore: boolean;
+            /** Format: int32 */
+            nextOffset: number | string;
+        };
+        GatheringNoticeDto: {
+            id: string;
+            gatheringId: string;
+            kind: string;
+            /** Format: int32 */
+            revision: number | string;
+            version: string;
+            /** Format: date-time */
+            createdAt: string;
+            seen: boolean;
+        };
+        GatheringNotices: {
+            items: components["schemas"]["GatheringNoticeDto"][];
+            hasMore: boolean;
+            /** Format: int32 */
+            nextOffset: number | string;
+        };
+        GatheringPlanRequest: {
+            /** Format: uuid */
+            clientRequestId: string;
+            expectedVersion: string;
+            title: string;
+            description: string;
+            game: string;
+            localStart: string;
+            timeZoneId: string;
+            participants: string[];
+        };
+        GatheringResponseRequest: {
+            /** Format: uuid */
+            clientRequestId: string;
+            /** Format: int32 */
+            expectedRevision: number | string;
+            state: string;
+            /** @default  */
+            comment: string;
+        };
+        GatheringRevisionDto: {
+            /** Format: int32 */
+            revision: number | string;
+            planJson: string;
+            responsesJson: string;
+        };
+        GatheringStatusRequest: {
+            /** Format: uuid */
+            clientRequestId: string;
+            expectedVersion: string;
+            status: string;
         };
         InviteSummary: {
             id: string;

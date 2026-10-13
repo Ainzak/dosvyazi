@@ -12,6 +12,7 @@ import type { CommunityDetails } from '../../api/communities';
 import { useSession } from '../accounts/useSession';
 import { MessageTimeline } from '../messages/MessageTimeline';
 import { EmojiManager, UnreadBadge } from '../messages/Completeness';
+import { GatheringsLink } from '../gatherings/GatheringLive';
 import { VoicePanel } from '../voice/VoicePanel';
 import { AccessPanel } from './AccessPanel';
 import { AuditPanel } from './AuditPanel';
@@ -168,7 +169,7 @@ function CommunityView({ id, channelId, user }: { id: string; channelId: string 
     <div className="page-heading"><div><p className="eyebrow">{data.role === 'Owner' ? t("YOUR COMMUNITY") : t("COMMUNITY")}</p><h1>{data.name}</h1><p className="page-description">{data.memberCount} {data.memberCount === 1 ? t("member") : t("members")} · {t(data.role)}</p></div>
       {data.role !== 'Owner' && <button className="secondary-button" onClick={() => leave.mutate()} disabled={leave.isPending}>{t("Leave community")}</button>}</div>
     {leave.isError && <p role="alert" className="form-error">{t(leave.error.message)}</p>}
-    <VoicePanel community={id} name={data.name} user={user.id} canView={data.canViewVoice} />
+    <GatheringsLink user={user.id} community={id} /><VoicePanel community={id} name={data.name} user={user.id} canView={data.canViewVoice} />
     <EmojiManager community={id} user={user.id} canManage={(Number(data.permissions) & 64) !== 0} /><div className="community-workspace"><nav className="channel-nav" aria-label={t("Community channels")}><h2>{t("Text channels")}</h2>{data.channels.length === 0 && <p>{t("No accessible text channels.")}</p>}{data.channels.map(channel => <Link key={channel.id} to={`/communities/${id}/channels/${channel.id}`} className={channelId === channel.id ? 'selected' : ''}><Hash size={17} aria-hidden="true" /><span>{channel.categoryName && <small>{channel.categoryName} / </small>}{channel.name}</span><UnreadBadge user={user.id} community={id} channel={channel.id} /></Link>)}</nav>
       {channelId ? data.channels.some(c => c.id === channelId) ? <Channel key={channelId} community={data} channelId={channelId} user={user} /> : <section className="channel-workspace"><h2>{t("Channel unavailable.")}</h2><p>{t("Choose another accessible channel.")}</p></section> : <section className="channel-workspace"><Users size={40} aria-hidden="true" /><h2>{t("Welcome to your community.")}</h2><p>{t("Choose a text channel to see your shared space.")}</p></section>}
     </div>

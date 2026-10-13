@@ -8,7 +8,7 @@ using App.Api.Features.Voice;
 
 namespace App.Api.Features.Communities;
 
-public sealed class CommunityService(AppDbContext database, IDataProtectionProvider protection)
+public sealed class CommunityService(AppDbContext database, IDataProtectionProvider protection, App.Api.Features.Gatherings.GatheringService gatherings)
 {
     private readonly IDataProtector codes = protection.CreateProtector("Dosvyazi.CommunityInvites.v1");
     private static CommunityFailure Missing() => new(404, "Community or channel is unavailable.");
@@ -202,6 +202,7 @@ public sealed class CommunityService(AppDbContext database, IDataProtectionProvi
         {
             await database.MemberRoles.Where(m => m.CommunityId == id && m.UserId == target).ExecuteDeleteAsync(cancellationToken);
             await VoiceTransitions.RevokeMemberAsync(database, id, target, cancellationToken);
+            await gatherings.RevokeMember(id, target, cancellationToken);
         }
         await database.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
@@ -229,6 +230,7 @@ public sealed class CommunityService(AppDbContext database, IDataProtectionProvi
             member.Status = "Left"; community.PolicyVersion++;
             await database.MemberRoles.Where(m => m.CommunityId == id && m.UserId == target).ExecuteDeleteAsync(ct);
             await VoiceTransitions.RevokeMemberAsync(database, id, target, ct);
+            await gatherings.RevokeMember(id, target, ct);
             CommunityAudit.Add(database, id, user, "member.removed", target);
             await database.SaveChangesAsync(ct);
         }
@@ -257,6 +259,7 @@ public sealed class CommunityService(AppDbContext database, IDataProtectionProvi
         if (member.Status != "Left") { member.Status = "Left"; community.PolicyVersion++; }
         await database.MemberRoles.Where(m => m.CommunityId == id && m.UserId == user).ExecuteDeleteAsync(cancellationToken);
         await VoiceTransitions.RevokeMemberAsync(database, id, user, cancellationToken);
+        await gatherings.RevokeMember(id, user, cancellationToken);
         await database.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return true;

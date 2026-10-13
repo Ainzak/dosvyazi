@@ -4,6 +4,7 @@ using App.Api.Features.Accounts;
 using App.Api.Features.Communities;
 using App.Api.Features.Messages;
 using App.Api.Features.Voice;
+using App.Api.Features.Gatherings;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
@@ -55,6 +56,11 @@ builder.Services.AddScoped<AccountService>();
 builder.Services.AddScoped<CommunityService>();
 builder.Services.AddScoped<AccessService>();
 builder.Services.AddScoped<MessageService>();
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddScoped<GatheringService>();
+builder.Services.AddSingleton<GatheringConnections>();
+builder.Services.AddScoped<GatheringPublisher>();
+builder.Services.AddHostedService<GatheringWorker>();
 builder.Services.AddSingleton<AttachmentStore>();
 if (builder.Configuration.GetValue("Files:WorkerEnabled", true)) builder.Services.AddHostedService<AttachmentCleanup>();
 builder.Services.AddOptions<VoiceOptions>().Bind(builder.Configuration.GetSection("Voice"))
@@ -179,6 +185,7 @@ if (app.Environment.IsDevelopment())
 
 app.MapControllers();
 app.MapHub<MessagesHub>("/hubs/messages", options => options.CloseOnAuthenticationExpiration = true);
+app.MapHub<GatheringsHub>("/hubs/gatherings", options => options.CloseOnAuthenticationExpiration = true);
 app.Run();
 
 // Integration tests exercise the real host/pipeline.
