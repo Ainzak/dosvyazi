@@ -19,9 +19,9 @@ namespace App.IntegrationTests;
 public sealed class MessageTests(AccountsDatabase database) : IClassFixture<AccountsDatabase>
 {
     private FoundationFactory Factory() => new(connection: database.Connection, permitLimit: 120);
-    private static async Task<HttpResponseMessage> Upload(HttpClient client, string path, Guid id, string name = "notes.txt", byte[]? bytes = null, bool csrf = true)
+    private static async Task<HttpResponseMessage> Upload(HttpClient client, string path, Guid id, string name = "notes.txt", byte[]? bytes = null, bool csrf = true, bool voice = false)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Post, path + "/attachments");
+        using var request = new HttpRequestMessage(HttpMethod.Post, path + (voice ? "/voice-messages" : "/attachments"));
         if (csrf) request.Headers.Add("X-CSRF-TOKEN", (await client.GetFromJsonAsync<CsrfResponse>("/api/v1/account/csrf"))!.RequestToken);
         var body = new MultipartFormDataContent(); body.Add(new StringContent(id.ToString()), "clientMessageId");
         body.Add(new ByteArrayContent(bytes ?? "Synthetic attachment content"u8.ToArray()), "file", name);
@@ -69,6 +69,52 @@ public sealed class MessageTests(AccountsDatabase database) : IClassFixture<Acco
         await AttachmentCleanup.PurgeAsync(db, store, default); await AttachmentCleanup.PurgeAsync(db, store, default);
         Assert.True((await db.MessageAttachments.SingleAsync(a => a.Id == Guid.Parse(message.Attachment.Id))).Purged);
         Assert.Throws<FileNotFoundException>(() => store.Open(Guid.Parse(message.Attachment.Id)));
+    }
+
+    [Fact]
+    public async Task VoiceMessagesArePrivatePayloadBoundAndUseExistingDeletionAndRecovery()
+    {
+        await using var host = Factory(); using var owner = await User(host); using var member = await User(host); using var outsider = await User(host);
+        var community = await Create(owner); await Join(owner, member, community); var path = PathFor(community); var id = Guid.NewGuid();
+        var bytes = VoiceMessageMediaTests.Recording(10, declaredDuration: double.PositiveInfinity);
+        var results = await Task.WhenAll(Upload(owner.Client, path, id, bytes: bytes, voice: true), Upload(owner.Client, path, id, bytes: bytes, voice: true));
+        foreach (var result in results) Assert.Equal(HttpStatusCode.Created, result.StatusCode);
+        var message = (await results[0].Content.ReadFromJsonAsync<MessageDto>())!;
+        Assert.Equal(message.Id, (await results[1].Content.ReadFromJsonAsync<MessageDto>())!.Id); foreach (var result in results) result.Dispose();
+        Assert.Equal("Voice", message.Attachment!.Kind); Assert.Equal("audio/webm;codecs=opus", message.Attachment.ContentType); Assert.Equal(200, message.Attachment.DurationMs);
+        var url = path + "/attachments/" + message.Attachment.Id;
+        using var response = await member.Client.GetAsync(url); Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(200, VoiceMessageMedia.Validate(await response.Content.ReadAsByteArrayAsync()).DurationMs);
+        Assert.Equal(HttpStatusCode.NotFound, (await outsider.Client.GetAsync(url)).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await Upload(outsider.Client, path, Guid.NewGuid(), bytes: bytes, voice: true)).StatusCode);
+        // Different raw duration metadata must conflict even when normalization would yield identical stored audio.
+        Assert.Equal(HttpStatusCode.Conflict, (await Upload(owner.Client, path, id, bytes: VoiceMessageMediaTests.Recording(10, declaredDuration: 1), voice: true)).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await Upload(owner.Client, path, id)).StatusCode);
+        Assert.Single((await owner.Client.GetFromJsonAsync<MessageSnapshot>(path + "/messages"))!.Messages);
+        Assert.Equal(message.Attachment, (await owner.Client.GetFromJsonAsync<CatchUpPage>(path + "/events?after=0"))!.Events.Single().Payload!.Attachment);
+        Assert.Equal(HttpStatusCode.OK, (await Command(owner.Client, $"/api/v1/communities/{community.Id}/members/{member.Profile.Id}/ban", new { Banned = true }, "PUT")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await member.Client.GetAsync(url)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await Command(owner.Client, path + $"/messages/{message.Id}/delete", new { ClientRequestId = Guid.NewGuid(), ExpectedVersion = "1" })).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await owner.Client.GetAsync(url)).StatusCode);
+        using var scope = host.Services.CreateScope(); var db = scope.ServiceProvider.GetRequiredService<AppDbContext>(); var files = scope.ServiceProvider.GetRequiredService<AttachmentStore>();
+        await AttachmentCleanup.PurgeAsync(db, files, default);
+        Assert.True((await db.MessageAttachments.SingleAsync(item => item.Id == Guid.Parse(message.Attachment.Id))).Purged);
+    }
+
+    [Fact]
+    public async Task InvalidVoiceMediaCsrfAndReadOnlyPermissionsDoNotPublish()
+    {
+        await using var host = Factory(); using var owner = await User(host); using var member = await User(host);
+        var community = await Create(owner); await Join(owner, member, community); var path = PathFor(community); var valid = VoiceMessageMediaTests.Recording(10);
+        Assert.Equal(HttpStatusCode.BadRequest, (await Upload(owner.Client, path, Guid.NewGuid(), bytes: valid, csrf: false, voice: true)).StatusCode);
+        foreach (var bytes in new[] { VoiceMessageMediaTests.Recording(3001), VoiceMessageMediaTests.Recording(1, "V_VP8", 1), new byte[32] })
+            Assert.Equal(HttpStatusCode.UnprocessableEntity, (await Upload(owner.Client, path, Guid.NewGuid(), bytes: bytes, voice: true)).StatusCode);
+        Assert.Equal(HttpStatusCode.RequestEntityTooLarge, (await Upload(owner.Client, path, Guid.NewGuid(), bytes: new byte[VoiceMessageMedia.MaxBytes + 1], voice: true)).StatusCode);
+        var policy = (await owner.Client.GetFromJsonAsync<AccessPolicy>($"/api/v1/communities/{community.Id}/access"))!;
+        policy = policy with { ChannelRules = [new(Guid.Parse(community.Channels[0].Id), Guid.Parse(community.Id), 0, ChannelAccess.Send)] };
+        Assert.Equal(HttpStatusCode.OK, (await Command(owner.Client, $"/api/v1/communities/{community.Id}/access", new SaveAccessRequest(Guid.NewGuid(), policy), "PUT")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await Upload(member.Client, path, Guid.NewGuid(), bytes: valid, voice: true)).StatusCode);
+        Assert.Empty((await owner.Client.GetFromJsonAsync<MessageSnapshot>(path + "/messages"))!.Messages);
     }
 
     [Fact]

@@ -14,7 +14,7 @@ public sealed partial class MessageService(AppDbContext database, AttachmentStor
     public static MessageDto Dto(Message message) => new(message.Id.ToString(), message.ChannelId.ToString(), message.AuthorId.ToString(),
         message.Author.DisplayName, message.ClientMessageId.ToString(), message.Sequence.ToString(CultureInfo.InvariantCulture), message.Deleted ? "" : message.Content, message.CreatedAt,
         message.Version.ToString(CultureInfo.InvariantCulture), message.UpdatedAt, message.Deleted,
-        message.Deleted || message.Attachment is null ? null : new(message.Attachment.Id.ToString(), message.Attachment.Name, message.Attachment.Size));
+        message.Deleted || message.Attachment is null ? null : new(message.Attachment.Id.ToString(), message.Attachment.Name, message.Attachment.Size, message.Attachment.Kind, message.Attachment.ContentType, message.Attachment.DurationMs));
 
     private static MessageDto DtoFor(Message message, Guid user, EffectiveChannelAccess access) => Dto(message) with
     { Reactions = message.Reactions.Count == 0 ? null : message.Reactions.GroupBy(r => r.Emoji).OrderBy(g => g.Key).Select(g => new ReactionDto(g.Key, g.Count(), g.Any(r => r.UserId == user))).ToArray() };
@@ -47,6 +47,7 @@ public sealed partial class MessageService(AppDbContext database, AttachmentStor
         var textChannel = await LockAuthorizedAsync(community, channel, user, ct);
         if (!(await ChannelAccess.ResolveAsync(database, community, textChannel, user, ct)).Send) throw new CommunityFailure(403, "You cannot send messages in this channel.");
         var hash = attachment is null ? ContentHash(request.Content) : ContentHash(JsonSerializer.Serialize(new { request.Content, attachment.Name, attachment.Hash }));
+        if (attachment?.Kind == "Voice") hash = ContentHash(JsonSerializer.Serialize(new { request.Content, attachment.Kind, attachment.InputHash }));
         var message = await database.Messages.Include(item => item.Author).Include(item => item.Attachment).Include(item => item.Reactions).SingleOrDefaultAsync(item => item.ChannelId == channel && item.AuthorId == user && item.ClientMessageId == request.ClientMessageId, ct);
         if (message is null)
         {
@@ -63,7 +64,8 @@ public sealed partial class MessageService(AppDbContext database, AttachmentStor
                 await database.Database.ExecuteSqlRawAsync("SELECT pg_advisory_xact_lock(73421891)", ct);
                 if (files.UsedBytes() + attachment.Bytes.Length > files.QuotaBytes)
                     throw new CommunityFailure(409, "Attachment storage is full. Ask the operator to free space.");
-                message.Attachment = new MessageAttachment { Id = Guid.NewGuid(), Name = attachment.Name, Hash = attachment.Hash, Size = attachment.Bytes.Length };
+                message.Attachment = new MessageAttachment { Id = Guid.NewGuid(), Name = attachment.Name, Hash = attachment.Hash, Size = attachment.Bytes.Length,
+                    Kind = attachment.Kind, ContentType = attachment.ContentType, DurationMs = attachment.DurationMs };
                 // Crash/ambiguous commit leftovers stay private and count against quota;
                 // never compensate an uncertain commit by deleting a committed blob.
                 await files.WriteAsync(message.Attachment.Id, attachment.Bytes, ct);

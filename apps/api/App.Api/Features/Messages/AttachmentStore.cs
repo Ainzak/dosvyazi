@@ -4,7 +4,7 @@ using App.Api.Features.Communities;
 
 namespace App.Api.Features.Messages;
 
-public sealed record PreparedAttachment(string Name, byte[] Bytes, string Hash);
+public sealed record PreparedAttachment(string Name, byte[] Bytes, string Hash, string Kind = "File", string? ContentType = null, int? DurationMs = null, string? InputHash = null);
 
 public sealed class AttachmentStore(IConfiguration configuration, IWebHostEnvironment environment)
 {
@@ -57,6 +57,20 @@ public sealed class AttachmentStore(IConfiguration configuration, IWebHostEnviro
     {
         try { return new UTF8Encoding(false, true).GetString(bytes).All(c => !char.IsControl(c) || c is '\n' or '\r' or '\t'); }
         catch (DecoderFallbackException) { return false; }
+    }
+    public static async Task<PreparedAttachment> PrepareVoiceAsync(IFormFile file, CancellationToken ct)
+    {
+        if (file.Length is < 1 or > VoiceMessageMedia.MaxBytes) throw new CommunityFailure(413, "Choose a voice recording up to 2 MiB.");
+        await using var input = file.OpenReadStream(); using var output = new MemoryStream();
+        var buffer = new byte[81920]; int count;
+        while ((count = await input.ReadAsync(buffer, ct)) > 0)
+        {
+            if (output.Length + count > VoiceMessageMedia.MaxBytes) throw new CommunityFailure(413, "Choose a voice recording up to 2 MiB.");
+            output.Write(buffer, 0, count);
+        }
+        var original = output.ToArray(); var validated = VoiceMessageMedia.Validate(original);
+        return new("voice-message.webm", validated.Bytes, Convert.ToHexStringLower(SHA256.HashData(validated.Bytes)), "Voice", "audio/webm;codecs=opus", validated.DurationMs,
+            Convert.ToHexStringLower(SHA256.HashData(original)));
     }
     private string FilePath(Guid id) => Path.Combine(Root, id.ToString("N") + ".blob");
     public long UsedBytes() => Directory.EnumerateFiles(Root, "*.blob").Where(p => Guid.TryParseExact(Path.GetFileNameWithoutExtension(p), "N", out _)).Sum(p => new FileInfo(p).Length);

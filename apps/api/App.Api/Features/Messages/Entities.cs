@@ -49,6 +49,9 @@ public sealed class CommunityEmoji
 
 public sealed class MessageAttachment
 {
+    public string Kind { get; set; } = "File";
+    public string? ContentType { get; set; }
+    public int? DurationMs { get; set; }
     public Guid Id { get; set; }
     public Guid MessageId { get; set; }
     public Message Message { get; set; } = null!;

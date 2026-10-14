@@ -29,6 +29,21 @@ public sealed class AttachmentsController(MessageService messages, AppDbContext 
         catch (UnauthorizedAccessException) { return Problem(statusCode: 503, title: "Attachment storage is unavailable. Try again later."); }
     }
 
+    [HttpPost("voice-messages"), EnableRateLimiting("attachment-uploads")]
+    [RequestSizeLimit(3 * 1024 * 1024), RequestFormLimits(MultipartBodyLengthLimit = 3 * 1024 * 1024)]
+    [ProducesResponseType<MessageDto>(201)]
+    public async Task<ActionResult<MessageDto>> SendVoice(Guid community, Guid channel, [FromForm] Guid clientMessageId, [FromForm] IFormFile file, [FromForm] string? content, CancellationToken ct)
+    {
+        try
+        {
+            var prepared = await AttachmentStore.PrepareVoiceAsync(file, ct);
+            return StatusCode(201, await messages.SendAsync(community, channel, UserId, new(clientMessageId, content ?? ""), ct, prepared));
+        }
+        catch (CommunityFailure failure) { return Problem(statusCode: failure.Status, title: failure.Message); }
+        catch (IOException) { return Problem(statusCode: 503, title: "Attachment storage is unavailable. Try again later."); }
+        catch (UnauthorizedAccessException) { return Problem(statusCode: 503, title: "Attachment storage is unavailable. Try again later."); }
+    }
+
     [HttpGet("attachments/{id:guid}")]
     public async Task<IActionResult> Download(Guid community, Guid channel, Guid id, CancellationToken ct)
     {

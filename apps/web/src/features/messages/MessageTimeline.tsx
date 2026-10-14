@@ -5,10 +5,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { UserProfile } from '../../api/accounts';
 import { communityKeys } from '../../api/communities';
 import { ApiError } from '../../api/http';
-import { applyEvents, catchUp, history, mergeMessages, RecoveryRequired, sendMessage, sendAttachment } from '../../api/messages';
+import { applyEvents, attachmentUrl, catchUp, history, mergeMessages, RecoveryRequired, sendMessage, sendAttachment } from '../../api/messages';
 import type { MessageSnapshot } from '../../api/messages';
 import { MessageActions } from './MessageActions';
 import { AttachmentDownload } from './AttachmentDownload';
+import { VoiceMessagePlayer } from './VoiceMessagePlayer';
+import { VoiceRecorder } from './VoiceRecorder';
 import { MessageExtras, MessageReactions, MessageContent, EmojiPicker } from './Completeness';
 import { Link } from 'react-router';
 
@@ -19,6 +21,7 @@ export function MessageTimeline({ community, channel, user, canSend = true, canM
   const [connectionAttempt, setConnectionAttempt] = useState(0);
   const [draft, setDraft] = useState('');
   const [file, setFile] = useState<File | null>(null);
+  const [voiceFile, setVoiceFile] = useState(false); const [recording, setRecording] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const request = useRef<{ content: string; id: string; confirmed: boolean; file: File | null }>({ content: '', id: crypto.randomUUID(), confirmed: false, file: null });
@@ -89,13 +92,13 @@ export function MessageTimeline({ community, channel, user, canSend = true, canM
   const send = useMutation({ mutationFn: (content: string) => {
     followLatest.current = true;
     if (request.current.confirmed || request.current.content !== content || request.current.file !== file) request.current = { content, id: crypto.randomUUID(), confirmed: false, file };
-    return file ? sendAttachment(community, channel, request.current.id, content, file) : sendMessage(community, channel, request.current.id, content);
+    return file ? sendAttachment(community, channel, request.current.id, content, file, voiceFile) : sendMessage(community, channel, request.current.id, content);
   }, onSuccess: async () => {
     // Keep the acknowledged command identity until the next send. Resetting it
     // while the mutation awaits history could briefly show a second pending row.
     request.current.confirmed = true;
     setDraft('');
-    setFile(null); setFileError(null); if (fileInput.current) fileInput.current.value = '';
+    setFile(null); setVoiceFile(false); setFileError(null); if (fileInput.current) fileInput.current.value = '';
     await client.invalidateQueries({ queryKey: key });
   } });
 
@@ -124,25 +127,27 @@ export function MessageTimeline({ community, channel, user, canSend = true, canM
     }}>{feed.data?.messages.map(message => <li key={message.id} data-message-id={message.id}>
       <div className="message-meta"><Link to={`/profiles/${message.authorId}`}><strong>{message.authorName}</strong></Link><time dateTime={message.createdAt}>{new Date(message.createdAt).toLocaleString(locale)}</time></div>
       <MessageContent content={message.content} community={community} user={user.id} />
+      {message.attachment?.kind === 'Voice' && <VoiceMessagePlayer url={attachmentUrl(community, channel, message.attachment.id)} duration={Number(message.attachment.durationMs)} />}
       {message.attachment && <AttachmentDownload attachment={message.attachment} community={community} channel={channel} />}
       {message.updatedAt && <small>{t("Edited")}</small>}
       <MessageReactions message={message} user={user.id} community={community} channel={channel} canSend={canSend} />
       <MessageActions message={message} community={community} channel={channel} canEdit={canSend && message.authorId === user.id} canDelete={(canSend && message.authorId === user.id) || canManageMessages} refresh={async () => { await client.invalidateQueries({ queryKey: key }); }} />
     </li>)}{(send.isPending || send.isError) && !request.current.confirmed && !feed.data?.messages.some(message => message.authorId === user.id && message.clientMessageId === request.current.id) && <li className="pending-message"><strong>{user.displayName}</strong><p>{send.variables}</p><span>{send.isPending ? t("Sending…") : t("Not confirmed. Retry with the same text.")}</span></li>}</ol>
     {!canSend && <p role="status">{t("Read only: ")}{t(sendDeniedBy ?? 'SendMessage is not granted.') }</p>}
-    {canSend && <form className="message-composer" onSubmit={event => { event.preventDefault(); send.mutate(draft); }}>
+    {canSend && <form className="message-composer" onSubmit={event => { event.preventDefault(); if (!recording) send.mutate(draft); }}>
       <label htmlFor="message-content">{t("Message")}</label><textarea id="message-content" value={draft} onChange={event => setDraft(event.target.value)} maxLength={4000} rows={3} required={!file} disabled={send.isPending} placeholder={t("Write to your community…")} />
       <EmojiPicker community={community} user={user.id} disabled={send.isPending} pick={text => setDraft(value => (value + text).slice(0, 4000))} />
-      <label htmlFor="message-file">{t('Attach a file')}</label><input ref={fileInput} id="message-file" type="file" accept=".txt,.png,.jpg,.jpeg,.pdf" disabled={send.isPending} onChange={event => {
+      <VoiceRecorder file={voiceFile ? file : null} disabled={send.isPending || (!!file && !voiceFile)} busy={setRecording} ready={next => { setFile(next); setVoiceFile(!!next); setFileError(null); if (fileInput.current) fileInput.current.value = ''; }} />
+      <label htmlFor="message-file">{t('Attach a file')}</label><input ref={fileInput} id="message-file" type="file" accept=".txt,.png,.jpg,.jpeg,.pdf" disabled={send.isPending || recording || voiceFile} onChange={event => {
         const next = event.currentTarget.files?.[0] ?? null;
         const valid = !next || (next.size > 0 && next.size <= 5 * 1024 * 1024 && /\.(txt|png|jpe?g|pdf)$/i.test(next.name));
-        setFile(valid ? next : null); setFileError(valid ? null : 'Choose a nonempty TXT, PNG, JPEG or PDF file up to 5 MiB.');
+        setFile(valid ? next : null); setVoiceFile(false); setFileError(valid ? null : 'Choose a nonempty TXT, PNG, JPEG or PDF file up to 5 MiB.');
       }} />
       <p className="field-hint">{t('One file per message, up to 5 MiB. View PNG/JPEG images in chat or download files separately.')}</p>
-      {(file || fileError) && <button type="button" className="secondary-button" disabled={send.isPending} onClick={() => { setFile(null); setFileError(null); if (fileInput.current) fileInput.current.value = ''; }}>{t('Remove selected file')}</button>}
+      {!voiceFile && (file || fileError) && <button type="button" className="secondary-button" disabled={send.isPending} onClick={() => { setFile(null); setVoiceFile(false); setFileError(null); if (fileInput.current) fileInput.current.value = ''; }}>{t('Remove selected file')}</button>}
       {fileError && <p role="alert">{t(fileError)}</p>}
       {send.isError && <p role="alert" className="form-error">{t(send.error.message)}</p>}
-      <div className="composer-footer"><span className="field-hint">{draft.length} {t(" / 4000 · Stored when confirmed")}</span><button className="primary-button" disabled={send.isPending || !!fileError || (!draft.trim() && !file)}>{send.isPending ? t("Sending…") : send.isError ? t("Retry send") : t("Send message")}</button></div>
+      <div className="composer-footer"><span className="field-hint">{draft.length} {t(" / 4000 · Stored when confirmed")}</span><button className="primary-button" disabled={send.isPending || recording || !!fileError || (!draft.trim() && !file)}>{send.isPending ? t("Sending…") : send.isError ? t("Retry send") : t("Send message")}</button></div>
     </form>}
   </div>;
 }

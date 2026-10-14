@@ -121,6 +121,9 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : Ident
             attachment.HasOne(a => a.Message).WithOne(m => m.Attachment).HasForeignKey<MessageAttachment>(a => a.MessageId).OnDelete(DeleteBehavior.Restrict);
             attachment.Property(a => a.Name).HasMaxLength(120);
             attachment.Property(a => a.Hash).HasMaxLength(64);
+            attachment.Property(a => a.Kind).HasMaxLength(8);
+            attachment.Property(a => a.ContentType).HasMaxLength(32);
+            attachment.ToTable(t => t.HasCheckConstraint("CK_MessageAttachments_Media", "(\"Kind\" = 'File' AND \"ContentType\" IS NULL AND \"DurationMs\" IS NULL) OR (\"Kind\" = 'Voice' AND \"ContentType\" IS NOT NULL AND \"ContentType\" = 'audio/webm;codecs=opus' AND \"DurationMs\" IS NOT NULL AND \"DurationMs\" BETWEEN 1 AND 60000 AND \"Size\" <= 2097152)"));
             attachment.ToTable(t => t.HasCheckConstraint("CK_MessageAttachments_Size", "\"Size\" BETWEEN 1 AND 5242880"));
         });
         builder.Entity<CommunityRole>(role =>
