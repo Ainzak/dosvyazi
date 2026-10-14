@@ -315,7 +315,9 @@ export class VoiceClient {
           source: publication.source === Track.Source.Camera ? 'camera' : 'screen', track });
       }
     }
-    this.update({ videos, camera: videos.some(video => video.local && video.source === 'camera'), sharing: videos.some(video => video.local && video.source === 'screen') });
+    const sharing = videos.some(video => video.local && video.source === 'screen');
+    const clearAudioNotice = !sharing && this.value.sharing && this.value.mediaError === 'This source or browser did not provide screen audio. Your screen is still shared.';
+    this.update({ videos, camera: videos.some(video => video.local && video.source === 'camera'), sharing, ...(clearAudioNotice ? { mediaError: null } : {}) });
   }
 
   // Stop physical tracks synchronously; pending picker results are rejected by the epoch guard.
@@ -327,7 +329,7 @@ export class VoiceClient {
       if (![Track.Source.Camera, Track.Source.ScreenShare, Track.Source.ScreenShareAudio].includes(publication.source) || !publication.track) continue;
       publication.track.stop(); void room.localParticipant.unpublishTrack(publication.track).catch(() => {});
     }
-    this.update({ camera: false, sharing: false, changingMedia: false, videos: [] });
+    this.update({ camera: false, sharing: false, changingMedia: false, videos: [], mediaError: null });
   }
 
   cameraDevice(id: string) { if (!this.value.camera && !this.value.changingMedia) this.update({ cameraDevice: id }); }

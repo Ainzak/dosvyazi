@@ -29,7 +29,7 @@ async function syntheticScreen(page: Page) {
       const stream = canvas.captureStream(15); fixtures.tracks.push(...stream.getTracks());
       function draw() { if (stream.getVideoTracks()[0]!.readyState === 'ended') return; context.fillRect(0, 0, 640, 360); requestAnimationFrame(draw); }
       requestAnimationFrame(draw);
-      if (options?.audio) {
+      if (options?.audio && fixtures.mode !== 'no-audio') {
         const audio = new AudioContext(); const oscillator = audio.createOscillator();
         const destination = audio.createMediaStreamDestination(); oscillator.connect(destination); oscillator.start();
         const track = destination.stream.getAudioTracks()[0]!;
@@ -160,14 +160,18 @@ test('camera denial is recoverable and offline recovery never recaptures media',
   await page.evaluate(() => { (window as unknown as { cameraFixture: { denied: boolean } }).cameraFixture.denied = false; });
   await page.getByRole('button', { name: 'Enable camera', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Stop camera', exact: true })).toBeEnabled();
+  await page.evaluate(() => { (window as unknown as { mediaFixture: { mode: string } }).mediaFixture.mode = 'no-audio'; });
+  await page.getByLabel('Include screen audio when available', { exact: true }).check();
   await page.getByRole('button', { name: 'Share screen', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Stop sharing', exact: true })).toBeEnabled();
+  await expect(page.getByText('This source or browser did not provide screen audio. Your screen is still shared.', { exact: true })).toBeVisible();
   // Emulate the browser's Stop sharing, which ends capture and emits an ended event.
   await page.evaluate(() => {
     const track = (window as unknown as { mediaFixture: { tracks: MediaStreamTrack[] } }).mediaFixture.tracks[0]!;
     track.stop(); track.dispatchEvent(new Event('ended'));
   });
   await expect(page.getByRole('button', { name: 'Share screen', exact: true })).toBeEnabled();
+  await expect(page.getByText('This source or browser did not provide screen audio. Your screen is still shared.', { exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'Share screen', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Stop sharing', exact: true })).toBeEnabled();
   await context.setOffline(true);
