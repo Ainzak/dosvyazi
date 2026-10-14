@@ -1,4 +1,13 @@
 export const russianGatherings: Record<string, string> = {
+  'You are offline. Gathering changes will appear when your connection returns.': 'Вы не в сети. Изменения сборов появятся после восстановления подключения.',
+  'Gathering updates may be delayed. Changes are checked automatically.': 'Изменения сборов могут появляться с задержкой. Приложение проверяет их автоматически.',
+  'Check for new updates': 'Проверить изменения',
+  'The gathering changed while you were editing its cover. Check the latest details and cover above before trying again. Any selected file is kept.': 'Сбор изменился, пока вы редактировали обложку. Перед повторной попыткой проверьте актуальные сведения и обложку выше. Если файл был выбран, он сохранён.',
+  'I reviewed the latest cover': 'Я проверил актуальную обложку',
+  'Schedule change history': 'История изменений расписания',
+  'View earlier dates, games and participant responses before the schedule changed.': 'Посмотрите прежние даты, игры и ответы участников до изменения расписания.',
+  'Hide schedule changes': 'Скрыть изменения расписания',
+  'View schedule changes': 'Посмотреть изменения расписания',
   'Accounts, communities, roles, private text and voice, moderation, attachments, reactions, emoji, search, profiles and Gatherings with invitations, responses and reconfirmation.': 'Аккаунты, сообщества, роли, приватные текстовые и голосовые каналы, модерация, вложения, реакции, эмодзи, поиск, профили и Сборы с приглашениями, ответами и повторным подтверждением.',
   'Further refinements follow separately verified milestones.': 'Дальнейшие улучшения будут реализованы отдельными проверенными этапами.',
   'Gatherings': 'Сборы', 'Gathering': 'Сбор', 'New gathering': 'Новый сбор', 'Create gathering': 'Создать сбор', 'Save gathering': 'Сохранить сбор',

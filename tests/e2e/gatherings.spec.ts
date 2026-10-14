@@ -15,6 +15,44 @@ async function createCommunity(page: Page) {
   const code = await page.getByLabel('Share this invitation code').inputValue();
   return { code, url: page.url() };
 }
+
+test('Gatherings hides transport jargon and explains cover review separately from schedule history', async ({ page, browser }, info) => {
+  await register(page, 'Clarity owner'); const c = await createCommunity(page);
+  const context = await browser.newContext({ baseURL: 'http://127.0.0.1:5174', viewport: page.viewportSize()! });
+  try {
+    const peer = await context.newPage(); await register(peer, 'Clarity guest'); await peer.goto('/communities');
+    await peer.getByLabel('Invitation code', { exact: true }).fill(c.code); await peer.getByRole('button', { name: 'Join community', exact: true }).click();
+    await page.getByRole('link', { name: 'Gatherings', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Reconnect', exact: true })).toHaveCount(0);
+    await expect(page.getByText('Connecting…', { exact: true })).toHaveCount(0); await expect(page.getByText('Live', { exact: true })).toHaveCount(0);
+    await page.getByRole('button', { name: 'New gathering', exact: true }).click();
+    await page.getByLabel('Gathering title (optional)', { exact: true }).fill('Clear plan controls');
+    await page.getByLabel('Invite Clarity guest', { exact: true }).check(); await page.getByRole('button', { name: 'Create gathering', exact: true }).click();
+    const detail = page.locator('.gathering-detail'); await expect(detail.getByRole('heading', { name: 'Clear plan controls', exact: true })).toBeVisible();
+    await expect(detail.getByRole('button', { name: 'Use current plan version', exact: true })).toHaveCount(0);
+    await expect(detail.getByRole('button', { name: 'I reviewed the latest cover', exact: true })).toHaveCount(0);
+    const history = detail.locator('.gathering-history'); await expect(history.getByRole('heading', { name: 'Schedule change history', exact: true })).toBeVisible();
+    await history.getByRole('button', { name: 'View schedule changes', exact: true }).click();
+    await expect(history.getByText('No previous schedule revisions.', { exact: true })).toBeVisible();
+    await history.getByRole('button', { name: 'Hide schedule changes', exact: true }).click();
+    await detail.getByLabel('PNG or JPEG cover', { exact: true }).setInputFiles({ name: 'retained.png', mimeType: 'image/png', buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aQ2sAAAAASUVORK5CYII=', 'base64') });
+    await peer.goto(page.url()); await peer.getByRole('button', { name: 'Accept gathering', exact: true }).click();
+    await expect(detail.locator('.gathering-counts')).toContainText('Accepted: 1');
+    await detail.getByRole('button', { name: 'Upload cover', exact: true }).click();
+    await expect(detail.getByRole('alert')).toContainText('The gathering changed while you were editing its cover.');
+    await expect(detail.getByRole('button', { name: 'Upload cover', exact: true })).toBeDisabled();
+    await expect(detail.getByRole('button', { name: 'I reviewed the latest cover', exact: true })).toBeEnabled();
+    expect(await detail.getByLabel('PNG or JPEG cover', { exact: true }).evaluate(e => (e as HTMLInputElement).files?.[0]?.name)).toBe('retained.png');
+    await page.screenshot({ path: info.outputPath('cover-conflict-guidance.png'), fullPage: true });
+    await detail.getByRole('button', { name: 'I reviewed the latest cover', exact: true }).click();
+    await expect(detail.getByRole('alert')).toHaveCount(0); await detail.getByRole('button', { name: 'Upload cover', exact: true }).click();
+    await expect(detail.getByRole('img', { name: 'Gathering cover', exact: true })).toBeVisible();
+    await page.route('**/gatherings/*/cover', route => route.fulfill({ status: 409, json: { title: 'Attachment storage is full. Ask the operator to free space.' } }));
+    await detail.getByLabel('PNG or JPEG cover', { exact: true }).setInputFiles({ name: 'quota.png', mimeType: 'image/png', buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aQ2sAAAAASUVORK5CYII=', 'base64') });
+    await detail.getByRole('button', { name: 'Upload cover', exact: true }).click(); await expect(detail.getByRole('alert')).toContainText('Attachment storage is full.');
+    await expect(detail.getByRole('button', { name: 'I reviewed the latest cover', exact: true })).toHaveCount(0);
+  } finally { await context.close(); }
+});
 test('M6 gathering decisions, discussion, revisions, covers and cancellation', async ({ page, browser }, info) => {
   test.setTimeout(100_000);
   await register(page, 'Gathering owner'); const c = await createCommunity(page);
@@ -55,7 +93,7 @@ test('M6 gathering decisions, discussion, revisions, covers and cancellation', a
     await detail.getByRole('button', { name: 'Save gathering', exact: true }).click(); await expect(guest.getByText('The schedule or game changed. Review this plan before responding again.', { exact: true })).toBeVisible();
     await expect(guest.getByRole('button', { name: 'Accept gathering', exact: true })).toBeDisabled(); await expect(guest.locator('.gathering-counts')).toContainText('Pending: 1');
     await guest.getByRole('button', { name: 'Review updated plan', exact: true }).click(); await guest.getByRole('button', { name: 'Accept gathering', exact: true }).click();
-    await expect(detail.locator('.gathering-counts')).toContainText('Accepted: 1'); await detail.getByRole('button', { name: 'Previous plans', exact: true }).click();
+    await expect(detail.locator('.gathering-counts')).toContainText('Accepted: 1'); await detail.getByRole('button', { name: 'View schedule changes', exact: true }).click();
     await expect(detail.locator('.gathering-previous')).toContainText('Chess'); await expect(detail.locator('.gathering-previous')).toContainText('Accepted: 1');
     expect(await member.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await member.screenshot({ path: info.outputPath('m6-gathering.png'), fullPage: true });
@@ -93,7 +131,7 @@ test('M6 lost creation acknowledgement, stale editor, offline recovery and ban c
     await detail.getByRole('button', { name: 'Save gathering', exact: true }).click(); await expect(detail.getByRole('alert')).toContainText('Gathering changed.');
     await expect(detail.getByLabel('Description (optional)', { exact: true })).toHaveValue('Retained draft');
     await detail.getByRole('button', { name: 'Close editor', exact: true }).first().click();
-    await context.setOffline(true); await expect(member.getByText('Offline.', { exact: true })).toBeVisible();
+    await context.setOffline(true); await expect(member.getByText('You are offline. Gathering changes will appear when your connection returns.', { exact: true })).toBeVisible();
     await detail.getByRole('button', { name: 'Edit gathering', exact: true }).click(); await detail.getByLabel('Game (optional)', { exact: true }).fill('New offline game');
     await detail.getByRole('button', { name: 'Save gathering', exact: true }).click(); await expect(detail.getByText('Game: New offline game', { exact: true })).toBeVisible();
     await context.setOffline(false); await expect(guest.getByText('Game: New offline game', { exact: true })).toBeVisible({ timeout: 20_000 });

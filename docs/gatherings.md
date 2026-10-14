@@ -8,6 +8,10 @@ Leaving, kicking or banning retires an invitation. Rejoining the community does 
 
 ## Plans and time
 
+The page loads gathering data without exposing normal connection setup as a user action. Interrupted updates show a plain explanation; offline changes resume after connectivity returns. A final update interruption offers Check for new updates while HTTP polling continues. Schedule change history has its own section describing archived dates/games and participant responses.
+
+Cover editing preserves a selected file after failure. A stale-version response refreshes the latest gathering and asks the user to confirm review of the current details/cover before retrying. This review control appears only for a version conflict; quota and other failures keep their own explanations. It does not upload an image or change a participant response by itself.
+
 The server stores the original local time and explicit zone, together with a UTC instant. The browser shows both organizer time and viewer-local time. Nonexistent or ambiguous daylight-saving times are rejected; choose another time. Merely changing the displayed zone while preserving the instant does not ask users to confirm again. Time-zone rules use the host .NET/OS time-zone data; operators should keep it updated.
 
 Changes to the start instant or game archive the old plan and responses, advance the plan revision and reset responses to Pending. Text and cover edits preserve decisions. Added invitees start Pending; removed invitees lose access. The UI requires review of a changed plan before another response. Stale revision requests return 409. Separate string-valued versions protect edits, covers and lifecycle changes against concurrent mutations.
