@@ -328,6 +328,7 @@ test('kick and invitation rejoin use a fresh voice grant and output volume survi
   await register(page, 'Kick owner'); await create(page);
   await page.getByRole('button', { name: 'Create invitation', exact: true }).click();
   const code = await page.getByLabel('Share this invitation code').inputValue();
+  const community = new URL(page.url()).pathname.split('/')[2]!;
   const context = await browser.newContext({ baseURL: 'http://127.0.0.1:5174', viewport: page.viewportSize()!, permissions: ['microphone'] });
   try {
     const member = await context.newPage(); await register(member, 'Kick peer'); await member.goto('/communities');
@@ -369,11 +370,47 @@ test('kick and invitation rejoin use a fresh voice grant and output volume survi
     await member.waitForTimeout(6000);
     await expect(member.getByRole('alert')).toContainText('Select Reconnect voice'); expect(attempts).toBe(1);
     await member.unroute('**/voice/join');
+    // Leaving can still be rotating the SFU generation. A 409 here starts the
+    // client's ten-second retry cooldown, beyond the five-second connection assertion.
+    // This scenario tests explicit stale-request recovery once the real server is ready.
+    await expect.poll(async () => {
+      const response = await page.request.get(`/api/v1/communities/${community}/voice`);
+      if (!response.ok()) return false;
+      const state: { status: string; controlUnavailable: boolean } = await response.json();
+      return state.status === 'Ready' && !state.controlUnavailable;
+    }, { timeout: 20_000 }).toBe(true);
     await member.getByRole('button', { name: 'Reconnect voice', exact: true }).click();
     await expect(member.getByRole('region', { name: 'Voice controls' })).toContainText('Connected');
     await member.getByRole('button', { name: 'Leave voice', exact: true }).click();
     await page.getByRole('button', { name: 'Leave voice', exact: true }).click();
   } finally { await context.close(); }
+});
+
+test('a transition 409 keeps voice pending and automatically joins after readiness returns', async ({ page }) => {
+  test.setTimeout(40_000);
+  await register(page, 'Transition retry owner'); await create(page);
+  const community = new URL(page.url()).pathname.split('/')[2]!;
+  let ready = false; let attempts = 0;
+  await page.route(`**/api/v1/communities/${community}/voice`, async route => {
+    const response = await route.fetch(); const state = await response.json();
+    await route.fulfill({ response, json: { ...state, status: ready || attempts === 0 ? state.status : 'Pending' } });
+  });
+  await page.route('**/voice/join', async route => {
+    attempts++;
+    if (attempts === 1) await route.fulfill({ status: 409, contentType: 'application/problem+json', body: JSON.stringify({ title: 'Voice access is updating. Wait for the transition to complete.' }) });
+    else await route.continue();
+  });
+  await page.getByRole('button', { name: 'Join voice', exact: true }).click();
+  await expect(page.getByRole('region', { name: 'Voice controls' })).toContainText('Access updating');
+  expect(attempts).toBe(1);
+  // The client polls every two seconds and deliberately retries joins no sooner
+  // than ten seconds after the last attempt. Await its actual second request.
+  const retry = page.waitForResponse(response => response.url().endsWith('/voice/join') && response.request().method() === 'POST' && response.ok(), { timeout: 20_000 });
+  ready = true;
+  await retry;
+  await expect(page.getByRole('region', { name: 'Voice controls' })).toContainText('Connected');
+  expect(attempts).toBe(2);
+  await page.getByRole('button', { name: 'Leave voice', exact: true }).click();
 });
 
 test('blocked playback explains remote audio and the retry reports success', async ({ page, browser }) => {
