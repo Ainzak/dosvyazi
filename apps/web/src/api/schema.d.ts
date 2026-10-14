@@ -2963,6 +2963,10 @@ export interface components {
             expiresAt: string;
             /** @default true */
             canSpeak: boolean;
+            /** @default false */
+            canShareScreen: boolean;
+            /** @default false */
+            canUseCamera: boolean;
         };
         VoiceLeaseRequest: {
             /** Format: uuid */
@@ -2993,6 +2997,10 @@ export interface components {
             deniedBy?: null | string;
             /** @default false */
             disconnectedByModerator: boolean;
+            /** @default false */
+            canShareScreen: boolean;
+            /** @default false */
+            canUseCamera: boolean;
         };
     };
     responses: never;

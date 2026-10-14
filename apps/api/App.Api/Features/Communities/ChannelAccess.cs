@@ -9,17 +9,19 @@ public sealed record EffectiveChannelAccess(int Permissions, string? SendDeniedB
     public bool Send => Has(ChannelAccess.View | ChannelAccess.Send);
     public bool Connect => Has(ChannelAccess.View | ChannelAccess.ConnectVoice);
     public bool Speak => Connect && Has(ChannelAccess.SpeakVoice);
+    public bool ShareScreen => Speak && Has(ChannelAccess.ShareScreen);
+    public bool UseCamera => Speak && Has(ChannelAccess.UseCamera);
     public bool Has(int bits) => (Permissions & bits) == bits;
 }
 
 public static class ChannelAccess
 {
     public const int View = 1, Send = 2, ManageMessages = 4, ManageChannels = 32, ManageRoles = 64,
-        ManageInvites = 128, KickMembers = 512, BanMembers = 1024, ConnectVoice = 2048, SpeakVoice = 4096, ModerateVoice = 8192;
+        ManageInvites = 128, KickMembers = 512, BanMembers = 1024, ConnectVoice = 2048, SpeakVoice = 4096, ModerateVoice = 8192,
+        ShareScreen = 16384, UseCamera = 32768;
     public const int All = View | Send;
-    // Reactions/files/emojis remain M5; unsupported bits cannot be granted yet.
-    public const int Supported = All | ManageMessages | ManageChannels | ManageRoles | ManageInvites | KickMembers | BanMembers | ConnectVoice | SpeakVoice | ModerateVoice;
-    public const int DefaultGrants = All | ConnectVoice | SpeakVoice;
+    public const int Supported = All | ManageMessages | ManageChannels | ManageRoles | ManageInvites | KickMembers | BanMembers | ConnectVoice | SpeakVoice | ModerateVoice | ShareScreen | UseCamera;
+    public const int DefaultGrants = All | ConnectVoice | SpeakVoice | ShareScreen | UseCamera;
     public static bool Valid(int bits) => bits >= 0 && (bits & ~Supported) == 0;
 
     public static async Task<(int Permissions, int Rank)> BaseAsync(AppDbContext db, Guid community, Guid user, CancellationToken ct)

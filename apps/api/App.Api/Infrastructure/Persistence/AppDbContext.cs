@@ -128,7 +128,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : Ident
             role.HasAlternateKey(r => new { r.CommunityId, r.Id });
             role.Property(r => r.Name).HasMaxLength(80);
             role.HasOne<Community>().WithMany().HasForeignKey(r => r.CommunityId).OnDelete(DeleteBehavior.Restrict);
-            role.ToTable(t => t.HasCheckConstraint("CK_CommunityRoles_Grants", "\"Grants\" BETWEEN 0 AND 16383 AND (\"Grants\" & 280) = 0 AND \"Rank\" BETWEEN 0 AND 1000"));
+            role.ToTable(t => t.HasCheckConstraint("CK_CommunityRoles_Grants", "\"Grants\" BETWEEN 0 AND 65535 AND (\"Grants\" & 280) = 0 AND \"Rank\" BETWEEN 0 AND 1000"));
         });
         builder.Entity<Category>(category =>
         {
@@ -150,21 +150,21 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : Ident
             rule.HasKey(r => new { r.CommunityId, r.CategoryId, r.RoleId });
             rule.HasOne<Category>().WithMany().HasForeignKey(r => new { r.CommunityId, r.CategoryId }).HasPrincipalKey(c => new { c.CommunityId, c.Id }).OnDelete(DeleteBehavior.Restrict);
             rule.HasOne<CommunityRole>().WithMany().HasForeignKey(r => new { r.CommunityId, r.RoleId }).HasPrincipalKey(r => new { r.CommunityId, r.Id }).OnDelete(DeleteBehavior.Restrict);
-            rule.ToTable(t => t.HasCheckConstraint("CK_CategoryRoleRules_Bits", "\"Allow\" BETWEEN 0 AND 16383 AND \"Deny\" BETWEEN 0 AND 16383 AND ((\"Allow\" | \"Deny\") & 280) = 0"));
+            rule.ToTable(t => t.HasCheckConstraint("CK_CategoryRoleRules_Bits", "\"Allow\" BETWEEN 0 AND 65535 AND \"Deny\" BETWEEN 0 AND 65535 AND ((\"Allow\" | \"Deny\") & 280) = 0"));
         });
         builder.Entity<ChannelRoleRule>(rule =>
         {
             rule.HasKey(r => new { r.CommunityId, r.ChannelId, r.RoleId });
             rule.HasOne<TextChannel>().WithMany().HasForeignKey(r => new { r.CommunityId, r.ChannelId }).HasPrincipalKey(c => new { c.CommunityId, c.Id }).OnDelete(DeleteBehavior.Restrict);
             rule.HasOne<CommunityRole>().WithMany().HasForeignKey(r => new { r.CommunityId, r.RoleId }).HasPrincipalKey(r => new { r.CommunityId, r.Id }).OnDelete(DeleteBehavior.Restrict);
-            rule.ToTable(t => t.HasCheckConstraint("CK_ChannelRoleRules_Bits", "\"Allow\" BETWEEN 0 AND 16383 AND \"Deny\" BETWEEN 0 AND 16383 AND ((\"Allow\" | \"Deny\") & 280) = 0"));
+            rule.ToTable(t => t.HasCheckConstraint("CK_ChannelRoleRules_Bits", "\"Allow\" BETWEEN 0 AND 65535 AND \"Deny\" BETWEEN 0 AND 65535 AND ((\"Allow\" | \"Deny\") & 280) = 0"));
         });
         builder.Entity<Community>().HasOne<Category>().WithMany().HasForeignKey(c => new { c.Id, c.VoiceCategoryId }).HasPrincipalKey(c => new { c.CommunityId, c.Id }).OnDelete(DeleteBehavior.Restrict);
         builder.Entity<VoiceRoleRule>(rule =>
         {
             rule.HasKey(r => new { r.CommunityId, r.RoleId });
             rule.HasOne<CommunityRole>().WithMany().HasForeignKey(r => new { r.CommunityId, r.RoleId }).HasPrincipalKey(r => new { r.CommunityId, r.Id }).OnDelete(DeleteBehavior.Restrict);
-            rule.ToTable(t => t.HasCheckConstraint("CK_VoiceRoleRules_Bits", "\"Allow\" BETWEEN 0 AND 16383 AND \"Deny\" BETWEEN 0 AND 16383 AND ((\"Allow\" | \"Deny\") & 280) = 0"));
+            rule.ToTable(t => t.HasCheckConstraint("CK_VoiceRoleRules_Bits", "\"Allow\" BETWEEN 0 AND 65535 AND \"Deny\" BETWEEN 0 AND 65535 AND ((\"Allow\" | \"Deny\") & 280) = 0"));
         });
         builder.Entity<AuditEntry>(audit =>
         {

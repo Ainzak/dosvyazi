@@ -24,7 +24,7 @@ public sealed class LiveKitGateway : IVoiceGateway
         this.apiSecret = apiSecret;
     }
 
-    public VoiceGrant CreateGrant(VoiceRoom room, Guid identity, bool canSpeak)
+    public VoiceGrant CreateGrant(VoiceRoom room, Guid identity, bool canSpeak, bool canShareScreen = false, bool canUseCamera = false)
     {
         Validate(room);
         if (identity == Guid.Empty) throw new ArgumentException("Invalid voice identity.");
@@ -35,7 +35,9 @@ public sealed class LiveKitGateway : IVoiceGateway
             {
                 RoomJoin = true, Room = room.Name,
                 CanSubscribe = true, CanPublish = canSpeak, CanPublishData = false,
-                CanPublishSources = canSpeak ? ["microphone"] : [],
+                CanPublishSources = canSpeak ? new[] { "microphone" }
+                    .Concat(canShareScreen ? ["screen_share", "screen_share_audio"] : [])
+                    .Concat(canUseCamera ? ["camera"] : []).ToList() : [],
                 CanUpdateOwnMetadata = false,
             }).ToJwt();
         return new(token, expiresAt);

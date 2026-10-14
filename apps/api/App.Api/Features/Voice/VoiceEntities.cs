@@ -16,6 +16,8 @@ public sealed class VoiceLease
 {
     public bool DisconnectedByModerator { get; set; }
     public bool CanSpeak { get; set; } = true;
+    public bool CanShareScreen { get; set; }
+    public bool CanUseCamera { get; set; }
     public Guid Id { get; set; }
     public Guid UserId { get; set; }
     public Guid CommunityId { get; set; }
@@ -46,10 +48,10 @@ public sealed class RetiredVoiceRoom
 
 public sealed record JoinVoiceRequest(Guid ClientRequestId);
 public sealed record VoiceLeaseRequest(Guid LeaseId);
-public sealed record VoiceJoinDto(string LeaseId, string Identity, string Generation, string Url, string Token, DateTimeOffset ExpiresAt, bool CanSpeak = true);
+public sealed record VoiceJoinDto(string LeaseId, string Identity, string Generation, string Url, string Token, DateTimeOffset ExpiresAt, bool CanSpeak = true, bool CanShareScreen = false, bool CanUseCamera = false);
 public sealed record VoiceMemberDto(string Identity, string DisplayName, bool SpeakingAllowed, int AudioTracks);
 public sealed record VoiceStateDto(string Status, string Generation, string? OperationId, DateTimeOffset? CompletedAt,
-    bool ControlUnavailable, string? MyLeaseId, VoiceMemberDto[] Participants, bool CanConnect = true, bool CanSpeak = true, bool CanModerate = false, string? DeniedBy = null, bool DisconnectedByModerator = false);
+    bool ControlUnavailable, string? MyLeaseId, VoiceMemberDto[] Participants, bool CanConnect = true, bool CanSpeak = true, bool CanModerate = false, string? DeniedBy = null, bool DisconnectedByModerator = false, bool CanShareScreen = false, bool CanUseCamera = false);
 
 public sealed class VoiceOptions
 {

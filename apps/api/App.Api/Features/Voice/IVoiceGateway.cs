@@ -4,7 +4,7 @@ namespace App.Api.Features.Voice;
 // The SFU adapter has no knowledge of community membership or application sessions.
 public interface IVoiceGateway
 {
-    VoiceGrant CreateGrant(VoiceRoom room, Guid identity, bool canSpeak);
+    VoiceGrant CreateGrant(VoiceRoom room, Guid identity, bool canSpeak, bool canShareScreen = false, bool canUseCamera = false);
     Task CreateRoomAsync(VoiceRoom room, CancellationToken cancellationToken);
     Task DeleteRoomAsync(VoiceRoom room, CancellationToken cancellationToken);
     Task<IReadOnlyList<VoiceParticipant>> ParticipantsAsync(VoiceRoom room, CancellationToken cancellationToken);

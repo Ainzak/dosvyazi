@@ -1,5 +1,5 @@
-import { DisconnectReason, ParticipantEvent, Room, RoomEvent, Track } from 'livekit-client';
-import type { LocalAudioTrack, Participant, RemoteAudioTrack } from 'livekit-client';
+import { DisconnectReason, LocalVideoTrack, ParticipantEvent, Room, RoomEvent, Track } from 'livekit-client';
+import type { LocalAudioTrack, LocalTrack, Participant, RemoteAudioTrack, RemoteVideoTrack } from 'livekit-client';
 import { AudioActivity } from './AudioActivity';
 import { endVoice, getVoice, heartbeatVoice, joinVoice } from '../../api/voice';
 import type { VoiceState } from '../../api/voice';
@@ -10,13 +10,17 @@ export type VoiceSnapshot = {
   muted: boolean; deafened: boolean; input: string; output: string; canSpeak: boolean;
   devices: MediaDeviceInfo[]; participants: VoiceState['participants']; speakers: string[]; changingAudio: boolean;
   playbackBlocked: boolean; startingPlayback: boolean; volume: number;
+  canShareScreen: boolean; canUseCamera: boolean; camera: boolean; sharing: boolean; changingMedia: boolean;
+  cameraDevice: string; mediaError: string | null; videos: VoiceVideo[];
 };
+export type VoiceVideo = { id: string; identity: string; local: boolean; source: 'camera' | 'screen'; track: LocalVideoTrack | RemoteVideoTrack };
 function savedVolume() {
   try { const stored = localStorage.getItem('dosvyazi-output-volume'); const n = stored === null ? 100 : Number(stored); return Number.isFinite(n) && n >= 0 && n <= 100 ? n : 100; }
   catch { return 100; }
 }
 const initial = (): VoiceSnapshot => ({ community: null, name: '', status: 'Disconnected', error: null,
-  muted: true, deafened: false, input: 'default', output: 'default', canSpeak: true, devices: [], participants: [], speakers: [], changingAudio: false, playbackBlocked: false, startingPlayback: false, volume: savedVolume() });
+  muted: true, deafened: false, input: 'default', output: 'default', canSpeak: true, devices: [], participants: [], speakers: [], changingAudio: false, playbackBlocked: false, startingPlayback: false, volume: savedVolume(),
+  canShareScreen: false, canUseCamera: false, camera: false, sharing: false, changingMedia: false, cameraDevice: 'default', mediaError: null, videos: [] });
 
 export class VoiceClient {
   private value = initial();
@@ -37,6 +41,8 @@ export class VoiceClient {
   private activity: AudioActivity | undefined;
   private timer: ReturnType<typeof setInterval> | undefined;
   private disconnecting: Promise<void> = Promise.resolve();
+  private mediaEpoch = 0;
+  private capture = new Set<LocalTrack>();
   subscribe = (listener: () => void) => { this.listeners.add(listener); return () => { this.listeners.delete(listener); }; };
   snapshot = () => this.value;
   private update(next: Partial<VoiceSnapshot>) { this.value = { ...this.value, ...next }; this.listeners.forEach(listener => listener()); }
@@ -59,6 +65,7 @@ export class VoiceClient {
   private deviceChange = () => { void this.devices(); };
   private disconnect() {
     const old = this.room; this.room = undefined;
+    this.stopMedia(old);
     this.activity?.dispose(); this.activity = undefined;
     this.update({ changingAudio: false, speakers: [], playbackBlocked: false, startingPlayback: false });
     for (const [participant, listener] of this.speakerSubscriptions) participant.off(ParticipantEvent.IsSpeakingChanged, listener);
@@ -109,30 +116,35 @@ export class VoiceClient {
       const grant = await joinVoice(community, this.request);
       if (epoch !== this.epoch) return;
       this.lease = grant.leaseId; this.generation = grant.generation;
-      this.update({ canSpeak: grant.canSpeak, ...(grant.canSpeak ? {} : { muted: true }) });
+      this.update({ canSpeak: grant.canSpeak, canShareScreen: grant.canShareScreen, canUseCamera: grant.canUseCamera, ...(grant.canSpeak ? {} : { muted: true }) });
       this.disconnect();
       await this.disconnecting;
       if (epoch !== this.epoch) return;
-      const room = new Room(); this.room = room;
+      const room = new Room({ adaptiveStream: true, dynacast: true }); this.room = room;
       this.activity = new AudioActivity(() => this.syncSpeakers(room));
       this.observeSpeakers(room, room.localParticipant);
       room.on(RoomEvent.ParticipantConnected, participant => { if (this.room === room) { this.observeSpeakers(room, participant); this.syncSpeakers(room); } });
       room.on(RoomEvent.ParticipantDisconnected, participant => {
         const listener = this.speakerSubscriptions.get(participant);
         if (listener) participant.off(ParticipantEvent.IsSpeakingChanged, listener);
-        this.speakerSubscriptions.delete(participant); this.syncSpeakers(room);
+        this.speakerSubscriptions.delete(participant); this.syncSpeakers(room); this.syncMedia(room);
       });
-      room.on(RoomEvent.TrackSubscribed, track => {
-        if (this.room !== room || track.kind !== Track.Kind.Audio) return;
+      room.on(RoomEvent.TrackSubscribed, (track, publication) => {
+        if (this.room !== room) return;
+        if (track.kind === Track.Kind.Video) { this.syncMedia(room); return; }
+        if (track.kind !== Track.Kind.Audio) return;
         const audioTrack = track as RemoteAudioTrack;
         const element = audioTrack.attach(); element.muted = this.value.deafened; element.volume = this.value.volume / 100;
         element.hidden = true; document.body.append(element); this.audio.set(audioTrack, element);
-        this.activity?.observe(audioTrack);
+        if (publication.source === Track.Source.Microphone) this.activity?.observe(audioTrack);
       });
-      room.on(RoomEvent.TrackUnsubscribed, track => { const audioTrack = track as RemoteAudioTrack; const element = this.audio.get(audioTrack); element?.remove(); this.audio.delete(audioTrack); this.activity?.remove(audioTrack); this.syncSpeakers(room); });
-      room.on(RoomEvent.LocalTrackPublished, publication => { if (this.room === room && publication.track?.kind === Track.Kind.Audio) this.activity?.observe(publication.track as LocalAudioTrack); });
-      room.on(RoomEvent.LocalTrackUnpublished, publication => { if (publication.track?.kind === Track.Kind.Audio) this.activity?.remove(publication.track as LocalAudioTrack); this.syncSpeakers(room); });
-      room.on(RoomEvent.Reconnecting, () => { if (this.room === room) this.update({ status: 'Reconnecting', speakers: [] }); });
+      room.on(RoomEvent.TrackUnsubscribed, track => { const audioTrack = track as RemoteAudioTrack; const element = this.audio.get(audioTrack); element?.remove(); this.audio.delete(audioTrack); this.activity?.remove(audioTrack); this.syncSpeakers(room); this.syncMedia(room); });
+      room.on(RoomEvent.TrackUnpublished, () => this.syncMedia(room));
+      room.on(RoomEvent.LocalTrackPublished, publication => { if (this.room === room && publication.source === Track.Source.Microphone && publication.track?.kind === Track.Kind.Audio) this.activity?.observe(publication.track as LocalAudioTrack); this.syncMedia(room); });
+      room.on(RoomEvent.LocalTrackUnpublished, publication => { if (publication.track?.kind === Track.Kind.Audio) this.activity?.remove(publication.track as LocalAudioTrack); this.syncSpeakers(room); this.syncMedia(room); });
+      const interrupt = () => { if (this.room === room) { this.stopMedia(room); this.update({ status: 'Reconnecting', speakers: [] }); } };
+      room.on(RoomEvent.Reconnecting, interrupt);
+      room.on(RoomEvent.SignalReconnecting, interrupt);
       room.on(RoomEvent.Reconnected, () => { if (this.room === room) { this.update({ status: 'Connected' }); this.syncSpeakers(room); void this.poll(); } });
       room.on(RoomEvent.Disconnected, reason => {
         if (this.room !== room) return;
@@ -140,17 +152,18 @@ export class VoiceClient {
         else if (reason === DisconnectReason.DUPLICATE_IDENTITY) {
           this.moderated(); this.update({ error: 'This voice session was opened on another device. Select Join voice to return here.' });
         }
-        else this.update({ status: 'Reconnecting', speakers: [] });
+        else { this.stopMedia(room); this.update({ status: 'Reconnecting', speakers: [] }); }
       });
       room.on(RoomEvent.ActiveSpeakersChanged, () => this.syncSpeakers(room));
-      room.on(RoomEvent.TrackMuted, () => this.syncSpeakers(room));
-      room.on(RoomEvent.TrackUnmuted, () => this.syncSpeakers(room));
+      room.on(RoomEvent.TrackMuted, () => { this.syncSpeakers(room); this.syncMedia(room); });
+      room.on(RoomEvent.TrackUnmuted, () => { this.syncSpeakers(room); this.syncMedia(room); });
       room.on(RoomEvent.AudioPlaybackStatusChanged, playing => { if (this.room === room) this.update({ playbackBlocked: !playing }); });
       await room.connect(grant.url, grant.token);
       if (epoch !== this.epoch || this.room !== room) { await room.disconnect(); return; }
       this.update({ status: 'Connected' });
       for (const participant of room.remoteParticipants.values()) if (!this.speakerSubscriptions.has(participant)) this.observeSpeakers(room, participant);
       this.syncSpeakers(room);
+      this.syncMedia(room);
       await room.startAudio().catch(() => { if (this.room === room) this.update({ playbackBlocked: true }); });
       if (this.room !== room) return;
       this.update({ playbackBlocked: !room.canPlaybackAudio });
@@ -196,7 +209,8 @@ export class VoiceClient {
       if (!state.canConnect) { this.disconnect(); this.update({ ...initial(), error: 'Voice access was revoked.' }); this.lease = undefined; return; }
       if (!state.canSpeak && !this.value.muted) await this.microphone(true);
       if (epoch !== this.epoch) return;
-      this.update({ canSpeak: state.canSpeak });
+      if ((!state.canShareScreen && this.value.sharing) || (!state.canUseCamera && this.value.camera)) this.stopMedia(this.room);
+      this.update({ canSpeak: state.canSpeak, canShareScreen: state.canShareScreen, canUseCamera: state.canUseCamera });
       if (state.status === 'Pending') {
         this.disconnect(); this.update({ status: 'Access updating', error: state.controlUnavailable ? 'Voice service is unavailable. Access changes remain pending.' : null, speakers: [] });
       } else if (state.controlUnavailable) {
@@ -245,7 +259,7 @@ export class VoiceClient {
       return true;
     } catch {
       if (this.room === room) {
-        for (const publication of room.localParticipant.audioTrackPublications.values()) publication.track?.stop();
+        room.localParticipant.getTrackPublication(Track.Source.Microphone)?.track?.stop();
         this.update({ muted: true, error: 'Microphone unavailable. Allow microphone access and check the selected device, then try again.' });
       }
       return false;
@@ -262,6 +276,8 @@ export class VoiceClient {
       }
       if (this.room !== room) return;
       this.update({ deafened });
+      const screenAudio = room.localParticipant.getTrackPublication(Track.Source.ScreenShareAudio)?.audioTrack;
+      if (screenAudio) { if (deafened) await screenAudio.mute(); else await screenAudio.unmute(); }
       for (const element of this.audio.values()) element.muted = deafened;
       if (!deafened && !this.mutedBeforeDeafen && this.value.canSpeak) await this.setMicrophone(room, false);
       this.syncSpeakers(room);
@@ -286,5 +302,87 @@ export class VoiceClient {
     }
     catch { if (this.room === room) this.update({ error: 'Playback could not start. Check your browser audio settings.' }); }
     finally { if (this.room === room) this.update({ startingPlayback: false }); }
+  }
+
+  private syncMedia(room: Room) {
+    if (this.room !== room) return;
+    const videos: VoiceVideo[] = [];
+    for (const participant of [room.localParticipant, ...room.remoteParticipants.values()]) {
+      for (const publication of participant.videoTrackPublications.values()) {
+        const track = publication.videoTrack;
+        if (!track || track.mediaStreamTrack.readyState === 'ended' || publication.isMuted || ![Track.Source.Camera, Track.Source.ScreenShare].includes(publication.source)) continue;
+        videos.push({ id: publication.trackSid, identity: participant.identity, local: participant === room.localParticipant,
+          source: publication.source === Track.Source.Camera ? 'camera' : 'screen', track });
+      }
+    }
+    this.update({ videos, camera: videos.some(video => video.local && video.source === 'camera'), sharing: videos.some(video => video.local && video.source === 'screen') });
+  }
+
+  // Stop physical tracks synchronously; pending picker results are rejected by the epoch guard.
+  private stopMedia(room: Room | undefined) {
+    this.mediaEpoch++;
+    for (const track of this.capture) track.stop();
+    this.capture.clear();
+    if (room) for (const publication of room.localParticipant.trackPublications.values()) {
+      if (![Track.Source.Camera, Track.Source.ScreenShare, Track.Source.ScreenShareAudio].includes(publication.source) || !publication.track) continue;
+      publication.track.stop(); void room.localParticipant.unpublishTrack(publication.track).catch(() => {});
+    }
+    this.update({ camera: false, sharing: false, changingMedia: false, videos: [] });
+  }
+
+  cameraDevice(id: string) { if (!this.value.camera && !this.value.changingMedia) this.update({ cameraDevice: id }); }
+  clearMediaError() { this.update({ mediaError: null }); }
+
+  async media(source: 'camera' | 'screen', enabled: boolean, screenAudio = false) {
+    const room = this.room;
+    if (!room || room.state !== 'connected' || this.value.changingMedia) return;
+    if (enabled && !(source === 'camera' ? this.value.canUseCamera : this.value.canShareScreen)) return;
+    const epoch = this.mediaEpoch;
+    this.update({ changingMedia: true, mediaError: null });
+    const tracks: LocalTrack[] = [];
+    const current = () => this.room === room && epoch === this.mediaEpoch && room.state === 'connected';
+    try {
+      if (!enabled) {
+        for (const publication of [...room.localParticipant.trackPublications.values()]) {
+          if (!publication.track || !(source === 'camera' ? publication.source === Track.Source.Camera : [Track.Source.ScreenShare, Track.Source.ScreenShareAudio].includes(publication.source))) continue;
+          publication.track.stop(); this.capture.delete(publication.track);
+          await room.localParticipant.unpublishTrack(publication.track);
+        }
+      } else {
+        // Capture starts before the first await, preserving getDisplayMedia's user gesture.
+        tracks.push(...await (source === 'screen' ? room.localParticipant.createScreenTracks({ audio: screenAudio,
+          resolution: { width: 1280, height: 720, frameRate: 15 }, contentHint: 'detail', selfBrowserSurface: 'exclude', systemAudio: screenAudio ? 'include' : 'exclude' })
+          : navigator.mediaDevices.getUserMedia({ audio: false, video: { width: { ideal: 640, max: 640 }, height: { ideal: 360, max: 360 }, frameRate: { ideal: 15, max: 15 },
+            ...(this.value.cameraDevice === 'default' ? {} : { deviceId: { exact: this.value.cameraDevice } }) } }).then(stream => stream.getVideoTracks().map(track => {
+              // User-provided tracks prevent SDK reconnect/background recovery from acquiring a camera silently.
+              const local = new LocalVideoTrack(track, undefined, true); local.source = Track.Source.Camera; return local;
+            }))));
+        if (!current()) { for (const track of tracks) track.stop(); return; }
+        for (const track of tracks) this.capture.add(track);
+        for (const track of tracks) {
+          track.mediaStreamTrack.addEventListener('ended', () => {
+            this.capture.delete(track);
+            if (this.room === room) void room.localParticipant.unpublishTrack(track).then(() => this.syncMedia(room)).catch(() => {});
+          }, { once: true });
+          if (track.source === Track.Source.ScreenShareAudio && this.value.deafened) await (track as LocalAudioTrack).mute();
+          if (!current()) { for (const acquired of tracks) acquired.stop(); return; }
+          await room.localParticipant.publishTrack(track, { source: track.source, videoCodec: 'vp8', simulcast: false,
+            videoEncoding: { maxBitrate: 450_000, maxFramerate: 15 }, screenShareEncoding: { maxBitrate: 1_200_000, maxFramerate: 15 } });
+          if (!current()) { for (const acquired of tracks) { acquired.stop(); this.capture.delete(acquired); } await room.localParticipant.unpublishTrack(track); return; }
+        }
+        if (screenAudio && source === 'screen' && !tracks.some(track => track.source === Track.Source.ScreenShareAudio)) {
+          this.update({ mediaError: 'This source or browser did not provide screen audio. Your screen is still shared.' });
+        }
+      }
+      if (current()) { this.syncMedia(room); await this.devices(); }
+    } catch (error) {
+      for (const track of tracks) { track.stop(); this.capture.delete(track); void room.localParticipant.unpublishTrack(track).catch(() => {}); }
+      if (current()) {
+        this.syncMedia(room);
+        if (!(source === 'screen' && error instanceof DOMException && ['NotAllowedError', 'AbortError'].includes(error.name))) {
+          this.update({ mediaError: source === 'screen' ? 'Screen sharing could not start. Choose a source and try again.' : 'Camera unavailable. Allow camera access and check the selected device, then try again.' });
+        }
+      }
+    } finally { if (current()) this.update({ changingMedia: false }); }
   }
 }

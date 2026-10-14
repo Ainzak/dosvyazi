@@ -244,7 +244,7 @@ namespace App.Api.Infrastructure.Persistence.Migrations
 
                     b.ToTable("CategoryRoleRules", t =>
                         {
-                            t.HasCheckConstraint("CK_CategoryRoleRules_Bits", "\"Allow\" BETWEEN 0 AND 16383 AND \"Deny\" BETWEEN 0 AND 16383 AND ((\"Allow\" | \"Deny\") & 280) = 0");
+                            t.HasCheckConstraint("CK_CategoryRoleRules_Bits", "\"Allow\" BETWEEN 0 AND 65535 AND \"Deny\" BETWEEN 0 AND 65535 AND ((\"Allow\" | \"Deny\") & 280) = 0");
                         });
                 });
 
@@ -271,7 +271,7 @@ namespace App.Api.Infrastructure.Persistence.Migrations
 
                     b.ToTable("ChannelRoleRules", t =>
                         {
-                            t.HasCheckConstraint("CK_ChannelRoleRules_Bits", "\"Allow\" BETWEEN 0 AND 16383 AND \"Deny\" BETWEEN 0 AND 16383 AND ((\"Allow\" | \"Deny\") & 280) = 0");
+                            t.HasCheckConstraint("CK_ChannelRoleRules_Bits", "\"Allow\" BETWEEN 0 AND 65535 AND \"Deny\" BETWEEN 0 AND 65535 AND ((\"Allow\" | \"Deny\") & 280) = 0");
                         });
                 });
 
@@ -387,7 +387,7 @@ namespace App.Api.Infrastructure.Persistence.Migrations
 
                     b.ToTable("CommunityRoles", t =>
                         {
-                            t.HasCheckConstraint("CK_CommunityRoles_Grants", "\"Grants\" BETWEEN 0 AND 16383 AND (\"Grants\" & 280) = 0 AND \"Rank\" BETWEEN 0 AND 1000");
+                            t.HasCheckConstraint("CK_CommunityRoles_Grants", "\"Grants\" BETWEEN 0 AND 65535 AND (\"Grants\" & 280) = 0 AND \"Rank\" BETWEEN 0 AND 1000");
                         });
                 });
 
@@ -483,7 +483,7 @@ namespace App.Api.Infrastructure.Persistence.Migrations
 
                     b.ToTable("VoiceRoleRules", t =>
                         {
-                            t.HasCheckConstraint("CK_VoiceRoleRules_Bits", "\"Allow\" BETWEEN 0 AND 16383 AND \"Deny\" BETWEEN 0 AND 16383 AND ((\"Allow\" | \"Deny\") & 280) = 0");
+                            t.HasCheckConstraint("CK_VoiceRoleRules_Bits", "\"Allow\" BETWEEN 0 AND 65535 AND \"Deny\" BETWEEN 0 AND 65535 AND ((\"Allow\" | \"Deny\") & 280) = 0");
                         });
                 });
 
@@ -1091,7 +1091,13 @@ namespace App.Api.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("AuthSessionId")
                         .HasColumnType("uuid");
 
+                    b.Property<bool>("CanShareScreen")
+                        .HasColumnType("boolean");
+
                     b.Property<bool>("CanSpeak")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("CanUseCamera")
                         .HasColumnType("boolean");
 
                     b.Property<Guid>("CommunityId")

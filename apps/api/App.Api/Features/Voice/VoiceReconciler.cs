@@ -18,7 +18,7 @@ public sealed class VoiceReconciler(AppDbContext database, IVoiceGateway gateway
         {
             var access = await ChannelAccess.VoiceAsync(database, community, lease.UserId, ct);
             if (lease.Generation != room.Generation || lease.ExpiresAt <= DateTimeOffset.UtcNow ||
-                !access.Connect || lease.CanSpeak != access.Speak ||
+                !access.Connect || lease.CanSpeak != access.Speak || lease.CanShareScreen != access.ShareScreen || lease.CanUseCamera != access.UseCamera ||
                 !await database.Sessions.AnyAsync(item => item.Id == lease.AuthSessionId && item.UserId == lease.UserId && item.RevokedAt == null &&
                     item.ExpiresAt > DateTimeOffset.UtcNow && item.User.SecurityStamp == lease.SecurityStamp, ct) ||
                 !await database.Memberships.AnyAsync(item => item.CommunityId == community && item.UserId == lease.UserId && item.Status == "Active", ct))

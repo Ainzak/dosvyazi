@@ -60,7 +60,7 @@ public sealed class VoiceService(AppDbContext database, IVoiceGateway gateway, I
         if (existing is not null)
         {
             if (!existing.Lease.Active || existing.Lease.CommunityId != community || existing.Lease.AuthSessionId != session.Session ||
-                existing.Lease.Generation != room.Generation || existing.Lease.CanSpeak != access.Speak || existing.ExpiresAt <= DateTimeOffset.UtcNow || existing.Lease.ExpiresAt <= DateTimeOffset.UtcNow)
+                existing.Lease.Generation != room.Generation || existing.Lease.CanSpeak != access.Speak || existing.Lease.CanShareScreen != access.ShareScreen || existing.Lease.CanUseCamera != access.UseCamera || existing.ExpiresAt <= DateTimeOffset.UtcNow || existing.Lease.ExpiresAt <= DateTimeOffset.UtcNow)
                 throw new CommunityFailure(409, "This voice request expired or changed. Start a new join.", "voice_join_stale");
             var retry = Dto(existing, room);
             await transaction.CommitAsync(ct);
@@ -80,8 +80,8 @@ public sealed class VoiceService(AppDbContext database, IVoiceGateway gateway, I
             database.VoiceLeases.Add(lease);
         }
         await gateway.CreateRoomAsync(new VoiceRoom(room.Id, room.Generation), ct);
-        lease.CanSpeak = access.Speak;
-        var grant = gateway.CreateGrant(new VoiceRoom(room.Id, room.Generation), lease.Id, access.Speak);
+        lease.CanSpeak = access.Speak; lease.CanShareScreen = access.ShareScreen; lease.CanUseCamera = access.UseCamera;
+        var grant = gateway.CreateGrant(new VoiceRoom(room.Id, room.Generation), lease.Id, access.Speak, access.ShareScreen, access.UseCamera);
         lease.ExpiresAt = DateTimeOffset.UtcNow.AddSeconds(90);
         var command = new VoiceGrantRequest { UserId = userId, ClientRequestId = request.ClientRequestId,
             Lease = lease, ProtectedToken = tokens.Protect(grant.Token), ExpiresAt = grant.ExpiresAt };
@@ -92,7 +92,7 @@ public sealed class VoiceService(AppDbContext database, IVoiceGateway gateway, I
     }
 
     private VoiceJoinDto Dto(VoiceGrantRequest request, VoiceRoomBinding room) => new(request.Lease.Id.ToString(), request.Lease.Id.ToString("N"),
-        room.Generation.ToString(System.Globalization.CultureInfo.InvariantCulture), options.Value.BrowserUrl, tokens.Unprotect(request.ProtectedToken), request.ExpiresAt, request.Lease.CanSpeak);
+        room.Generation.ToString(System.Globalization.CultureInfo.InvariantCulture), options.Value.BrowserUrl, tokens.Unprotect(request.ProtectedToken), request.ExpiresAt, request.Lease.CanSpeak, request.Lease.CanShareScreen, request.Lease.CanUseCamera);
 
     public async Task<bool> HeartbeatAsync(Guid community, VoiceLeaseRequest request, ClaimsPrincipal principal, CancellationToken ct)
     {
@@ -141,7 +141,7 @@ public sealed class VoiceService(AppDbContext database, IVoiceGateway gateway, I
             item.Id == leaseId.Value && item.CommunityId == community && item.UserId == session.User &&
             item.AuthSessionId == session.Session && !item.Active && item.DisconnectedByModerator, ct);
         var room = await database.VoiceRooms.SingleOrDefaultAsync(item => item.CommunityId == community, ct);
-        if (room is null) return new("Ready", "1", null, null, false, null, [], access.Connect, access.Speak, access.Has(ChannelAccess.ModerateVoice), access.VoiceDeniedBy);
+        if (room is null) return new("Ready", "1", null, null, false, null, [], access.Connect, access.Speak, access.Has(ChannelAccess.ModerateVoice), access.VoiceDeniedBy, CanShareScreen: access.ShareScreen, CanUseCamera: access.UseCamera);
         var mine = await database.VoiceLeases.Where(item => item.UserId == session.User && item.AuthSessionId == session.Session &&
             item.CommunityId == community && item.Active && item.Generation == room.Generation && item.ExpiresAt > DateTimeOffset.UtcNow).Select(item => (Guid?)item.Id).SingleOrDefaultAsync(ct);
         var participants = Array.Empty<VoiceMemberDto>();
@@ -152,15 +152,15 @@ public sealed class VoiceService(AppDbContext database, IVoiceGateway gateway, I
             {
                 var actual = await gateway.ParticipantsAsync(new VoiceRoom(room.Id, room.Generation), ct);
                 var leases = await database.VoiceLeases.Where(item => item.CommunityId == community && item.Generation == room.Generation && item.Active && item.ExpiresAt > DateTimeOffset.UtcNow)
-                    .Join(database.Users, lease => lease.UserId, user => user.Id, (lease, user) => new { lease.Id, user.DisplayName }).ToArrayAsync(ct);
+                    .Join(database.Users, lease => lease.UserId, user => user.Id, (lease, user) => new { lease.Id, user.DisplayName, lease.CanSpeak }).ToArrayAsync(ct);
                 participants = actual.Join(leases, member => member.Identity, lease => lease.Id.ToString("N"),
-                    (member, lease) => new VoiceMemberDto(member.Identity, lease.DisplayName, member.CanPublish, member.AudioTracks)).ToArray();
+                    (member, lease) => new VoiceMemberDto(member.Identity, lease.DisplayName, lease.CanSpeak && member.CanPublish, member.AudioTracks)).ToArray();
             }
             catch (VoiceGatewayException) { unavailable = true; }
         }
         await transaction.CommitAsync(ct);
         return new(room.Status, room.Generation.ToString(System.Globalization.CultureInfo.InvariantCulture), room.OperationId?.ToString(), room.CompletedAt,
-            unavailable, mine?.ToString(), participants, access.Connect, access.Speak, access.Has(ChannelAccess.ModerateVoice), access.VoiceDeniedBy, disconnected);
+            unavailable, mine?.ToString(), participants, access.Connect, access.Speak, access.Has(ChannelAccess.ModerateVoice), access.VoiceDeniedBy, disconnected, access.ShareScreen, access.UseCamera);
     }
 
     public async Task<bool> DisconnectAsync(Guid community, VoiceLeaseRequest request, ClaimsPrincipal principal, CancellationToken ct)

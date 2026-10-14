@@ -253,7 +253,7 @@ public sealed class VoiceTests(AccountsDatabase storage) : IClassFixture<Account
         await using var restarted = Factory(voice); await Reconcile(restarted, community);
         Assert.Equal(pending.OperationId, (await owner.GetFromJsonAsync<VoiceStateDto>(Path(community)))!.OperationId);
         voice.Fail = false; await Reconcile(restarted, community);
-        var listener = await Grant(member, community); Assert.False(listener.CanSpeak); Assert.False(voice.LastCanSpeak); Assert.Equal("2", listener.Generation); Assert.NotEqual(grant.LeaseId, listener.LeaseId);
+        var listener = await Grant(member, community); Assert.False(listener.CanSpeak); Assert.False(listener.CanShareScreen); Assert.False(listener.CanUseCamera); Assert.False(voice.LastCanSpeak); Assert.Equal("2", listener.Generation); Assert.NotEqual(grant.LeaseId, listener.LeaseId);
         policy = (await owner.GetFromJsonAsync<AccessPolicy>(root))!;
         Assert.Equal(HttpStatusCode.OK, (await Send(owner, root, new SaveAccessRequest(Guid.NewGuid(), policy with { VoiceRules = [new(Guid.Parse(community), Guid.Parse(community), 0, ChannelAccess.ConnectVoice)] }), "PUT")).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await Send(member, Path(community, "/join"), new JoinVoiceRequest(Guid.NewGuid()))).StatusCode);
@@ -299,13 +299,55 @@ public sealed class VoiceTests(AccountsDatabase storage) : IClassFixture<Account
         Assert.False((await member.GetFromJsonAsync<VoiceStateDto>(Path(other, $"?leaseId={grant.LeaseId}")))!.DisconnectedByModerator);
     }
 
+    [Theory]
+    [InlineData(ChannelAccess.ShareScreen)]
+    [InlineData(ChannelAccess.UseCamera)]
+    public async Task MediaRevocationFreezesOldGrantsAndKeepsOtherSourcesScoped(int denied)
+    {
+        var voice = new FakeVoice(); await using var host = Factory(voice);
+        using var owner = host.CreateClient(); using var member = host.CreateClient(); await Register(owner); await Register(member);
+        var community = await Create(owner); await AddMember(owner, member, community);
+        var request = new JoinVoiceRequest(Guid.NewGuid());
+        var original = (await (await Send(member, Path(community, "/join"), request)).Content.ReadFromJsonAsync<VoiceJoinDto>())!;
+        Assert.True(original.CanSpeak); Assert.True(original.CanShareScreen); Assert.True(original.CanUseCamera);
+        var root = $"/api/v1/communities/{community}/access";
+        var policy = (await owner.GetFromJsonAsync<AccessPolicy>(root))!;
+        policy = policy with { VoiceRules = [new(Guid.Parse(community), Guid.Parse(community), 0, denied)] };
+        Assert.Equal(HttpStatusCode.OK, (await Send(owner, root, new SaveAccessRequest(Guid.NewGuid(), policy), "PUT")).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await Send(member, Path(community, "/join"), request)).StatusCode);
+        voice.Fail = true; await Reconcile(host, community);
+        var pending = (await member.GetFromJsonAsync<VoiceStateDto>(Path(community)))!;
+        Assert.Equal("Pending", pending.Status); Assert.True(pending.ControlUnavailable);
+        Assert.Equal(denied != ChannelAccess.ShareScreen, pending.CanShareScreen);
+        Assert.Equal(denied != ChannelAccess.UseCamera, pending.CanUseCamera);
+        await using var restarted = Factory(voice); voice.Fail = false; await Reconcile(restarted, community);
+        var grant = await Grant(member, community);
+        Assert.True(grant.CanSpeak); Assert.NotEqual(original.Generation, grant.Generation); Assert.NotEqual(original.LeaseId, grant.LeaseId);
+        Assert.Equal(denied != ChannelAccess.ShareScreen, grant.CanShareScreen);
+        Assert.Equal(denied != ChannelAccess.UseCamera, grant.CanUseCamera);
+        Assert.Equal(grant.CanShareScreen, voice.LastCanShareScreen); Assert.Equal(grant.CanUseCamera, voice.LastCanUseCamera);
+        Assert.Equal(HttpStatusCode.Conflict, (await Send(member, Path(community, "/join"), request)).StatusCode);
+        // An explicit category denial still wins over a voice-level allow.
+        policy = (await owner.GetFromJsonAsync<AccessPolicy>(root))!; var category = Guid.NewGuid();
+        policy = policy with { Categories = [new(category, "Media policy")], VoiceCategoryId = category,
+            CategoryRules = [new(category, Guid.Parse(community), 0, ChannelAccess.ShareScreen | ChannelAccess.UseCamera)],
+            VoiceRules = [new(Guid.Parse(community), Guid.Parse(community), ChannelAccess.ShareScreen | ChannelAccess.UseCamera, 0)] };
+        Assert.Equal(HttpStatusCode.OK, (await Send(owner, root, new SaveAccessRequest(Guid.NewGuid(), policy), "PUT")).StatusCode);
+        await Reconcile(host, community); grant = await Grant(member, community);
+        Assert.False(grant.CanShareScreen); Assert.False(grant.CanUseCamera); Assert.True(grant.CanSpeak);
+        var ownerState = (await owner.GetFromJsonAsync<VoiceStateDto>(Path(community)))!;
+        Assert.True(ownerState.CanShareScreen); Assert.True(ownerState.CanUseCamera);
+    }
+
     private sealed class FakeVoice : IVoiceGateway
     {
         public bool Fail { get; set; }
         public bool Unknown { get; set; }
         public bool LastCanSpeak { get; set; }
+        public bool LastCanShareScreen { get; set; }
+        public bool LastCanUseCamera { get; set; }
         public List<string> Deleted { get; } = [];
-        public VoiceGrant CreateGrant(VoiceRoom room, Guid identity, bool canSpeak) { LastCanSpeak = canSpeak; return new($"synthetic-{room.Name}-{identity:N}", DateTimeOffset.FromUnixTimeSeconds(DateTimeOffset.UtcNow.ToUnixTimeSeconds() + 60)); }
+        public VoiceGrant CreateGrant(VoiceRoom room, Guid identity, bool canSpeak, bool canShareScreen = false, bool canUseCamera = false) { LastCanSpeak = canSpeak; LastCanShareScreen = canShareScreen; LastCanUseCamera = canUseCamera; return new($"synthetic-{room.Name}-{identity:N}", DateTimeOffset.FromUnixTimeSeconds(DateTimeOffset.UtcNow.ToUnixTimeSeconds() + 60)); }
         private Task Check() => Fail ? Task.FromException(new VoiceGatewayException()) : Task.CompletedTask;
         public Task CreateRoomAsync(VoiceRoom room, CancellationToken ct) => Check();
         public async Task DeleteRoomAsync(VoiceRoom room, CancellationToken ct) { await Check(); Deleted.Add(room.Name); }

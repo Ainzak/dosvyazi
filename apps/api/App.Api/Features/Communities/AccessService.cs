@@ -63,7 +63,7 @@ public sealed class AccessService(AppDbContext db)
         if (!Rules(p.CategoryRules, categories, roles) || !Rules(p.ChannelRules, channels, roles) || (p.VoiceCategoryId is Guid voiceCategory && !categories.Contains(voiceCategory)) ||
             (p.VoiceRules is not null && (p.VoiceRules.Length > 20 || !Rules(p.VoiceRules, [id], roles)))) throw new CommunityFailure(400, "Invalid or duplicate resource rules.");
         const int textBits = ChannelAccess.All | ChannelAccess.ManageMessages | ChannelAccess.ManageChannels;
-        const int voiceBits = ChannelAccess.View | ChannelAccess.ManageChannels | ChannelAccess.ConnectVoice | ChannelAccess.SpeakVoice | ChannelAccess.ModerateVoice;
+        const int voiceBits = ChannelAccess.View | ChannelAccess.ManageChannels | ChannelAccess.ConnectVoice | ChannelAccess.SpeakVoice | ChannelAccess.ModerateVoice | ChannelAccess.ShareScreen | ChannelAccess.UseCamera;
         if (p.ChannelRules.Any(r => ((r.Allow | r.Deny) & ~textBits) != 0) || p.CategoryRules.Any(r => ((r.Allow | r.Deny) & ~(textBits | voiceBits)) != 0) || (p.VoiceRules ?? []).Any(r => ((r.Allow | r.Deny) & ~voiceBits) != 0))
             throw new CommunityFailure(400, "Use resource permissions in rules; member, invitation and role management permissions are community grants.");
     }
@@ -131,7 +131,7 @@ public sealed class AccessService(AppDbContext db)
         foreach (var lease in await db.VoiceLeases.Where(l => l.CommunityId == id && l.Active).ToArrayAsync(ct))
         {
             var access = await ChannelAccess.VoiceAsync(db, id, lease.UserId, ct);
-            if (!access.Connect || access.Speak != lease.CanSpeak) await VoiceTransitions.RevokeMemberAsync(db, id, lease.UserId, ct);
+            if (!access.Connect || access.Speak != lease.CanSpeak || access.ShareScreen != lease.CanShareScreen || access.UseCamera != lease.CanUseCamera) await VoiceTransitions.RevokeMemberAsync(db, id, lease.UserId, ct);
         }
         await db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);

@@ -135,7 +135,7 @@ test('members receive audio, keep voice through text navigation, mute/deafen and
     await page.getByRole('button', { name: 'Mute microphone', exact: true }).click();
     await expect.poll(() => receivedEnergy(member)).toBeLessThan(0.001);
     await expect(ownerRow.getByLabel('Not speaking', { exact: true })).toBeVisible();
-    await member.getByText('Audio devices', { exact: true }).click();
+    await member.getByText('Media devices', { exact: true }).click();
     expect(await member.getByLabel('Microphone device').isEnabled()).toBe(true);
     const input = await member.getByLabel('Microphone device').locator('option').evaluateAll(options => options.map(option => (option as HTMLOptionElement).value).find(value => value !== 'default'));
     expect(input).toBeTruthy();

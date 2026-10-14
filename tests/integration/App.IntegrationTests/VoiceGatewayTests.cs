@@ -11,6 +11,23 @@ public sealed class VoiceGatewayTests
     private const string Secret = "synthetic_test_secret_32_characters_minimum";
 
     [Theory]
+    [InlineData(true, true, true, "microphone,screen_share,screen_share_audio,camera")]
+    [InlineData(true, true, false, "microphone,screen_share,screen_share_audio")]
+    [InlineData(true, false, true, "microphone,camera")]
+    [InlineData(false, true, true, "")]
+    public void MediaGrantsContainOnlyAuthorizedSources(bool speak, bool screen, bool camera, string sources)
+    {
+        using var http = new HttpClient();
+        var gateway = new LiveKitGateway(http, new Uri("http://127.0.0.1:7880"), "test_key", Secret);
+        var grant = gateway.CreateGrant(new VoiceRoom(Guid.NewGuid(), 3), Guid.NewGuid(), speak, screen, camera);
+        var jwt = new JwtSecurityTokenHandler().ReadJwtToken(grant.Token);
+        using var video = JsonDocument.Parse(jwt.Claims.Single(c => c.Type == "video").Value);
+        Assert.Equal(sources, string.Join(",", video.RootElement.GetProperty("canPublishSources").EnumerateArray().Select(item => item.GetString())));
+        Assert.False(video.RootElement.GetProperty("canPublishData").GetBoolean());
+        Assert.False(video.RootElement.GetProperty("roomAdmin").GetBoolean());
+    }
+
+    [Theory]
     [InlineData(true)]
     [InlineData(false)]
     public void GrantsAreRoomScopedShortLivedAndNeverAdministrative(bool canSpeak)
