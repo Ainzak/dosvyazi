@@ -34,7 +34,7 @@ function previewType(bytes: Uint8Array): string {
   return type;
 }
 
-export function AttachmentDownload({ attachment, community, channel }: { attachment: components['schemas']['AttachmentDto']; community: string; channel: string }) {
+export function AttachmentDownload({ attachment, community, channel, url }: { attachment: components['schemas']['AttachmentDto'] } & ({ community: string; channel: string; url?: never } | { url: string; community?: never; channel?: never })) {
   const { t } = useI18n();
   const [image, setImage] = useState<string | null>(null);
   const [decodeError, setDecodeError] = useState(false);
@@ -49,7 +49,7 @@ export function AttachmentDownload({ attachment, community, channel }: { attachm
   async function fetchFile() {
     const controller = new AbortController(); requests.current.add(controller);
     try {
-      const response = await callApi(attachmentUrl(community, channel, attachment.id), { signal: controller.signal }, 30_000);
+      const response = await callApi(url ?? attachmentUrl(community!, channel!, attachment.id), { signal: controller.signal }, 30_000);
       if (!response.ok) await readJson(response);
       const blob = await response.blob();
       if (controller.signal.aborted || !mounted.current) throw new DOMException('Canceled', 'AbortError');

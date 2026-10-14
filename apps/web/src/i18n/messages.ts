@@ -1,10 +1,12 @@
 import { russianGatherings } from './gatherings';
 import { russianMedia } from './media';
+import { russianDirect } from './direct';
 // English source text is the catalog key. User content is never translated.
 export type Locale = 'en' | 'ru';
 export const russian: Readonly<Record<string, string>> = {
   ...russianGatherings,
   ...russianMedia,
+  ...russianDirect,
   "2–40 characters. This is how others will see you.": "От 2 до 40 символов. Это имя увидят другие участники.",
   "A general text channel is included. Only members can see your community.": "Общий текстовый канал создаётся автоматически. Сообщество видят только участники.",
   "A place for your people.": "Место для своей компании.",

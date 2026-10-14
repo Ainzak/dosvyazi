@@ -28,6 +28,7 @@ public sealed class AttachmentCleanup(IServiceScopeFactory scopes, ILogger<Attac
         await db.Database.ExecuteSqlRawAsync("SELECT pg_advisory_xact_lock(73421891)", ct);
         var pending = await db.MessageAttachments.Where(a => a.Message.Deleted && !a.Purged).Take(100).ToArrayAsync(ct);
         foreach (var item in pending) { store.Remove(item.Id); item.Purged = true; }
+        foreach (var item in await db.DirectAttachments.Where(a => a.Message.Deleted && !a.Purged).Take(100).ToArrayAsync(ct)) { store.Remove(item.Id); item.Purged = true; }
         foreach (var emoji in await db.CommunityEmojis.Where(e => e.Deleted && !e.Purged).Take(100).ToArrayAsync(ct)) { store.Remove(emoji.Id); emoji.Purged = true; }
         foreach (var cover in await db.GatheringCovers.Where(c => c.Retired && !c.Purged).Take(100).ToArrayAsync(ct)) { store.Remove(cover.Id); cover.Purged = true; }
         await db.SaveChangesAsync(ct);

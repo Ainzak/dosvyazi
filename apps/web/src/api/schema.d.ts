@@ -1634,6 +1634,556 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/direct-messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    before?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["DirectInbox"];
+                        "application/json": components["schemas"]["DirectInbox"];
+                        "text/json": components["schemas"]["DirectInbox"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["StartDirectRequest"];
+                    "text/json": components["schemas"]["StartDirectRequest"];
+                    "application/*+json": components["schemas"]["StartDirectRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["DirectConversationDto"];
+                        "application/json": components["schemas"]["DirectConversationDto"];
+                        "text/json": components["schemas"]["DirectConversationDto"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/direct-messages/{conversation}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    conversation: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["DirectConversationDto"];
+                        "application/json": components["schemas"]["DirectConversationDto"];
+                        "text/json": components["schemas"]["DirectConversationDto"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/direct-messages/{conversation}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    before?: string;
+                };
+                header?: never;
+                path: {
+                    conversation: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["DirectSnapshot"];
+                        "application/json": components["schemas"]["DirectSnapshot"];
+                        "text/json": components["schemas"]["DirectSnapshot"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    conversation: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SendMessageRequest"];
+                    "text/json": components["schemas"]["SendMessageRequest"];
+                    "application/*+json": components["schemas"]["SendMessageRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["DirectMessageDto"];
+                        "application/json": components["schemas"]["DirectMessageDto"];
+                        "text/json": components["schemas"]["DirectMessageDto"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/direct-messages/{conversation}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    after?: string;
+                };
+                header?: never;
+                path: {
+                    conversation: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["DirectCatchUp"];
+                        "application/json": components["schemas"]["DirectCatchUp"];
+                        "text/json": components["schemas"]["DirectCatchUp"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/direct-messages/{conversation}/messages/{message}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    conversation: string;
+                    message: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["EditMessageRequest"];
+                    "text/json": components["schemas"]["EditMessageRequest"];
+                    "application/*+json": components["schemas"]["EditMessageRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["DirectMessageDto"];
+                        "application/json": components["schemas"]["DirectMessageDto"];
+                        "text/json": components["schemas"]["DirectMessageDto"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/direct-messages/{conversation}/messages/{message}/delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    conversation: string;
+                    message: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["DeleteDirectRequest"];
+                    "text/json": components["schemas"]["DeleteDirectRequest"];
+                    "application/*+json": components["schemas"]["DeleteDirectRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["DirectMessageDto"];
+                        "application/json": components["schemas"]["DirectMessageDto"];
+                        "text/json": components["schemas"]["DirectMessageDto"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/direct-messages/{conversation}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    conversation: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["DirectReadRequest"];
+                    "text/json": components["schemas"]["DirectReadRequest"];
+                    "application/*+json": components["schemas"]["DirectReadRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["DirectConversationDto"];
+                        "application/json": components["schemas"]["DirectConversationDto"];
+                        "text/json": components["schemas"]["DirectConversationDto"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/direct-messages/{conversation}/block": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    conversation: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["BlockDirectRequest"];
+                    "text/json": components["schemas"]["BlockDirectRequest"];
+                    "application/*+json": components["schemas"]["BlockDirectRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["DirectConversationDto"];
+                        "application/json": components["schemas"]["DirectConversationDto"];
+                        "text/json": components["schemas"]["DirectConversationDto"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/direct-messages/{conversation}/attachments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    conversation: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/x-www-form-urlencoded": {
+                        /** Format: uuid */
+                        clientMessageId?: string;
+                    } & {
+                        content?: string;
+                    } & {
+                        ContentType?: string;
+                        ContentDisposition?: string;
+                        Headers?: {
+                            [key: string]: string[];
+                        };
+                        /** Format: int64 */
+                        Length?: number | string;
+                        Name?: string;
+                        FileName?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["DirectMessageDto"];
+                        "application/json": components["schemas"]["DirectMessageDto"];
+                        "text/json": components["schemas"]["DirectMessageDto"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/direct-messages/{conversation}/voice-messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    conversation: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/x-www-form-urlencoded": {
+                        /** Format: uuid */
+                        clientMessageId?: string;
+                    } & {
+                        content?: string;
+                    } & {
+                        ContentType?: string;
+                        ContentDisposition?: string;
+                        Headers?: {
+                            [key: string]: string[];
+                        };
+                        /** Format: int64 */
+                        Length?: number | string;
+                        Name?: string;
+                        FileName?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["DirectMessageDto"];
+                        "application/json": components["schemas"]["DirectMessageDto"];
+                        "text/json": components["schemas"]["DirectMessageDto"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/direct-messages/{conversation}/attachments/{attachment}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    conversation: string;
+                    attachment: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/communities/{id}/access": {
         parameters: {
             query?: never;
@@ -2628,6 +3178,11 @@ export interface components {
         BanMemberRequest: {
             banned: boolean;
         };
+        BlockDirectRequest: {
+            /** Format: uuid */
+            clientRequestId: string;
+            blocked: boolean;
+        };
         CatchUpPage: {
             events: components["schemas"]["MessageEvent"][];
             nextSequence: string;
@@ -2702,10 +3257,69 @@ export interface components {
         CsrfResponse: {
             requestToken: string;
         };
+        DeleteDirectRequest: {
+            /** Format: uuid */
+            clientRequestId: string;
+            expectedVersion: string;
+        };
         DeleteMessageRequest: {
             /** Format: uuid */
             clientRequestId: string;
             expectedVersion: string;
+        };
+        DirectCatchUp: {
+            events: components["schemas"]["DirectEventDto"][];
+            watermark: string;
+            nextSequence: string;
+            hasMore: boolean;
+        };
+        DirectConversationDto: {
+            id: string;
+            otherUserId: string;
+            otherName: string;
+            sequence: string;
+            /** Format: int32 */
+            unread: number | string;
+            blockedByMe: boolean;
+            contactUnavailable: boolean;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        DirectEventDto: {
+            eventId: string;
+            conversationId: string;
+            sequence: string;
+            kind: string;
+            message: null | components["schemas"]["DirectMessageDto"];
+        };
+        DirectInbox: {
+            conversations: components["schemas"]["DirectConversationDto"][];
+            before: null | string;
+            hasMore: boolean;
+        };
+        DirectMessageDto: {
+            id: string;
+            conversationId: string;
+            authorId: string;
+            authorName: string;
+            clientMessageId: string;
+            sequence: string;
+            content: string;
+            /** Format: date-time */
+            createdAt: string;
+            version: string;
+            /** Format: date-time */
+            updatedAt: null | string;
+            deleted: boolean;
+            attachment: null | components["schemas"]["AttachmentDto"];
+        };
+        DirectReadRequest: {
+            sequence: string;
+        };
+        DirectSnapshot: {
+            messages: components["schemas"]["DirectMessageDto"][];
+            watermark: string;
+            hasOlder: boolean;
         };
         EditMessageRequest: {
             /** Format: uuid */
@@ -3008,6 +3622,12 @@ export interface components {
             /** Format: uuid */
             clientMessageId: string;
             content: string;
+        };
+        StartDirectRequest: {
+            /** Format: uuid */
+            clientRequestId: string;
+            /** Format: uuid */
+            userId: string;
         };
         UpdateProfileRequest: {
             displayName: string;

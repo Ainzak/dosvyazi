@@ -5,11 +5,19 @@ using App.Api.Features.Communities;
 using App.Api.Features.Messages;
 using App.Api.Features.Voice;
 using App.Api.Features.Gatherings;
+using App.Api.Features.DirectMessages;
 
 namespace App.Api.Infrastructure.Persistence;
 
 public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityUserContext<AppUser, Guid>(options)
 {
+    public DbSet<DirectConversation> DirectConversations => Set<DirectConversation>();
+    public DbSet<DirectMessage> DirectMessages => Set<DirectMessage>();
+    public DbSet<DirectAttachment> DirectAttachments => Set<DirectAttachment>();
+    public DbSet<DirectEvent> DirectEvents => Set<DirectEvent>();
+    public DbSet<DirectReadState> DirectReadStates => Set<DirectReadState>();
+    public DbSet<UserBlock> UserBlocks => Set<UserBlock>();
+    public DbSet<DirectCommand> DirectCommands => Set<DirectCommand>();
     public DbSet<UserSession> Sessions => Set<UserSession>();
     public DbSet<Community> Communities => Set<Community>();
     public DbSet<Membership> Memberships => Set<Membership>();
@@ -48,6 +56,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : Ident
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
+        DirectModel.Configure(builder);
         builder.Entity<Gathering>(g =>
         {
             g.HasAlternateKey(x => new { x.CommunityId, x.Id });

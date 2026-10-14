@@ -487,6 +487,249 @@ namespace App.Api.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("App.Api.Features.DirectMessages.DirectAttachment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ContentType")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<int?>("DurationMs")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Hash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)");
+
+                    b.Property<Guid>("MessageId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<bool>("Purged")
+                        .HasColumnType("boolean");
+
+                    b.Property<long>("Size")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MessageId")
+                        .IsUnique();
+
+                    b.ToTable("DirectAttachments", t =>
+                        {
+                            t.HasCheckConstraint("CK_DirectAttachments_Media", "(\"Kind\" = 'File' AND \"ContentType\" IS NULL AND \"DurationMs\" IS NULL) OR (\"Kind\" = 'Voice' AND \"ContentType\" = 'audio/webm;codecs=opus' AND \"ContentType\" IS NOT NULL AND \"DurationMs\" IS NOT NULL AND \"DurationMs\" BETWEEN 1 AND 60000 AND \"Size\" <= 2097152)");
+
+                            t.HasCheckConstraint("CK_DirectAttachments_Size", "\"Size\" BETWEEN 1 AND 5242880");
+                        });
+                });
+
+            modelBuilder.Entity("App.Api.Features.DirectMessages.DirectCommand", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ClientRequestId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ConversationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Hash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.HasKey("UserId", "ClientRequestId");
+
+                    b.HasIndex("ConversationId");
+
+                    b.ToTable("DirectCommands");
+                });
+
+            modelBuilder.Entity("App.Api.Features.DirectMessages.DirectConversation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("LowerUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<long>("Sequence")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UpperUserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LowerUserId", "UpdatedAt");
+
+                    b.HasIndex("LowerUserId", "UpperUserId")
+                        .IsUnique();
+
+                    b.HasIndex("UpperUserId", "UpdatedAt");
+
+                    b.ToTable("DirectConversations", t =>
+                        {
+                            t.HasCheckConstraint("CK_DirectConversations_Pair", "\"LowerUserId\" < \"UpperUserId\" AND \"Sequence\" >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("App.Api.Features.DirectMessages.DirectEvent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ConversationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<Guid?>("MessageId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("PublishedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<long>("Sequence")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MessageId");
+
+                    b.HasIndex("PublishedAt")
+                        .HasFilter("\"PublishedAt\" IS NULL");
+
+                    b.HasIndex("ConversationId", "Sequence")
+                        .IsUnique();
+
+                    b.ToTable("DirectEvents");
+                });
+
+            modelBuilder.Entity("App.Api.Features.DirectMessages.DirectMessage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AuthorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ClientMessageId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<Guid>("ConversationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("Deleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("RequestHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<long>("Sequence")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<long>("Version")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AuthorId", "CreatedAt");
+
+                    b.HasIndex("ConversationId", "Sequence")
+                        .IsUnique();
+
+                    b.HasIndex("ConversationId", "AuthorId", "ClientMessageId")
+                        .IsUnique();
+
+                    b.ToTable("DirectMessages", t =>
+                        {
+                            t.HasCheckConstraint("CK_DirectMessages_Sequence", "\"Sequence\" > 0 AND \"Version\" > 0");
+                        });
+                });
+
+            modelBuilder.Entity("App.Api.Features.DirectMessages.DirectReadState", b =>
+                {
+                    b.Property<Guid>("ConversationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<long>("Sequence")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("ConversationId", "UserId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("DirectReadStates", t =>
+                        {
+                            t.HasCheckConstraint("CK_DirectReadStates_Sequence", "\"Sequence\" >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("App.Api.Features.DirectMessages.UserBlock", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BlockedUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("UserId", "BlockedUserId");
+
+                    b.HasIndex("BlockedUserId");
+
+                    b.ToTable("UserBlocks", t =>
+                        {
+                            t.HasCheckConstraint("CK_UserBlocks_DifferentUsers", "\"UserId\" <> \"BlockedUserId\"");
+                        });
+                });
+
             modelBuilder.Entity("App.Api.Features.Gatherings.Gathering", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1452,6 +1695,108 @@ namespace App.Api.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("App.Api.Features.DirectMessages.DirectAttachment", b =>
+                {
+                    b.HasOne("App.Api.Features.DirectMessages.DirectMessage", "Message")
+                        .WithOne("Attachment")
+                        .HasForeignKey("App.Api.Features.DirectMessages.DirectAttachment", "MessageId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Message");
+                });
+
+            modelBuilder.Entity("App.Api.Features.DirectMessages.DirectCommand", b =>
+                {
+                    b.HasOne("App.Api.Features.DirectMessages.DirectConversation", null)
+                        .WithMany()
+                        .HasForeignKey("ConversationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("App.Api.Features.Accounts.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("App.Api.Features.DirectMessages.DirectConversation", b =>
+                {
+                    b.HasOne("App.Api.Features.Accounts.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("LowerUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("App.Api.Features.Accounts.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("UpperUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("App.Api.Features.DirectMessages.DirectEvent", b =>
+                {
+                    b.HasOne("App.Api.Features.DirectMessages.DirectConversation", null)
+                        .WithMany()
+                        .HasForeignKey("ConversationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("App.Api.Features.DirectMessages.DirectMessage", null)
+                        .WithMany()
+                        .HasForeignKey("MessageId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("App.Api.Features.DirectMessages.DirectMessage", b =>
+                {
+                    b.HasOne("App.Api.Features.Accounts.AppUser", "Author")
+                        .WithMany()
+                        .HasForeignKey("AuthorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("App.Api.Features.DirectMessages.DirectConversation", null)
+                        .WithMany()
+                        .HasForeignKey("ConversationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Author");
+                });
+
+            modelBuilder.Entity("App.Api.Features.DirectMessages.DirectReadState", b =>
+                {
+                    b.HasOne("App.Api.Features.DirectMessages.DirectConversation", null)
+                        .WithMany()
+                        .HasForeignKey("ConversationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("App.Api.Features.Accounts.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("App.Api.Features.DirectMessages.UserBlock", b =>
+                {
+                    b.HasOne("App.Api.Features.Accounts.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("BlockedUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("App.Api.Features.Accounts.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("App.Api.Features.Gatherings.Gathering", b =>
                 {
                     b.HasOne("App.Api.Features.Communities.Community", null)
@@ -1750,6 +2095,11 @@ namespace App.Api.Infrastructure.Persistence.Migrations
                     b.Navigation("Channels");
 
                     b.Navigation("Members");
+                });
+
+            modelBuilder.Entity("App.Api.Features.DirectMessages.DirectMessage", b =>
+                {
+                    b.Navigation("Attachment");
                 });
 
             modelBuilder.Entity("App.Api.Features.Gatherings.Gathering", b =>

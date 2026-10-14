@@ -92,6 +92,12 @@ public sealed class MessageTests(AccountsDatabase database) : IClassFixture<Acco
         Assert.Equal(HttpStatusCode.Conflict, (await Upload(owner.Client, path, id)).StatusCode);
         Assert.Single((await owner.Client.GetFromJsonAsync<MessageSnapshot>(path + "/messages"))!.Messages);
         Assert.Equal(message.Attachment, (await owner.Client.GetFromJsonAsync<CatchUpPage>(path + "/events?after=0"))!.Events.Single().Payload!.Attachment);
+        await using (var restarted = Factory())
+        {
+            using var copied = restarted.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false }); copied.DefaultRequestHeaders.Add("Cookie", owner.Cookie);
+            var persisted = (await copied.GetFromJsonAsync<MessageSnapshot>(path + "/messages"))!.Messages.Single(); Assert.Equal(message.Attachment, persisted.Attachment);
+            using var stored = await copied.GetAsync(url); Assert.Equal(HttpStatusCode.OK, stored.StatusCode); Assert.Equal(200, VoiceMessageMedia.Validate(await stored.Content.ReadAsByteArrayAsync()).DurationMs);
+        }
         Assert.Equal(HttpStatusCode.OK, (await Command(owner.Client, $"/api/v1/communities/{community.Id}/members/{member.Profile.Id}/ban", new { Banned = true }, "PUT")).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await member.Client.GetAsync(url)).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await Command(owner.Client, path + $"/messages/{message.Id}/delete", new { ClientRequestId = Guid.NewGuid(), ExpectedVersion = "1" })).StatusCode);

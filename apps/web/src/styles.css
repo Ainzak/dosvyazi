@@ -270,3 +270,14 @@ h1 { font-size: clamp(26px, 2.6vw, 36px); line-height: 1.2; letter-spacing: -1.1
 .voice-dock:has(.voice-videos) { position: relative; bottom: auto; }
 .voice-recorder audio, .voice-message-player audio { display: block; width: min(100%, 360px); margin: 8px 0; }
 .voice-recorder, .voice-message-player { padding: 12px; border: 1px solid #c8d9cd; border-radius: 10px; }
+
+.direct-workspace { display: grid; grid-template-columns: minmax(180px, 260px) minmax(0, 1fr); gap: 20px; align-items: start; }
+.direct-inbox, .direct-thread { min-width: 0; background: white; border: 1px solid #dce4e4; border-radius: 14px; padding: 18px; }
+.direct-inbox h2, .direct-thread h2 { overflow-wrap: anywhere; }
+.direct-inbox nav a { color: #244d3a; display: grid; gap: 6px; overflow-wrap: anywhere; }
+.direct-inbox nav a.active { background: #deeee5; }
+.direct-start { display: grid; gap: 8px; margin-top: 20px; }
+.direct-start input { min-width: 0; width: 100%; padding: 10px; border: 1px solid #c8d9cd; border-radius: 8px; }
+.direct-message-content { white-space: pre-wrap; overflow-wrap: anywhere; }
+.direct-thread .message-list { padding: 0; }
+@media (max-width: 850px) { .direct-workspace { grid-template-columns: minmax(0, 1fr); } .direct-inbox nav { max-height: 240px; overflow-y: auto; } }

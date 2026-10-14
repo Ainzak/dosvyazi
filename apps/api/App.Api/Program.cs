@@ -5,6 +5,7 @@ using App.Api.Features.Communities;
 using App.Api.Features.Messages;
 using App.Api.Features.Voice;
 using App.Api.Features.Gatherings;
+using App.Api.Features.DirectMessages;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
@@ -56,6 +57,10 @@ builder.Services.AddScoped<AccountService>();
 builder.Services.AddScoped<CommunityService>();
 builder.Services.AddScoped<AccessService>();
 builder.Services.AddScoped<MessageService>();
+builder.Services.AddScoped<DirectService>();
+builder.Services.AddSingleton<DirectConnections>();
+builder.Services.AddScoped<DirectPublisher>();
+builder.Services.AddHostedService<DirectWorker>();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<GatheringService>();
 builder.Services.AddSingleton<GatheringConnections>();
@@ -115,6 +120,15 @@ if (OperatingSystem.IsWindows()) protection.ProtectKeysWithDpapi();
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy("direct-starts", context => RateLimitPartition.GetFixedWindowLimiter(
+        context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "anonymous", _ => new FixedWindowRateLimiterOptions
+        { PermitLimit = 12, Window = TimeSpan.FromMinutes(1), QueueLimit = 0, AutoReplenishment = true }));
+    options.AddPolicy("direct-commands", context => RateLimitPartition.GetFixedWindowLimiter(
+        context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "anonymous", _ => new FixedWindowRateLimiterOptions
+        { PermitLimit = 60, Window = TimeSpan.FromMinutes(1), QueueLimit = 0, AutoReplenishment = true }));
+    options.AddPolicy("direct-reads", context => RateLimitPartition.GetFixedWindowLimiter(
+        context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "anonymous", _ => new FixedWindowRateLimiterOptions
+        { PermitLimit = 120, Window = TimeSpan.FromMinutes(1), QueueLimit = 0, AutoReplenishment = true }));
     options.AddPolicy("attachment-uploads", _ => RateLimitPartition.GetConcurrencyLimiter("uploads", _ => new ConcurrencyLimiterOptions
         { PermitLimit = 2, QueueLimit = 0 }));
     options.AddPolicy("voice-joins", context => RateLimitPartition.GetFixedWindowLimiter(
@@ -185,6 +199,7 @@ if (app.Environment.IsDevelopment())
 
 app.MapControllers();
 app.MapHub<MessagesHub>("/hubs/messages", options => options.CloseOnAuthenticationExpiration = true);
+app.MapHub<DirectHub>("/hubs/direct-messages", options => options.CloseOnAuthenticationExpiration = true);
 app.MapHub<GatheringsHub>("/hubs/gatherings", options => options.CloseOnAuthenticationExpiration = true);
 app.Run();
 

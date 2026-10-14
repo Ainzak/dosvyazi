@@ -1,7 +1,7 @@
 import { useI18n } from './i18n/LocaleContext';
 import { useQuery } from '@tanstack/react-query';
 import { NavLink, Route, Routes, Link } from 'react-router';
-import { Activity, ArrowRight, AudioLines, CircleCheck, Database, Hash, Info, Layers3, RefreshCw, Server, Users } from 'lucide-react';
+import { Activity, ArrowRight, AudioLines, CircleCheck, Database, Hash, Info, Layers3, MessageSquare, RefreshCw, Server, Users } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { getReadiness, getSystem } from './api/client';
 import { AccountPage, SessionLink } from './features/accounts/AccountPage';
@@ -13,6 +13,7 @@ import { PrivateCacheBoundary } from './features/communities/PrivateCacheBoundar
 import { VoiceProvider } from './features/voice/VoiceProvider';
 import { VoiceDock } from './features/voice/VoicePanel';
 import { LanguageSwitcher } from './i18n/LanguageProvider';
+import { DirectPage } from './features/direct/DirectPage';
 
 type Status = 'checking' | 'healthy' | 'unhealthy';
 
@@ -95,9 +96,10 @@ export default function App() {
         <NavLink to="/about"><Info size={18} aria-hidden="true" /> {t(" About this build")}</NavLink>
         <NavLink to="/account"><Users size={18} aria-hidden="true" /> {t(" Account")}</NavLink>
         <NavLink to="/communities"><Hash size={18} aria-hidden="true" /> {t(" Communities")}</NavLink>
+        <NavLink to="/messages"><MessageSquare size={18} aria-hidden="true" /> {t(' Messages')}</NavLink>
       </nav><div className="sidebar-footer"><span className="development-dot" /> {t(" Development build")}</div>
     </aside><div className="main-shell"><header className="topbar"><span className="topbar-breadcrumb">{t("Workspace ")}<span className="breadcrumb-divider">/</span> <span className="breadcrumb-current">{t("Dosvyazi")}</span></span><div className="topbar-actions"><LanguageSwitcher /><SessionLink /></div></header>
-      <main id="main" tabIndex={-1}><Routes><Route path="/communities/:id/gatherings/:gatheringId?" element={<GatheringsPage />} /><Route path="/profiles/:id" element={<PublicProfilePage />} /><Route path="/" element={<Workspace />} /><Route path="/about" element={<About />} /><Route path="/account" element={<AccountPage />} /><Route path="/forgot-password" element={<PasswordRecoveryPage key="request" />} /><Route path="/reset-password" element={<PasswordRecoveryPage key="reset" reset />} /><Route path="/login" element={<AccountPage mode="login" />} /><Route path="/register" element={<AccountPage mode="register" />} /><Route path="/communities" element={<CommunitiesPage />} /><Route path="/communities/:id" element={<CommunityPage />} /><Route path="/communities/:id/channels/:channelId" element={<CommunityPage />} /><Route path="*" element={<NotFound />} /></Routes></main>
+      <main id="main" tabIndex={-1}><Routes><Route path="/messages/:id?" element={<DirectPage />} /><Route path="/communities/:id/gatherings/:gatheringId?" element={<GatheringsPage />} /><Route path="/profiles/:id" element={<PublicProfilePage />} /><Route path="/" element={<Workspace />} /><Route path="/about" element={<About />} /><Route path="/account" element={<AccountPage />} /><Route path="/forgot-password" element={<PasswordRecoveryPage key="request" />} /><Route path="/reset-password" element={<PasswordRecoveryPage key="reset" reset />} /><Route path="/login" element={<AccountPage mode="login" />} /><Route path="/register" element={<AccountPage mode="register" />} /><Route path="/communities" element={<CommunitiesPage />} /><Route path="/communities/:id" element={<CommunityPage />} /><Route path="/communities/:id/channels/:channelId" element={<CommunityPage />} /><Route path="*" element={<NotFound />} /></Routes></main>
       <VoiceDock /><footer className="page-footer"><span>{t("Dosvyazi ")}<span aria-hidden="true">·</span> ДоСвязи</span><span>{t("Built for shared moments.")}</span></footer>
     </div></div></VoiceProvider>;
 }
