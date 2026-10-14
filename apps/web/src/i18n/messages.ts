@@ -202,7 +202,6 @@ export const russian: Readonly<Record<string, string>> = {
   "role": "роль",
   "rule": "правило",
   "text channel": "текстовый канал",
-  "v0.1 · Text and voice": "v0.1 · Текст и голос",
   "{value1} for {value2}": "{value1} для {value2}",
   "{value} rule": "Правило {value}",
   "· Deafened": "· Звук отключён",
