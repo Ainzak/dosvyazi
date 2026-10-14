@@ -21,6 +21,7 @@ export default defineConfig({
   webServer: [
     // Functional suites register many synthetic users; rate enforcement is tested against PostgreSQL separately.
     { command: 'node scripts/development.mjs api', cwd: root, url: 'http://127.0.0.1:5081/health/live', env: { DOSVYAZI_API_PORT: '5081', Accounts__PermitLimit: '120' }, reuseExistingServer: false },
-    { command: 'npm run dev --workspace @dosvyazi/web -- --port 5174', cwd: root, url: 'http://127.0.0.1:5174', env: { DOSVYAZI_API_TARGET: 'http://127.0.0.1:5081' }, reuseExistingServer: false },
+    // Serve one compiled artifact: development HMR can remount providers and erase drafts mid-test.
+    { command: 'npm run build:web && npm run preview --workspace @dosvyazi/web -- --port 5174', cwd: root, url: 'http://127.0.0.1:5174', env: { DOSVYAZI_API_TARGET: 'http://127.0.0.1:5081' }, reuseExistingServer: false },
   ],
 });

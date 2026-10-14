@@ -1,7 +1,12 @@
 import { expect, test } from '@playwright/test';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type { Page } from '@playwright/test';
 import type { VoiceJoin } from '../../apps/web/src/api/voice';
 import type { components } from '../../apps/web/src/api/schema';
+
+// Load the installed SDK into isolated replay clients without relying on Vite's dev cache.
+const livekitSdkFile = path.join(path.dirname(fileURLToPath(import.meta.resolve('livekit-client'))), 'livekit-client.umd.js');
 
 async function register(page: Page, name: string) {
   await page.goto('/register');
@@ -69,8 +74,9 @@ test('Speak revocation rotates live audio, rejoins listen-only, and Connect/View
     await expect(member.getByRole('button', { name: 'Enable microphone', exact: true })).toBeDisabled();
     await expect.poll(() => receivedEnergy(page)).toBeLessThan(0.001);
     const replay = await context.newPage(); await replay.goto('/about');
+    await replay.addScriptTag({ path: livekitSdkFile });
     const observed = await replay.evaluate(async grant => {
-      const sdkUrl = '/node_modules/.vite/deps/livekit-client.js'; const sdk = await import(sdkUrl); const room = new sdk.Room();
+      const sdk = (window as unknown as { LivekitClient: typeof import('livekit-client') }).LivekitClient; const room = new sdk.Room();
       try { await room.connect(grant.url, grant.token); await new Promise(resolve => setTimeout(resolve, 1000)); return room.remoteParticipants.size as number; }
       catch { return 0; } finally { await room.disconnect(); }
     }, old);
@@ -234,9 +240,9 @@ test('completed ban rotates current audio away from a replayed old grant', async
     await expect(page.getByRole('region', { name: 'Voice controls' })).toContainText('Connected', { timeout: 20_000 });
     await page.getByRole('button', { name: 'Enable microphone', exact: true }).click();
     const attacker = await context.newPage(); await attacker.goto('/about');
+    await attacker.addScriptTag({ path: livekitSdkFile });
     const observed = await attacker.evaluate(async grant => {
-      const sdkUrl = '/node_modules/.vite/deps/livekit-client.js';
-      const sdk = await import(sdkUrl);
+      const sdk = (window as unknown as { LivekitClient: typeof import('livekit-client') }).LivekitClient;
       const room = new sdk.Room();
       let joined = false;
       try {

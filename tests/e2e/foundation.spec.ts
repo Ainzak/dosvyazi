@@ -10,6 +10,9 @@ test('real API status, honest empty workspace and navigation fit the viewport', 
   expect([200, 503]).toContain(readiness.status());
   const displayedReadiness = page.waitForResponse(response => new URL(response.url()).pathname === '/health/ready');
   await page.goto('/');
+  // E2E must run against a compiled artifact, without a source-watching HMR client.
+  await expect(page.locator('script[src="/@vite/client"]')).toHaveCount(0);
+  await expect(page.locator('script[type="module"][src^="/assets/"]')).toHaveCount(1);
   await expect(page.getByRole('article', { name: 'Application API' })).toContainText('Connected');
   // Match the browser's own check, not an earlier status that can recover meanwhile.
   await expect(page.getByRole('article', { name: 'Database' })).toContainText((await displayedReadiness).ok() ? 'Ready' : 'Unavailable');
