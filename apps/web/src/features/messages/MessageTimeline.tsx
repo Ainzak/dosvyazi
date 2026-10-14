@@ -138,7 +138,7 @@ export function MessageTimeline({ community, channel, user, canSend = true, canM
         const valid = !next || (next.size > 0 && next.size <= 5 * 1024 * 1024 && /\.(txt|png|jpe?g|pdf)$/i.test(next.name));
         setFile(valid ? next : null); setFileError(valid ? null : 'Choose a nonempty TXT, PNG, JPEG or PDF file up to 5 MiB.');
       }} />
-      <p className="field-hint">{t('One file per message, up to 5 MiB. Files are downloaded, not displayed inline.')}</p>
+      <p className="field-hint">{t('One file per message, up to 5 MiB. View PNG/JPEG images in chat or download files separately.')}</p>
       {(file || fileError) && <button type="button" className="secondary-button" disabled={send.isPending} onClick={() => { setFile(null); setFileError(null); if (fileInput.current) fileInput.current.value = ''; }}>{t('Remove selected file')}</button>}
       {fileError && <p role="alert">{t(fileError)}</p>}
       {send.isError && <p role="alert" className="form-error">{t(send.error.message)}</p>}

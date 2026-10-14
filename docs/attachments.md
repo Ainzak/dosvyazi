@@ -1,10 +1,12 @@
 # Authorized chat attachments
 
-A message may include one file and an optional text caption. The composer supports selection/removal, validation feedback, sending/retry, and authenticated download. English is the default; Russian guidance is available. Existing message deletion removes attachment access too, including moderator deletion.
+A message may include one file and an optional text caption. The composer supports selection/removal, validation feedback, sending/retry, and authenticated download. PNG/JPEG files also offer View image and Hide image in the message; Download file remains a separate action. Viewing fetches authorized bytes without saving a file to disk. English is the default; Russian guidance is available. Existing message deletion removes attachment access too, including moderator deletion.
 
 ## Storage and limits
 
-The API supports nonempty UTF-8 `.txt`, `.png`, `.jpg`/`.jpeg`, and `.pdf` uploads up to 5 MiB. It checks the extension and basic file signature (or strict UTF-8 text/control characters), not the entire format or malware. Original names are limited to 120 characters without paths/control characters; only a generated GUID is used on disk. This is a download-only baseline: no inline preview, executables, archives, HTML, SVG, arbitrary MIME types or multi-file batch.
+The API supports nonempty UTF-8 `.txt`, `.png`, `.jpg`/`.jpeg`, and `.pdf` uploads up to 5 MiB. It checks the extension and basic file signature (or strict UTF-8 text/control characters), not the entire format or malware. Original names are limited to 120 characters without paths/control characters; only a generated GUID is used on disk. There are no executables, archives, HTML, SVG, arbitrary MIME types or multi-file batches.
+
+The browser previews only PNG/JPEG signatures with dimensions at most 8192 per side and 32 million pixels. It creates a typed raster blob URL after the authorized fetch; direct server downloads remain forced attachments. Preview failures leave Download file available. PDFs/text have download only. Hide, message removal, channel navigation and access/session unmount revoke the preview URL; unmount also cancels pending requests. A new view/download rechecks server access. Already fetched bytes cannot be recalled, and header bounds are not complete format validation or malware scanning.
 
 Files remain outside `wwwroot`. Development defaults to ignored `.local/files`; set `Files__RootPath` to an absolute dedicated persistent directory for other environments. The API process needs read/write permissions, not execute permissions. No public static file mapping is configured. Production Compose mounts `/opt/dosvyazi/data/files` at `/var/lib/dosvyazi/files`; create it with API UID/GID 1654:1654 and mode 700 before an authorized deployment. Existing servers need this directory and the additive migration before updating the API. This documentation does not perform a deployment.
 

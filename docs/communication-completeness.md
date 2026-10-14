@@ -4,6 +4,8 @@ These M5 features extend the existing authenticated controller API, PostgreSQL m
 
 ## Reactions and emoji
 
+Messages show only reactions with a nonzero count. Add reaction opens a searchable, scrollable picker; clicking an existing reaction toggles the current user's choice. The composer uses the same bounded picker for inserting standard/custom emoji. Escape and clicking outside close the picker. The community's custom-emoji management panel is collapsed initially. Retired custom reactions remain visible while their count is nonzero and can still be removed by their author.
+
 Each message exposes reaction counts and whether the current user reacted; other reacting users' account details are not exposed. The initial standard set is 👍, ❤️, 😂, 🎉, 😮 and 😢. `PUT .../channels/{channel}/messages/{message}/reaction` takes `clientRequestId`, `emoji`, `active`. Current View/Send permissions apply. Requests are payload-bound and idempotent; a retry of an earlier command cannot undo a later removal. A changed intent gets a new ID. The UI offers Retry reaction after an uncertain response. A message holds at most 256 user/reaction entries.
 
 Reaction changes advance message version/channel event sequence and publish through the existing outbox. Authorized live hints and catch-up refresh the current personalized payload. Editing concurrently with a reaction may return the existing version-conflict response. Deletion makes reactions unavailable through the user API.
