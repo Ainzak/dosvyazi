@@ -1,0 +1,20 @@
+[Unit]
+Description=Private Dosvyazi resource sample
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/dosvyazi/monitoring/collect.py
+User=root
+UMask=0077
+Nice=19
+IOSchedulingClass=idle
+CPUQuota=10%
+MemoryMax=64M
+TimeoutStartSec=45
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/opt/dosvyazi/metrics
+RestrictAddressFamilies=AF_UNIX

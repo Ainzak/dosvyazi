@@ -1,0 +1,11 @@
+[Unit]
+Description=Collect Dosvyazi resource metrics once a minute
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=1min
+AccuracySec=1s
+Unit=dosvyazi-metrics.service
+
+[Install]
+WantedBy=timers.target

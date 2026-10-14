@@ -67,6 +67,8 @@ Set `API_IMAGE` in the private env file to the built tag. Schema migrations are 
 
 Check trusted HTTPS `/health/ready`, secure account cookies, desktop/mobile UI, two-user messages and actual WSS/ICE audio. Check Nginx, VPN interfaces/routes, forwarding and external port reachability. Use `docker stats` and recorded observations; memory limits alone do not demonstrate capacity. Containers restart with Docker; a host reboot was not required for this setup.
 
+For continuous private CPU, RAM, network and disk observations on a small host, see [resource metrics](resource-metrics.md). Collection is optional and exposes no public endpoint; host network traffic includes background services.
+
 ## Stop and rollback
 
 Stop only this Compose project to disable the test while preserving all data:

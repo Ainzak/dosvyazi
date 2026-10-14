@@ -18,6 +18,8 @@ bin/
 obj/
 dist/
 coverage/
+__pycache__/
+*.pyc
 TestResults/
 playwright-report/
 test-results/
