@@ -11,6 +11,9 @@ namespace App.Api.Infrastructure.Persistence;
 
 public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityUserContext<AppUser, Guid>(options)
 {
+    public DbSet<App.Api.Features.Stickers.StickerPack> StickerPacks => Set<App.Api.Features.Stickers.StickerPack>();
+    public DbSet<App.Api.Features.Stickers.StickerAsset> StickerAssets => Set<App.Api.Features.Stickers.StickerAsset>();
+    public DbSet<App.Api.Features.Stickers.SavedStickerPack> SavedStickerPacks => Set<App.Api.Features.Stickers.SavedStickerPack>();
     public DbSet<DirectConversation> DirectConversations => Set<DirectConversation>();
     public DbSet<DirectMessage> DirectMessages => Set<DirectMessage>();
     public DbSet<DirectAttachment> DirectAttachments => Set<DirectAttachment>();
@@ -56,6 +59,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : Ident
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
+        App.Api.Features.Stickers.StickerModel.Configure(builder);
         DirectModel.Configure(builder);
         builder.Entity<Gathering>(g =>
         {
@@ -132,7 +136,9 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : Ident
             attachment.Property(a => a.Hash).HasMaxLength(64);
             attachment.Property(a => a.Kind).HasMaxLength(8);
             attachment.Property(a => a.ContentType).HasMaxLength(32);
-            attachment.ToTable(t => t.HasCheckConstraint("CK_MessageAttachments_Media", "(\"Kind\" = 'File' AND \"ContentType\" IS NULL AND \"DurationMs\" IS NULL) OR (\"Kind\" = 'Voice' AND \"ContentType\" IS NOT NULL AND \"ContentType\" = 'audio/webm;codecs=opus' AND \"DurationMs\" IS NOT NULL AND \"DurationMs\" BETWEEN 1 AND 60000 AND \"Size\" <= 2097152)"));
+            attachment.ToTable(t => t.HasCheckConstraint("CK_MessageAttachments_Media", "(\"Kind\" = 'File' AND \"ContentType\" IS NULL AND \"DurationMs\" IS NULL) OR (\"Kind\" = 'Voice' AND \"ContentType\" IS NOT NULL AND \"ContentType\" = 'audio/webm;codecs=opus' AND \"DurationMs\" IS NOT NULL AND \"DurationMs\" BETWEEN 1 AND 60000 AND \"Size\" <= 2097152) OR (\"Kind\" = 'Sticker' AND \"ContentType\" IS NOT NULL AND \"ContentType\" IN ('image/png', 'image/gif') AND \"DurationMs\" IS NULL AND \"SourceStickerId\" IS NOT NULL AND \"StickerPackName\" IS NOT NULL AND \"Size\" <= 1048576)"));
+            attachment.Property(x => x.StickerPackName).HasMaxLength(32);
+            attachment.HasOne<App.Api.Features.Stickers.StickerAsset>().WithMany().HasForeignKey(x => x.SourceStickerId).OnDelete(DeleteBehavior.Restrict);
             attachment.ToTable(t => t.HasCheckConstraint("CK_MessageAttachments_Size", "\"Size\" BETWEEN 1 AND 5242880"));
         });
         builder.Entity<CommunityRole>(role =>

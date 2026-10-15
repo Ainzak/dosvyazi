@@ -258,6 +258,373 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sticker-packs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["StickerPackDto"][];
+                        "application/json": components["schemas"]["StickerPackDto"][];
+                        "text/json": components["schemas"]["StickerPackDto"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CreatePackRequest"];
+                    "text/json": components["schemas"]["CreatePackRequest"];
+                    "application/*+json": components["schemas"]["CreatePackRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["StickerPackDto"];
+                        "application/json": components["schemas"]["StickerPackDto"];
+                        "text/json": components["schemas"]["StickerPackDto"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sticker-packs/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    name: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["StickerPackDetail"];
+                        "application/json": components["schemas"]["StickerPackDetail"];
+                        "text/json": components["schemas"]["StickerPackDetail"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sticker-packs/{name}/saved": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    name: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SavePackRequest"];
+                    "text/json": components["schemas"]["SavePackRequest"];
+                    "application/*+json": components["schemas"]["SavePackRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["StickerPackDto"];
+                        "application/json": components["schemas"]["StickerPackDto"];
+                        "text/json": components["schemas"]["StickerPackDto"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sticker-packs/{name}/stickers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    name: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/x-www-form-urlencoded": {
+                        /** Format: uuid */
+                        clientRequestId?: string;
+                    } & {
+                        label?: string;
+                    } & {
+                        ContentType?: string;
+                        ContentDisposition?: string;
+                        Headers?: {
+                            [key: string]: string[];
+                        };
+                        /** Format: int64 */
+                        Length?: number | string;
+                        Name?: string;
+                        FileName?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["StickerAssetDto"];
+                        "application/json": components["schemas"]["StickerAssetDto"];
+                        "text/json": components["schemas"]["StickerAssetDto"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sticker-packs/{name}/retire": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    name: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": boolean;
+                        "application/json": boolean;
+                        "text/json": boolean;
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sticker-packs/{name}/stickers/{id}/remove": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    name: string;
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": boolean;
+                        "application/json": boolean;
+                        "text/json": boolean;
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sticker-packs/{name}/stickers/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    name: string;
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/communities/{community}/channels/{channel}/stickers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    community: string;
+                    channel: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SendStickerRequest"];
+                    "text/json": components["schemas"]["SendStickerRequest"];
+                    "application/*+json": components["schemas"]["SendStickerRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["MessageDto"];
+                        "application/json": components["schemas"]["MessageDto"];
+                        "text/json": components["schemas"]["MessageDto"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/communities/{community}/channels/{channel}/attachments": {
         parameters: {
             query?: never;
@@ -1690,6 +2057,51 @@ export interface paths {
                         "text/plain": components["schemas"]["DirectConversationDto"];
                         "application/json": components["schemas"]["DirectConversationDto"];
                         "text/json": components["schemas"]["DirectConversationDto"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/direct-messages/{conversation}/stickers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    conversation: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SendStickerRequest"];
+                    "text/json": components["schemas"]["SendStickerRequest"];
+                    "application/*+json": components["schemas"]["SendStickerRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["DirectMessageDto"];
+                        "application/json": components["schemas"]["DirectMessageDto"];
+                        "text/json": components["schemas"]["DirectMessageDto"];
                     };
                 };
             };
@@ -3166,6 +3578,7 @@ export interface components {
             contentType?: null | string;
             /** Format: int32 */
             durationMs?: null | number | string;
+            stickerPackName?: null | string;
         };
         AuditDto: {
             id: string;
@@ -3253,6 +3666,12 @@ export interface components {
             lifetimeHours: number | string;
             /** Format: int32 */
             maxUses: number | string;
+        };
+        CreatePackRequest: {
+            /** Format: uuid */
+            clientRequestId: string;
+            name: string;
+            title: string;
         };
         CsrfResponse: {
             requestToken: string;
@@ -3613,6 +4032,9 @@ export interface components {
             clientRequestId: string;
             policy: components["schemas"]["AccessPolicy"];
         };
+        SavePackRequest: {
+            saved: boolean;
+        };
         SearchPage: {
             messages: components["schemas"]["MessageDto"][];
             before: null | string;
@@ -3623,11 +4045,40 @@ export interface components {
             clientMessageId: string;
             content: string;
         };
+        SendStickerRequest: {
+            /** Format: uuid */
+            clientMessageId: string;
+            /** Format: uuid */
+            stickerId: string;
+            content: null | string;
+        };
         StartDirectRequest: {
             /** Format: uuid */
             clientRequestId: string;
             /** Format: uuid */
             userId: string;
+        };
+        StickerAssetDto: {
+            id: string;
+            label: string;
+            name: string;
+            /** Format: int64 */
+            size: number | string;
+            contentType: string;
+        };
+        StickerPackDetail: {
+            pack: components["schemas"]["StickerPackDto"];
+            stickers: components["schemas"]["StickerAssetDto"][];
+        };
+        StickerPackDto: {
+            id: string;
+            name: string;
+            title: string;
+            builtIn: boolean;
+            mine: boolean;
+            saved: boolean;
+            /** Format: int32 */
+            count: number | string;
         };
         UpdateProfileRequest: {
             displayName: string;

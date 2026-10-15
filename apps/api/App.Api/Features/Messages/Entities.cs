@@ -59,6 +59,8 @@ public sealed class MessageAttachment
     public string Hash { get; set; } = "";
     public long Size { get; set; }
     public bool Purged { get; set; }
+    public Guid? SourceStickerId { get; set; }
+    public string? StickerPackName { get; set; }
 }
 
 public sealed class ChannelEvent

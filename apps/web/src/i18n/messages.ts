@@ -1,3 +1,4 @@
+import { russianStickers } from './stickers';
 import { russianGatherings } from './gatherings';
 import { russianMedia } from './media';
 import { russianDirect } from './direct';
@@ -5,6 +6,7 @@ import { russianDirect } from './direct';
 export type Locale = 'en' | 'ru';
 export const russian: Readonly<Record<string, string>> = {
   ...russianGatherings,
+  ...russianStickers,
   ...russianMedia,
   ...russianDirect,
   "2–40 characters. This is how others will see you.": "От 2 до 40 символов. Это имя увидят другие участники.",
@@ -466,11 +468,11 @@ export const russian: Readonly<Record<string, string>> = {
   "The file is too large.": "Файл слишком большой.",
   "This image cannot be previewed. You can still download the file.": "Это изображение нельзя просмотреть. Вы можете скачать файл.",
   "Remove selected file": "Убрать выбранный файл",
-  "One file per message, up to 5 MiB. View PNG/JPEG images in chat or download files separately.": "Один файл на сообщение, до 5 МиБ. Изображения PNG/JPEG можно посмотреть в чате, а файлы — скачать отдельно.",
-  "Choose a nonempty TXT, PNG, JPEG or PDF file up to 5 MiB.": "Выберите непустой файл TXT, PNG, JPEG или PDF размером до 5 МиБ.",
+  "One file per message, up to 5 MiB. View PNG/JPEG/GIF images in chat or download files separately.": "Один файл на сообщение, до 5 МиБ. Изображения PNG/JPEG/GIF можно посмотреть в чате, а файлы — скачать отдельно.",
+  "Choose a nonempty TXT, PNG, JPEG, GIF or PDF file up to 5 MiB.": "Выберите непустой файл TXT, PNG, JPEG, GIF или PDF размером до 5 МиБ.",
   "Choose a nonempty file up to 5 MiB.": "Выберите непустой файл размером до 5 МиБ.",
   "Use a filename without paths or control characters, up to 120 characters.": "Используйте имя файла до 120 символов без путей и управляющих символов.",
-  "Supported files: UTF-8 TXT, PNG, JPEG and PDF with a matching file signature.": "Поддерживаются TXT в UTF-8, PNG, JPEG и PDF с подходящей сигнатурой файла.",
+  "Supported files: UTF-8 TXT, PNG, JPEG, GIF and PDF with a matching file signature.": "Поддерживаются TXT в UTF-8, PNG, JPEG, GIF и PDF с подходящей сигнатурой файла.",
   "Attachment storage is full. Ask the operator to free space.": "Хранилище вложений заполнено. Попросите администратора освободить место.",
   "Attachment storage is unavailable. Try again later.": "Хранилище вложений недоступно. Попробуйте позже.",
   "Attachment is unavailable.": "Вложение недоступно.",

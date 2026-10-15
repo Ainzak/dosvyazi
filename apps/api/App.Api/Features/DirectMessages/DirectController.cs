@@ -21,6 +21,9 @@ public sealed class DirectController(DirectService service, AppDbContext db, Att
     }
     [HttpGet]
     public Task<ActionResult<DirectInbox>> Inbox([FromQuery] Guid? before, CancellationToken ct) => Execute(() => service.InboxAsync(User, before, ct));
+    [HttpPost("{conversation:guid}/stickers"), EnableRateLimiting("direct-commands"), RequestSizeLimit(32768)]
+    public Task<ActionResult<DirectMessageDto>> Sticker(Guid conversation, App.Api.Features.Stickers.SendStickerRequest request, CancellationToken ct)
+        => Execute(() => service.SendAsync(conversation, new(request.ClientMessageId, request.Content ?? ""), User, null, ct, request.StickerId), 201);
     [HttpPost, EnableRateLimiting("direct-starts"), RequestSizeLimit(4096)]
     public Task<ActionResult<DirectConversationDto>> Start(StartDirectRequest request, CancellationToken ct) => Execute(() => service.StartAsync(request, User, ct), 201);
     [HttpGet("{conversation:guid}")]

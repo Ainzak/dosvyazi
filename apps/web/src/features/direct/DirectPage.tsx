@@ -1,3 +1,5 @@
+import { StickerPicker } from '../stickers/StickerPicker';
+import * as stickers from '../../api/stickers';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { HubConnectionBuilder, HttpTransportType, LogLevel } from '@microsoft/signalr';
@@ -93,9 +95,9 @@ function DirectActions({ message, id, refresh, editable }: { message: api.Direct
 
 function DirectThread({ user, id }: { user: UserProfile; id: string }) {
   const { t, locale } = useI18n(); const cache = useQueryClient(); const keys = api.directKeys(user.id); const key = [...keys, id, 'messages'];
-  const [draft, setDraft] = useState(''); const [file, setFile] = useState<File | null>(null); const [voice, setVoice] = useState(false); const [recording, setRecording] = useState(false); const [fileError, setFileError] = useState<string | null>(null);
+  const [draft, setDraft] = useState(''); const [sticker, setSticker] = useState<stickers.Selection | null>(null); const [file, setFile] = useState<File | null>(null); const [voice, setVoice] = useState(false); const [recording, setRecording] = useState(false); const [fileError, setFileError] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null); const list = useRef<HTMLOListElement>(null); const follow = useRef(true); const position = useRef<{ height: number; top: number } | null>(null);
-  const request = useRef({ content: '', file: null as File | null, id: crypto.randomUUID(), confirmed: false });
+  const request = useRef({ content: '', file: null as File | null, sticker: null as string | null, id: crypto.randomUUID(), confirmed: false });
   const details = useQuery({ queryKey: [...keys, id, 'details'], queryFn: ({ signal }) => api.conversation(id, signal), refetchInterval: 5000 });
   const feed = useQuery({ queryKey: key, queryFn: async ({ signal }) => {
     let previous = cache.getQueryData<api.DirectSnapshot>(key); if (!previous) return api.history(id, signal);
@@ -110,8 +112,8 @@ function DirectThread({ user, id }: { user: UserProfile; id: string }) {
     if (list.current) position.current = { height: list.current.scrollHeight, top: list.current.scrollTop };
     cache.setQueryData<api.DirectSnapshot>(key, current => current && BigInt(page.watermark) >= BigInt(current.watermark) ? { ...current, messages: api.mergeDirect(current.messages, page.messages, current.deletedVersions), hasOlder: page.hasOlder } : current);
   } });
-  const send = useMutation({ mutationFn: (content: string) => { follow.current = true; if (request.current.confirmed || request.current.content !== content || request.current.file !== file) request.current = { content, file, id: crypto.randomUUID(), confirmed: false };
-    return file ? api.sendFile(id, request.current.id, content, file, voice) : api.send(id, request.current.id, content); }, onSuccess: () => { request.current.confirmed = true; setDraft(''); setFile(null); setVoice(false); setFileError(null); if (fileInput.current) fileInput.current.value = ''; refresh(); } });
+  const send = useMutation({ mutationFn: (content: string) => { follow.current = true; if (request.current.confirmed || request.current.content !== content || request.current.file !== file || request.current.sticker !== (sticker?.id ?? null)) request.current = { content, file, sticker: sticker?.id ?? null, id: crypto.randomUUID(), confirmed: false };
+    return sticker ? stickers.sendDirect(id, request.current.id, sticker.id, content) : file ? api.sendFile(id, request.current.id, content, file, voice) : api.send(id, request.current.id, content); }, onSuccess: () => { request.current.confirmed = true; setDraft(''); setSticker(null); setFile(null); setVoice(false); setFileError(null); if (fileInput.current) fileInput.current.value = ''; refresh(); } });
   useLayoutEffect(() => {
     const element = list.current; if (!element) return;
     if (position.current) { element.scrollTop = position.current.top + element.scrollHeight - position.current.height; position.current = null; }
@@ -136,12 +138,13 @@ function DirectThread({ user, id }: { user: UserProfile; id: string }) {
       </li>)}
       {(send.isPending || send.isError) && !request.current.confirmed && !feed.data?.messages.some(message => message.authorId === user.id && message.clientMessageId === request.current.id) && <li className="pending-message"><strong>{user.displayName}</strong><p>{send.variables}</p><span>{t(send.isPending ? 'Sending…' : 'Not confirmed. Retry with the same text.')}</span></li>}
     </ol>
-    {allowed && <form className="message-composer" onSubmit={event => { event.preventDefault(); if (!recording) send.mutate(draft); }}><label htmlFor="direct-content">{t('Direct message')}</label><textarea id="direct-content" value={draft} onChange={event => setDraft(event.target.value)} maxLength={4000} required={!file} disabled={send.isPending} rows={3} placeholder={t('Write a direct message…')} />
-      <VoiceRecorder file={voice ? file : null} disabled={send.isPending || (!!file && !voice)} busy={setRecording} ready={next => { setFile(next); setVoice(!!next); setFileError(null); if (fileInput.current) fileInput.current.value = ''; }} />
-      <label htmlFor="direct-file">{t('Attach a file')}</label><input ref={fileInput} id="direct-file" type="file" accept=".txt,.png,.jpg,.jpeg,.pdf" disabled={send.isPending || recording || voice} onChange={event => { const next = event.currentTarget.files?.[0] ?? null; const valid = !next || (next.size > 0 && next.size <= 5 * 1024 * 1024 && /\.(txt|png|jpe?g|pdf)$/i.test(next.name)); setFile(valid ? next : null); setVoice(false); setFileError(valid ? null : 'Choose a nonempty TXT, PNG, JPEG or PDF file up to 5 MiB.'); }} />
+    {allowed && <form className="message-composer" onSubmit={event => { event.preventDefault(); if (!recording) send.mutate(draft); }}><label htmlFor="direct-content">{t('Direct message')}</label><textarea id="direct-content" value={draft} onChange={event => setDraft(event.target.value)} maxLength={4000} required={!file && !sticker} disabled={send.isPending} rows={3} placeholder={t('Write a direct message…')} />
+      <StickerPicker user={user.id} selected={sticker} disabled={send.isPending || recording} pick={next => { setSticker(next); if (next) { setFile(null); setFileError(null); setVoice(false); if (fileInput.current) fileInput.current.value = ''; } }} />
+      <VoiceRecorder file={voice ? file : null} disabled={send.isPending || !!sticker || (!!file && !voice)} busy={setRecording} ready={next => { setFile(next); setSticker(null); setVoice(!!next); setFileError(null); if (fileInput.current) fileInput.current.value = ''; }} />
+      <label htmlFor="direct-file">{t('Attach a file')}</label><input ref={fileInput} id="direct-file" type="file" accept=".txt,.png,.jpg,.jpeg,.gif,.pdf" disabled={send.isPending || recording || voice} onChange={event => { const next = event.currentTarget.files?.[0] ?? null; const valid = !next || (next.size > 0 && next.size <= 5 * 1024 * 1024 && /\.(txt|png|jpe?g|gif|pdf)$/i.test(next.name)); setFile(valid ? next : null); setSticker(null); setVoice(false); setFileError(valid ? null : 'Choose a nonempty TXT, PNG, JPEG, GIF or PDF file up to 5 MiB.'); }} />
       {!voice && (file || fileError) && <button type="button" className="secondary-button" disabled={send.isPending} onClick={() => { setFile(null); setFileError(null); if (fileInput.current) fileInput.current.value = ''; }}>{t('Remove selected file')}</button>}
       {fileError && <p role="alert">{t(fileError)}</p>}{send.isError && <p role="alert">{t(send.error.message)}</p>}
-      <button className="primary-button" disabled={send.isPending || recording || !!fileError || (!draft.trim() && !file)}>{t(send.isPending ? 'Sending…' : send.isError ? 'Retry send' : 'Send direct message')}</button>
+      <button className="primary-button" disabled={send.isPending || recording || !!fileError || (!draft.trim() && !file && !sticker)}>{t(send.isPending ? 'Sending…' : send.isError ? 'Retry send' : 'Send direct message')}</button>
     </form>}
   </section>;
 }

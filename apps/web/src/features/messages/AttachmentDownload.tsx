@@ -1,3 +1,4 @@
+import { StickerPackInfo } from '../stickers/StickerPackInfo';
 import { useMutation } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { attachmentUrl } from '../../api/messages';
@@ -12,6 +13,9 @@ function previewType(bytes: Uint8Array): string {
   if (bytes.length >= 24 && [137, 80, 78, 71, 13, 10, 26, 10].every((value, index) => bytes[index] === value) &&
     [73, 72, 68, 82].every((value, index) => bytes[index + 12] === value)) {
     width = view.getUint32(16); height = view.getUint32(20); type = 'image/png';
+  } else if (bytes.length >= 13 && [71, 73, 70, 56].every((value, index) => bytes[index] === value) && [55, 57].includes(bytes[4]!) && bytes[5] === 97) {
+    width = view.getUint16(6, true); height = view.getUint16(8, true); type = 'image/gif';
+    if (width > 2048 || height > 2048) throw new Error('This image cannot be previewed. You can still download the file.');
   } else if (bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255) {
     let offset = 2;
     while (offset < bytes.length) {
@@ -37,6 +41,7 @@ function previewType(bytes: Uint8Array): string {
 export function AttachmentDownload({ attachment, community, channel, url }: { attachment: components['schemas']['AttachmentDto'] } & ({ community: string; channel: string; url?: never } | { url: string; community?: never; channel?: never })) {
   const { t } = useI18n();
   const [image, setImage] = useState<string | null>(null);
+  const [packOpen, setPackOpen] = useState(false);
   const [decodeError, setDecodeError] = useState(false);
   const imageUrl = useRef<string | null>(null);
   const mounted = useRef(false);
@@ -57,7 +62,7 @@ export function AttachmentDownload({ attachment, community, channel, url }: { at
       return blob;
     } finally { requests.current.delete(controller); }
   }
-  function hideImage() { if (imageUrl.current) URL.revokeObjectURL(imageUrl.current); imageUrl.current = null; setImage(null); }
+  function hideImage() { if (imageUrl.current) URL.revokeObjectURL(imageUrl.current); imageUrl.current = null; setImage(null); setPackOpen(false); }
   const preview = useMutation({ mutationFn: async () => {
     const blob = await fetchFile();
     const type = previewType(new Uint8Array(await blob.arrayBuffer()));
@@ -74,11 +79,14 @@ export function AttachmentDownload({ attachment, community, channel, url }: { at
     const link = document.createElement('a'); link.href = url; link.download = attachment.name;
     document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
   } });
-  const isImage = /\.(png|jpe?g)$/i.test(attachment.name);
-  return <div className="message-attachment"><div className="attachment-actions">
+  const isImage = /\.(png|jpe?g|gif)$/i.test(attachment.name);
+  return <div className="message-attachment">{attachment.kind === 'Sticker' && <small>{t('Sticker')} · {attachment.stickerPackName}</small>}<div className="attachment-actions">
     {isImage && <button type="button" className="secondary-button" disabled={preview.isPending} aria-expanded={!!image} onClick={() => image ? hideImage() : preview.mutate()}>{t(preview.isPending ? 'Loading image…' : image ? 'Hide image' : 'View image')}: {attachment.name}</button>}
     <button type="button" className="secondary-button" disabled={download.isPending} onClick={() => download.mutate()}>{t(download.isPending ? 'Downloading…' : 'Download file')}: {attachment.name}</button><small>{Math.ceil(Number(attachment.size) / 1024)} KiB</small></div>
-    {image && <img className="attachment-preview" src={image} alt={`${t('Image attachment')}: ${attachment.name}`} onError={() => { hideImage(); setDecodeError(true); }} />}
+    {image && (attachment.kind === 'Sticker' && attachment.stickerPackName ? <>
+      <button type="button" className="sticker-image-button" aria-label={t('Sticker pack info: {value}', { value: attachment.stickerPackName })} aria-expanded={packOpen} onClick={() => setPackOpen(value => !value)}><img className="attachment-preview sticker-preview" src={image} alt={`${t('Image attachment')}: ${attachment.name}`} onError={() => { hideImage(); setDecodeError(true); }} /></button>
+      <button type="button" className="secondary-button" aria-expanded={packOpen} onClick={() => setPackOpen(value => !value)}>{t('Sticker pack info')}</button>{packOpen && <StickerPackInfo name={attachment.stickerPackName} />}
+    </> : <img className="attachment-preview" src={image} alt={`${t('Image attachment')}: ${attachment.name}`} onError={() => { hideImage(); setDecodeError(true); }} />)}
     {preview.isPending && <p role="status">{t('Loading image…')}</p>}
     {preview.isError && preview.error.name !== 'AbortError' && <p role="alert">{t(preview.error.message)}</p>}
     {decodeError && <p role="alert">{t('This image cannot be previewed. You can still download the file.')}</p>}

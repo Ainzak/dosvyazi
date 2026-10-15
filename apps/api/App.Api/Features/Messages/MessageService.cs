@@ -14,7 +14,7 @@ public sealed partial class MessageService(AppDbContext database, AttachmentStor
     public static MessageDto Dto(Message message) => new(message.Id.ToString(), message.ChannelId.ToString(), message.AuthorId.ToString(),
         message.Author.DisplayName, message.ClientMessageId.ToString(), message.Sequence.ToString(CultureInfo.InvariantCulture), message.Deleted ? "" : message.Content, message.CreatedAt,
         message.Version.ToString(CultureInfo.InvariantCulture), message.UpdatedAt, message.Deleted,
-        message.Deleted || message.Attachment is null ? null : new(message.Attachment.Id.ToString(), message.Attachment.Name, message.Attachment.Size, message.Attachment.Kind, message.Attachment.ContentType, message.Attachment.DurationMs));
+        message.Deleted || message.Attachment is null ? null : new(message.Attachment.Id.ToString(), message.Attachment.Name, message.Attachment.Size, message.Attachment.Kind, message.Attachment.ContentType, message.Attachment.DurationMs, message.Attachment.StickerPackName));
 
     private static MessageDto DtoFor(Message message, Guid user, EffectiveChannelAccess access) => Dto(message) with
     { Reactions = message.Reactions.Count == 0 ? null : message.Reactions.GroupBy(r => r.Emoji).OrderBy(g => g.Key).Select(g => new ReactionDto(g.Key, g.Count(), g.Any(r => r.UserId == user))).ToArray() };
@@ -38,17 +38,25 @@ public sealed partial class MessageService(AppDbContext database, AttachmentStor
         return result;
     }
 
-    public async Task<MessageDto> SendAsync(Guid community, Guid channel, Guid user, SendMessageRequest request, CancellationToken ct, PreparedAttachment? attachment = null)
+    public async Task<MessageDto> SendAsync(Guid community, Guid channel, Guid user, SendMessageRequest request, CancellationToken ct, PreparedAttachment? attachment = null, Guid? stickerId = null)
     {
-        if (request.ClientMessageId == Guid.Empty || (string.IsNullOrWhiteSpace(request.Content) && attachment is null) || request.Content.Length > 4000 ||
+        if (request.ClientMessageId == Guid.Empty || (string.IsNullOrWhiteSpace(request.Content) && attachment is null && stickerId is null) || request.Content.Length > 4000 ||
             request.Content.Any(character => char.IsControl(character) && character is not '\n' and not '\r' and not '\t'))
             throw new CommunityFailure(400, "Use a message ID and 1–4000 characters of text.");
         await using var transaction = await database.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, ct);
         var textChannel = await LockAuthorizedAsync(community, channel, user, ct);
         if (!(await ChannelAccess.ResolveAsync(database, community, textChannel, user, ct)).Send) throw new CommunityFailure(403, "You cannot send messages in this channel.");
+        var message = await database.Messages.Include(item => item.Author).Include(item => item.Attachment).Include(item => item.Reactions).SingleOrDefaultAsync(item => item.ChannelId == channel && item.AuthorId == user && item.ClientMessageId == request.ClientMessageId, ct);
+        if (stickerId.HasValue)
+        {
+            if (stickerId == Guid.Empty) throw new CommunityFailure(422, "Choose a sticker from a pack.");
+            var prior = message?.Attachment;
+            attachment = prior?.SourceStickerId == stickerId ? new(prior.Name, [], prior.Hash, "Sticker", prior.ContentType, SourceStickerId: prior.SourceStickerId, StickerPackName: prior.StickerPackName)
+                : await App.Api.Features.Stickers.StickerMedia.PrepareAsync(database, files, stickerId.Value, ct);
+        }
         var hash = attachment is null ? ContentHash(request.Content) : ContentHash(JsonSerializer.Serialize(new { request.Content, attachment.Name, attachment.Hash }));
         if (attachment?.Kind == "Voice") hash = ContentHash(JsonSerializer.Serialize(new { request.Content, attachment.Kind, attachment.InputHash }));
-        var message = await database.Messages.Include(item => item.Author).Include(item => item.Attachment).Include(item => item.Reactions).SingleOrDefaultAsync(item => item.ChannelId == channel && item.AuthorId == user && item.ClientMessageId == request.ClientMessageId, ct);
+        if (attachment?.Kind == "Sticker") hash = ContentHash(JsonSerializer.Serialize(new { request.Content, attachment.Kind, attachment.SourceStickerId, attachment.Hash }));
         if (message is null)
         {
             var now = DateTimeOffset.UtcNow;
@@ -65,7 +73,7 @@ public sealed partial class MessageService(AppDbContext database, AttachmentStor
                 if (files.UsedBytes() + attachment.Bytes.Length > files.QuotaBytes)
                     throw new CommunityFailure(409, "Attachment storage is full. Ask the operator to free space.");
                 message.Attachment = new MessageAttachment { Id = Guid.NewGuid(), Name = attachment.Name, Hash = attachment.Hash, Size = attachment.Bytes.Length,
-                    Kind = attachment.Kind, ContentType = attachment.ContentType, DurationMs = attachment.DurationMs };
+                    Kind = attachment.Kind, ContentType = attachment.ContentType, DurationMs = attachment.DurationMs, SourceStickerId = attachment.SourceStickerId, StickerPackName = attachment.StickerPackName };
                 // Crash/ambiguous commit leftovers stay private and count against quota;
                 // never compensate an uncertain commit by deleting a committed blob.
                 await files.WriteAsync(message.Attachment.Id, attachment.Bytes, ct);

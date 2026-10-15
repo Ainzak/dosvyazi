@@ -524,14 +524,23 @@ namespace App.Api.Infrastructure.Persistence.Migrations
                     b.Property<long>("Size")
                         .HasColumnType("bigint");
 
+                    b.Property<Guid?>("SourceStickerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("StickerPackName")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
                     b.HasKey("Id");
 
                     b.HasIndex("MessageId")
                         .IsUnique();
 
+                    b.HasIndex("SourceStickerId");
+
                     b.ToTable("DirectAttachments", t =>
                         {
-                            t.HasCheckConstraint("CK_DirectAttachments_Media", "(\"Kind\" = 'File' AND \"ContentType\" IS NULL AND \"DurationMs\" IS NULL) OR (\"Kind\" = 'Voice' AND \"ContentType\" = 'audio/webm;codecs=opus' AND \"ContentType\" IS NOT NULL AND \"DurationMs\" IS NOT NULL AND \"DurationMs\" BETWEEN 1 AND 60000 AND \"Size\" <= 2097152)");
+                            t.HasCheckConstraint("CK_DirectAttachments_Media", "(\"Kind\" = 'File' AND \"ContentType\" IS NULL AND \"DurationMs\" IS NULL) OR (\"Kind\" = 'Voice' AND \"ContentType\" = 'audio/webm;codecs=opus' AND \"ContentType\" IS NOT NULL AND \"DurationMs\" IS NOT NULL AND \"DurationMs\" BETWEEN 1 AND 60000 AND \"Size\" <= 2097152) OR (\"Kind\" = 'Sticker' AND \"ContentType\" IS NOT NULL AND \"ContentType\" IN ('image/png', 'image/gif') AND \"DurationMs\" IS NULL AND \"SourceStickerId\" IS NOT NULL AND \"StickerPackName\" IS NOT NULL AND \"Size\" <= 1048576)");
 
                             t.HasCheckConstraint("CK_DirectAttachments_Size", "\"Size\" BETWEEN 1 AND 5242880");
                         });
@@ -1204,14 +1213,23 @@ namespace App.Api.Infrastructure.Persistence.Migrations
                     b.Property<long>("Size")
                         .HasColumnType("bigint");
 
+                    b.Property<Guid?>("SourceStickerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("StickerPackName")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
                     b.HasKey("Id");
 
                     b.HasIndex("MessageId")
                         .IsUnique();
 
+                    b.HasIndex("SourceStickerId");
+
                     b.ToTable("MessageAttachments", t =>
                         {
-                            t.HasCheckConstraint("CK_MessageAttachments_Media", "(\"Kind\" = 'File' AND \"ContentType\" IS NULL AND \"DurationMs\" IS NULL) OR (\"Kind\" = 'Voice' AND \"ContentType\" IS NOT NULL AND \"ContentType\" = 'audio/webm;codecs=opus' AND \"DurationMs\" IS NOT NULL AND \"DurationMs\" BETWEEN 1 AND 60000 AND \"Size\" <= 2097152)");
+                            t.HasCheckConstraint("CK_MessageAttachments_Media", "(\"Kind\" = 'File' AND \"ContentType\" IS NULL AND \"DurationMs\" IS NULL) OR (\"Kind\" = 'Voice' AND \"ContentType\" IS NOT NULL AND \"ContentType\" = 'audio/webm;codecs=opus' AND \"DurationMs\" IS NOT NULL AND \"DurationMs\" BETWEEN 1 AND 60000 AND \"Size\" <= 2097152) OR (\"Kind\" = 'Sticker' AND \"ContentType\" IS NOT NULL AND \"ContentType\" IN ('image/png', 'image/gif') AND \"DurationMs\" IS NULL AND \"SourceStickerId\" IS NOT NULL AND \"StickerPackName\" IS NOT NULL AND \"Size\" <= 1048576)");
 
                             t.HasCheckConstraint("CK_MessageAttachments_Size", "\"Size\" BETWEEN 1 AND 5242880");
                         });
@@ -1288,6 +1306,128 @@ namespace App.Api.Infrastructure.Persistence.Migrations
                         .HasFilter("\"PublishedAt\" IS NULL");
 
                     b.ToTable("OutboxEntries");
+                });
+
+            modelBuilder.Entity("App.Api.Features.Stickers.SavedStickerPack", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("PackId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("UserId", "PackId");
+
+                    b.HasIndex("PackId");
+
+                    b.ToTable("SavedStickerPacks");
+                });
+
+            modelBuilder.Entity("App.Api.Features.Stickers.StickerAsset", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ClientRequestId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<bool>("Deleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Filename")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<string>("Hash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<Guid>("PackId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("Purged")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("RequestHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<long>("Size")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PackId", "ClientRequestId")
+                        .IsUnique();
+
+                    b.ToTable("StickerAssets", t =>
+                        {
+                            t.HasCheckConstraint("CK_StickerAssets_Media", "\"Size\" BETWEEN 1 AND 1048576 AND \"ContentType\" IN ('image/png', 'image/gif')");
+                        });
+                });
+
+            modelBuilder.Entity("App.Api.Features.Stickers.StickerPack", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("BuiltIn")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("ClientRequestId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("Deleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<Guid?>("OwnerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("RequestHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.HasIndex("OwnerId", "ClientRequestId")
+                        .IsUnique();
+
+                    b.ToTable("StickerPacks", t =>
+                        {
+                            t.HasCheckConstraint("CK_StickerPacks_Owner", "(\"BuiltIn\" AND \"OwnerId\" IS NULL) OR (NOT \"BuiltIn\" AND \"OwnerId\" IS NOT NULL)");
+                        });
                 });
 
             modelBuilder.Entity("App.Api.Features.Voice.RetiredVoiceRoom", b =>
@@ -1703,6 +1843,11 @@ namespace App.Api.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("App.Api.Features.Stickers.StickerAsset", null)
+                        .WithMany()
+                        .HasForeignKey("SourceStickerId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.Navigation("Message");
                 });
 
@@ -1966,6 +2111,11 @@ namespace App.Api.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("App.Api.Features.Stickers.StickerAsset", null)
+                        .WithMany()
+                        .HasForeignKey("SourceStickerId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.Navigation("Message");
                 });
 
@@ -2011,6 +2161,40 @@ namespace App.Api.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("Event");
+                });
+
+            modelBuilder.Entity("App.Api.Features.Stickers.SavedStickerPack", b =>
+                {
+                    b.HasOne("App.Api.Features.Stickers.StickerPack", null)
+                        .WithMany()
+                        .HasForeignKey("PackId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("App.Api.Features.Accounts.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("App.Api.Features.Stickers.StickerAsset", b =>
+                {
+                    b.HasOne("App.Api.Features.Stickers.StickerPack", "Pack")
+                        .WithMany()
+                        .HasForeignKey("PackId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Pack");
+                });
+
+            modelBuilder.Entity("App.Api.Features.Stickers.StickerPack", b =>
+                {
+                    b.HasOne("App.Api.Features.Accounts.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("OwnerId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("App.Api.Features.Voice.RetiredVoiceRoom", b =>

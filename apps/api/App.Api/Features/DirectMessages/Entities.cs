@@ -38,6 +38,8 @@ public sealed class DirectAttachment
     public string? ContentType { get; set; }
     public int? DurationMs { get; set; }
     public bool Purged { get; set; }
+    public Guid? SourceStickerId { get; set; }
+    public string? StickerPackName { get; set; }
 }
 public sealed class DirectEvent
 {

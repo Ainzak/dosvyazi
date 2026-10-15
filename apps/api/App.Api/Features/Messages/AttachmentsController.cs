@@ -14,6 +14,15 @@ public sealed class AttachmentsController(MessageService messages, AppDbContext 
 {
     private Guid UserId => Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
+    [HttpPost("stickers"), EnableRateLimiting("direct-commands"), RequestSizeLimit(32768)]
+    public async Task<ActionResult<MessageDto>> SendSticker(App.Api.Features.Stickers.SendStickerRequest request, Guid community, Guid channel, CancellationToken ct)
+    {
+        try { return StatusCode(201, await messages.SendAsync(community, channel, UserId, new(request.ClientMessageId, request.Content ?? ""), ct, stickerId: request.StickerId)); }
+        catch (CommunityFailure e) { return Problem(statusCode: e.Status, title: e.Message); }
+        catch (IOException) { return Problem(statusCode: 503, title: "Attachment storage is unavailable. Try again later."); }
+        catch (UnauthorizedAccessException) { return Problem(statusCode: 503, title: "Attachment storage is unavailable. Try again later."); }
+    }
+
     [HttpPost("attachments"), EnableRateLimiting("attachment-uploads")]
     [RequestSizeLimit(6 * 1024 * 1024), RequestFormLimits(MultipartBodyLengthLimit = 6 * 1024 * 1024)]
     [ProducesResponseType<MessageDto>(201)]

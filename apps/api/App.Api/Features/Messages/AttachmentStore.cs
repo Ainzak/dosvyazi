@@ -4,7 +4,7 @@ using App.Api.Features.Communities;
 
 namespace App.Api.Features.Messages;
 
-public sealed record PreparedAttachment(string Name, byte[] Bytes, string Hash, string Kind = "File", string? ContentType = null, int? DurationMs = null, string? InputHash = null);
+public sealed record PreparedAttachment(string Name, byte[] Bytes, string Hash, string Kind = "File", string? ContentType = null, int? DurationMs = null, string? InputHash = null, Guid? SourceStickerId = null, string? StickerPackName = null);
 
 public sealed class AttachmentStore(IConfiguration configuration, IWebHostEnvironment environment)
 {
@@ -46,11 +46,12 @@ public sealed class AttachmentStore(IConfiguration configuration, IWebHostEnviro
         {
             ".png" => bytes.AsSpan().StartsWith(new byte[] { 137, 80, 78, 71, 13, 10, 26, 10 }),
             ".jpg" or ".jpeg" => bytes.AsSpan().StartsWith(new byte[] { 255, 216, 255 }),
+            ".gif" => GifMedia.Validate(bytes).Frames > 0,
             ".pdf" => bytes.AsSpan().StartsWith("%PDF-"u8),
             ".txt" => ValidText(bytes),
             _ => false,
         };
-        if (!valid) throw new CommunityFailure(422, "Supported files: UTF-8 TXT, PNG, JPEG and PDF with a matching file signature.");
+        if (!valid) throw new CommunityFailure(422, "Supported files: UTF-8 TXT, PNG, JPEG, GIF and PDF with a matching file signature.");
         return new(name, bytes, Convert.ToHexStringLower(SHA256.HashData(bytes)));
     }
     private static bool ValidText(byte[] bytes)

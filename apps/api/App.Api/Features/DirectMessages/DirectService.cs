@@ -96,20 +96,28 @@ public sealed class DirectService(AppDbContext db, AttachmentStore files, IOptio
     }
     public static DirectMessageDto MessageDto(DirectMessage message) => new(message.Id.ToString(), message.ConversationId.ToString(), message.AuthorId.ToString(), message.Author.DisplayName,
         message.ClientMessageId.ToString(), Sequence(message.Sequence), message.Deleted ? "" : message.Content, message.CreatedAt, Sequence(message.Version), message.UpdatedAt, message.Deleted,
-        message.Deleted || message.Attachment is null ? null : new(message.Attachment.Id.ToString(), message.Attachment.Name, message.Attachment.Size, message.Attachment.Kind, message.Attachment.ContentType, message.Attachment.DurationMs));
+        message.Deleted || message.Attachment is null ? null : new(message.Attachment.Id.ToString(), message.Attachment.Name, message.Attachment.Size, message.Attachment.Kind, message.Attachment.ContentType, message.Attachment.DurationMs, message.Attachment.StickerPackName));
     private void Event(DirectConversation conversation, string kind, Guid? message)
     {
         conversation.Sequence = checked(conversation.Sequence + 1); conversation.UpdatedAt = Now();
         db.DirectEvents.Add(new() { Id = Guid.NewGuid(), ConversationId = conversation.Id, Sequence = conversation.Sequence, MessageId = message, Kind = kind, CreatedAt = conversation.UpdatedAt });
     }
-    public async Task<DirectMessageDto> SendAsync(Guid id, SendMessageRequest request, ClaimsPrincipal principal, PreparedAttachment? attachment, CancellationToken ct)
+    public async Task<DirectMessageDto> SendAsync(Guid id, SendMessageRequest request, ClaimsPrincipal principal, PreparedAttachment? attachment, CancellationToken ct, Guid? stickerId = null)
     {
-        if (request.ClientMessageId == Guid.Empty || request.Content.Length > 4000 || (string.IsNullOrWhiteSpace(request.Content) && attachment is null) || request.Content.Any(c => char.IsControl(c) && c is not '\r' and not '\n' and not '\t'))
+        if (request.ClientMessageId == Guid.Empty || request.Content.Length > 4000 || (string.IsNullOrWhiteSpace(request.Content) && attachment is null && stickerId is null) || request.Content.Any(c => char.IsControl(c) && c is not '\r' and not '\n' and not '\t'))
             throw new CommunityFailure(400, "Use a message ID and up to 4000 characters or one attachment.");
         await using var tx = await db.Database.BeginTransactionAsync(ct); var conversation = await LockAsync(id, principal, ct); var user = Actor(principal);
         await RequireContact(conversation, ct);
-        var hash = Hash(new { request.Content, attachment?.Name, attachment?.Kind, bytes = attachment?.InputHash ?? attachment?.Hash });
         var message = await db.DirectMessages.Include(m => m.Author).Include(m => m.Attachment).SingleOrDefaultAsync(m => m.ConversationId == id && m.AuthorId == user && m.ClientMessageId == request.ClientMessageId, ct);
+        if (stickerId.HasValue)
+        {
+            if (stickerId == Guid.Empty) throw new CommunityFailure(422, "Choose a sticker from a pack.");
+            var prior = message?.Attachment;
+            attachment = prior?.SourceStickerId == stickerId ? new(prior.Name, [], prior.Hash, "Sticker", prior.ContentType, SourceStickerId: prior.SourceStickerId, StickerPackName: prior.StickerPackName)
+                : await App.Api.Features.Stickers.StickerMedia.PrepareAsync(db, files, stickerId.Value, ct);
+        }
+        var hash = Hash(new { request.Content, attachment?.Name, attachment?.Kind, bytes = attachment?.InputHash ?? attachment?.Hash });
+        if (attachment?.Kind == "Sticker") hash = Hash(new { request.Content, attachment.Kind, attachment.SourceStickerId, attachment.Hash });
         if (message is null)
         {
             if (await db.DirectMessages.CountAsync(m => m.AuthorId == user && m.CreatedAt >= DateTimeOffset.UtcNow.AddMinutes(-1), ct) >= 60)
@@ -123,7 +131,7 @@ public sealed class DirectService(AppDbContext db, AttachmentStore files, IOptio
             {
                 await db.Database.ExecuteSqlRawAsync("SELECT pg_advisory_xact_lock(73421891)", ct);
                 if (files.UsedBytes() + attachment.Bytes.Length > files.QuotaBytes) throw new CommunityFailure(409, "Attachment storage is full. Ask the operator to free space.");
-                message.Attachment = new() { Id = Guid.NewGuid(), Name = attachment.Name, Hash = attachment.Hash, Size = attachment.Bytes.Length, Kind = attachment.Kind, ContentType = attachment.ContentType, DurationMs = attachment.DurationMs };
+                message.Attachment = new() { Id = Guid.NewGuid(), Name = attachment.Name, Hash = attachment.Hash, Size = attachment.Bytes.Length, Kind = attachment.Kind, ContentType = attachment.ContentType, DurationMs = attachment.DurationMs, SourceStickerId = attachment.SourceStickerId, StickerPackName = attachment.StickerPackName };
                 await files.WriteAsync(message.Attachment.Id, attachment.Bytes, ct);
             }
             await db.SaveChangesAsync(ct);
