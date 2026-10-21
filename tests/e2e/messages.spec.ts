@@ -1,3 +1,4 @@
+import { changeLanguage, communityOverview, composerTools, messageAction, workspaceLink } from './workspace-navigation';
 import { test, expect } from '@playwright/test';
 import type { Page, Browser } from '@playwright/test';
 
@@ -14,9 +15,9 @@ async function community(page: Page) {
   await page.getByLabel('Community name', { exact: true }).fill('Text test crew');
   await page.getByRole('button', { name: 'Create community', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Text test crew', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Create invitation', exact: true }).click();
+  await communityOverview(page); await page.getByRole('button', { name: 'Create invitation', exact: true }).click();
   const code = await page.getByLabel('Share this invitation code').inputValue();
-  await page.getByRole('link', { name: 'general', exact: true }).click();
+  await workspaceLink(page, 'general');
   await expect(page.getByRole('heading', { name: '#general' })).toBeVisible();
   return { url: page.url(), code };
 }
@@ -28,7 +29,7 @@ async function member(browser: Browser, owner: Page, code: string) {
   await page.getByLabel('Invitation code', { exact: true }).fill(code);
   await page.getByRole('button', { name: 'Join community', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Text test crew', exact: true })).toBeVisible();
-  await page.getByRole('link', { name: 'general', exact: true }).click();
+  await workspaceLink(page, 'general');
   return { context, page };
 }
 async function send(page: Page, text: string) {
@@ -42,7 +43,7 @@ test('attachments deliver live, download after reload and disappear after deleti
   await register(page, 'File owner'); const room = await community(page); const second = await member(browser, page, room.code);
   const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
   try {
-    await page.getByLabel('Attach a file', { exact: true }).setInputFiles({ name: 'shared-notes.txt', mimeType: 'text/plain', buffer: Buffer.from('Verified attachment body') });
+    await composerTools(page); await page.getByLabel('Attach a file', { exact: true }).setInputFiles({ name: 'shared-notes.txt', mimeType: 'text/plain', buffer: Buffer.from('Verified attachment body') });
     await page.getByRole('button', { name: 'Send message', exact: true }).click();
     const button = second.page.getByRole('button', { name: 'Download file: shared-notes.txt', exact: true });
     await expect(button).toBeVisible(); await second.page.reload(); await expect(button).toBeVisible();
@@ -55,7 +56,7 @@ test('attachments deliver live, download after reload and disappear after deleti
     expect(Buffer.concat(chunks).toString()).toBe('Verified attachment body');
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.screenshot({ path: info.outputPath('attachments.png'), fullPage: true });
-    await page.getByRole('button', { name: 'Delete message by File owner', exact: true }).click();
+    await messageAction(page, 'Delete message by File owner');
     await page.getByRole('button', { name: 'Confirm delete', exact: true }).click();
     await expect(button).toHaveCount(0); expect(errors).toEqual([]);
   } finally { await second.context.close(); }
@@ -63,11 +64,11 @@ test('attachments deliver live, download after reload and disappear after deleti
 
 test('attachments retain retry identity and reject invalid selections with translated guidance', async ({ page }) => {
   await register(page, 'Retry file owner'); await community(page);
-  await page.getByLabel('Attach a file', { exact: true }).setInputFiles({ name: 'unsafe.svg', mimeType: 'image/svg+xml', buffer: Buffer.from('<svg/>') });
+  await composerTools(page); await page.getByLabel('Attach a file', { exact: true }).setInputFiles({ name: 'unsafe.svg', mimeType: 'image/svg+xml', buffer: Buffer.from('<svg/>') });
   await expect(page.getByRole('alert')).toContainText('Choose a nonempty');
   await page.getByRole('button', { name: 'Remove selected file', exact: true }).click();
   await expect(page.getByRole('alert')).toHaveCount(0);
-  await page.getByLabel('Attach a file', { exact: true }).setInputFiles({ name: 'retry.txt', mimeType: 'text/plain', buffer: Buffer.from('Retained retry file') });
+  await composerTools(page); await page.getByLabel('Attach a file', { exact: true }).setInputFiles({ name: 'retry.txt', mimeType: 'text/plain', buffer: Buffer.from('Retained retry file') });
   const ids: string[] = [];
   await page.route('**/channels/*/attachments', async route => {
     const data = route.request().postDataBuffer()!.toString(); ids.push(/name="clientMessageId"\r\n\r\n([^\r]+)/.exec(data)![1]!);
@@ -79,7 +80,8 @@ test('attachments retain retry identity and reject invalid selections with trans
   await expect(page.getByRole('button', { name: 'Send message', exact: true })).toBeVisible();
   expect(ids).toHaveLength(2); expect(ids[0]).toBe(ids[1]);
   await expect(page.getByRole('button', { name: 'Download file: retry.txt', exact: true })).toHaveCount(1);
-  await page.getByRole('button', { name: 'Русский', exact: true }).click();
+  await changeLanguage(page, 'ru');
+  await composerTools(page);
   await expect(page.getByLabel('Прикрепить файл', { exact: true })).toBeVisible();
 });
 
@@ -223,11 +225,11 @@ test('background session and community failures keep the loaded chat and draft',
   const failure = { status: 503, contentType: 'application/problem+json', body: JSON.stringify({ title: 'Synthetic background outage.' }) };
   await page.route('**/api/v1/account/me', route => fail ? route.fulfill(failure) : route.continue());
   await page.evaluate(() => window.dispatchEvent(new Event('visibilitychange')));
-  await expect(page.getByRole('button', { name: 'Retry session check', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Restore connection', exact: true })).toBeVisible();
   await expect(page.getByLabel('Message', { exact: true })).toHaveValue('Keep this draft during background errors');
   fail = false;
-  await page.getByRole('button', { name: 'Retry session check', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Retry session check', exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Restore connection', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Restore connection', exact: true })).toHaveCount(0);
   const path = `/api/v1${new URL(room.url).pathname.split('/channels/')[0]}`;
   fail = true;
   await page.route(`**${path}`, route => fail ? route.fulfill(failure) : route.continue());

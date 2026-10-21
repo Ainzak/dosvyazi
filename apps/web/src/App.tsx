@@ -1,20 +1,23 @@
 import { StickersPage } from './features/stickers/StickersPage';
+import { InstallPanel } from './features/delivery/InstallPanel';
+import { ThreadsPage } from './features/threads/ThreadsPage';
+import { ForumsPage } from './features/forums/ForumsPage';
 import { useI18n } from './i18n/LocaleContext';
 import { useQuery } from '@tanstack/react-query';
-import { NavLink, Route, Routes, Link } from 'react-router';
-import { Activity, ArrowRight, AudioLines, CircleCheck, Database, Hash, Info, Layers3, MessageSquare, RefreshCw, Server, Users } from 'lucide-react';
+import { Route, Routes, Link } from 'react-router';
+import { ArrowRight, CircleCheck, Database, Info, Layers3, RefreshCw, Server, Users } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { getReadiness, getSystem } from './api/client';
-import { AccountPage, SessionLink } from './features/accounts/AccountPage';
+import { AccountPage } from './features/accounts/AccountPage';
 import { PasswordRecoveryPage } from './features/accounts/PasswordRecoveryPage';
 import { PublicProfilePage } from './features/accounts/PublicProfilePage';
 import { GatheringsPage } from './features/gatherings/GatheringsPage';
 import { CommunitiesPage, CommunityPage } from './features/communities/CommunitiesPage';
 import { PrivateCacheBoundary } from './features/communities/PrivateCacheBoundary';
 import { VoiceProvider } from './features/voice/VoiceProvider';
-import { VoiceDock } from './features/voice/VoicePanel';
-import { LanguageSwitcher } from './i18n/LanguageProvider';
+import { WorkspaceShell } from './layout/WorkspaceShell';
 import { DirectPage } from './features/direct/DirectPage';
+import { PersonalNavigationPage } from './features/messages/PersonalNavigationPage';
 
 type Status = 'checking' | 'healthy' | 'unhealthy';
 
@@ -77,7 +80,7 @@ function About() {
   const { t } = useI18n();
   return <><div className="page-heading"><div><p className="eyebrow">{t("ABOUT THIS BUILD")}</p>
     <h1>{t("One verified step at a time.")}</h1><p className="page-description">{t("Dosvyazi is taking shape, starting with a connected foundation.")}</p></div></div>
-    <section className="about-panel"><h2>{t("Available now")}</h2><p>{t("Accounts, communities, roles, private text and voice, moderation, attachments, reactions, emoji, search, profiles and Gatherings with invitations, responses and reconfirmation.")}</p>
+    <InstallPanel /><section className="about-panel"><h2>{t("Available now")}</h2><p>{t("Accounts, communities, roles, private text and voice, moderation, attachments, reactions, emoji, search, profiles and Gatherings with invitations, responses and reconfirmation.")}</p>
       <h2>{t("Coming in later milestones")}</h2><p>{t("Further refinements follow separately verified milestones.")}</p>
       <p>{t("This build supports shared text and voice conversations; the remaining features follow in separate milestones.")}</p><Link className="about-link" to="/">{t("Back to workspace ")}<ArrowRight size={16} aria-hidden="true" /></Link>
     </section></>;
@@ -89,18 +92,5 @@ function NotFound() {
 }
 
 export default function App() {
-  const { t } = useI18n();
-  return <VoiceProvider><div className="app-shell"><PrivateCacheBoundary /><a className="skip-link" href="#main">{t("Skip to content")}</a>
-    <aside className="sidebar"><Link to="/" className="brand" aria-label={t("Dosvyazi home")}><span className="brand-mark"><AudioLines size={23} aria-hidden="true" /></span><span>{t("Dosvyazi")}<span className="brand-subtitle">{t("Stay connected.")}</span></span></Link>
-      <p className="nav-heading">{t("WORKSPACE")}</p><nav aria-label={t("Main navigation")}>
-        <NavLink to="/" end><Activity size={18} aria-hidden="true" /> {t(" Overview")}</NavLink>
-        <NavLink to="/about"><Info size={18} aria-hidden="true" /> {t(" About this build")}</NavLink>
-        <NavLink to="/account"><Users size={18} aria-hidden="true" /> {t(" Account")}</NavLink>
-        <NavLink to="/communities"><Hash size={18} aria-hidden="true" /> {t(" Communities")}</NavLink>
-        <NavLink to="/messages"><MessageSquare size={18} aria-hidden="true" /> {t(' Messages')}</NavLink>
-      </nav><div className="sidebar-footer"><span className="development-dot" /> {t(" Development build")}</div>
-    </aside><div className="main-shell"><header className="topbar"><span className="topbar-breadcrumb">{t("Workspace ")}<span className="breadcrumb-divider">/</span> <span className="breadcrumb-current">{t("Dosvyazi")}</span></span><div className="topbar-actions"><LanguageSwitcher /><SessionLink /></div></header>
-      <main id="main" tabIndex={-1}><Routes><Route path="/stickers/:name?" element={<StickersPage />} /><Route path="/messages/:id?" element={<DirectPage />} /><Route path="/communities/:id/gatherings/:gatheringId?" element={<GatheringsPage />} /><Route path="/profiles/:id" element={<PublicProfilePage />} /><Route path="/" element={<Workspace />} /><Route path="/about" element={<About />} /><Route path="/account" element={<AccountPage />} /><Route path="/forgot-password" element={<PasswordRecoveryPage key="request" />} /><Route path="/reset-password" element={<PasswordRecoveryPage key="reset" reset />} /><Route path="/login" element={<AccountPage mode="login" />} /><Route path="/register" element={<AccountPage mode="register" />} /><Route path="/communities" element={<CommunitiesPage />} /><Route path="/communities/:id" element={<CommunityPage />} /><Route path="/communities/:id/channels/:channelId" element={<CommunityPage />} /><Route path="*" element={<NotFound />} /></Routes></main>
-      <VoiceDock /><footer className="page-footer"><span>{t("Dosvyazi ")}<span aria-hidden="true">·</span> ДоСвязи</span><span>{t("Built for shared moments.")}</span></footer>
-    </div></div></VoiceProvider>;
+  return <VoiceProvider><PrivateCacheBoundary /><WorkspaceShell><Routes><Route path="/communities/:id/forums/:forumId/topics/:topicId" element={<ForumsPage />} /><Route path="/communities/:id/forums/:forumId" element={<ForumsPage />} /><Route path="/bookmarks" element={<PersonalNavigationPage />} /><Route path="/notifications" element={<PersonalNavigationPage notices />} /><Route path="/stickers/:name?" element={<StickersPage />} /><Route path="/messages/:id?" element={<DirectPage />} /><Route path="/communities/:id/gatherings/:gatheringId?" element={<GatheringsPage />} /><Route path="/profiles/:id" element={<PublicProfilePage />} /><Route path="/" element={<Workspace />} /><Route path="/about" element={<About />} /><Route path="/account" element={<AccountPage />} /><Route path="/forgot-password" element={<PasswordRecoveryPage key="request" />} /><Route path="/reset-password" element={<PasswordRecoveryPage key="reset" reset />} /><Route path="/login" element={<AccountPage mode="login" />} /><Route path="/register" element={<AccountPage mode="register" />} /><Route path="/communities" element={<CommunitiesPage />} /><Route path="/communities/:id/voice" element={<CommunityPage voiceOnly />} /><Route path="/communities/:id" element={<CommunityPage />} /><Route path="/communities/:id/channels/:channelId/threads/:threadId?" element={<ThreadsPage />} /><Route path="/communities/:id/channels/:channelId" element={<CommunityPage />} /><Route path="*" element={<NotFound />} /></Routes></WorkspaceShell></VoiceProvider>;
 }

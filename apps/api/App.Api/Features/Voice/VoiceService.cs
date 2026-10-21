@@ -44,8 +44,9 @@ public sealed class VoiceService(AppDbContext database, IVoiceGateway gateway, I
         if (request.ClientRequestId == Guid.Empty) throw new CommunityFailure(400, "Use a voice request ID.");
         var userId = Guid.Parse(principal.FindFirstValue(ClaimTypes.NameIdentifier)!);
         await using var transaction = await database.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, ct);
-        // One account writer lock serializes joins across different communities/hosts.
-        await database.Users.FromSqlInterpolated($"SELECT * FROM \"AspNetUsers\" WHERE \"Id\" = {userId} FOR UPDATE").AnyAsync(ct);
+        // Serialize account writers without blocking membership's foreign-key KEY SHARE.
+        // FOR UPDATE would deadlock with an invitation writer holding the community row.
+        await database.Users.FromSqlInterpolated($"SELECT * FROM \"AspNetUsers\" WHERE \"Id\" = {userId} FOR NO KEY UPDATE").AnyAsync(ct);
         var access = await AuthorizeAsync(community, userId, ct, true);
         var session = await SessionAsync(principal, ct);
         var room = await database.VoiceRooms.SingleOrDefaultAsync(item => item.CommunityId == community, ct);
@@ -122,7 +123,10 @@ public sealed class VoiceService(AppDbContext database, IVoiceGateway gateway, I
         if (lease.Active)
         {
             lease.Active = false;
-            VoiceTransitions.Request(await database.VoiceRooms.SingleAsync(item => item.CommunityId == community, ct));
+            // A voluntary departure does not revoke community access. Keep peers
+            // in their room; reconciliation removes only this closed identity.
+            var room = await database.VoiceRooms.SingleAsync(item => item.CommunityId == community, ct);
+            room.NextCheckAt = DateTimeOffset.UtcNow;
             await database.SaveChangesAsync(ct);
         }
         await transaction.CommitAsync(ct);

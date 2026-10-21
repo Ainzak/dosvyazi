@@ -17,12 +17,16 @@ public sealed class VoiceReconciler(AppDbContext database, IVoiceGateway gateway
         foreach (var lease in leases)
         {
             var access = await ChannelAccess.VoiceAsync(database, community, lease.UserId, ct);
-            if (lease.Generation != room.Generation || lease.ExpiresAt <= DateTimeOffset.UtcNow ||
+            if (lease.Generation != room.Generation ||
                 !access.Connect || lease.CanSpeak != access.Speak || lease.CanShareScreen != access.ShareScreen || lease.CanUseCamera != access.UseCamera ||
                 !await database.Sessions.AnyAsync(item => item.Id == lease.AuthSessionId && item.UserId == lease.UserId && item.RevokedAt == null &&
                     item.ExpiresAt > DateTimeOffset.UtcNow && item.User.SecurityStamp == lease.SecurityStamp, ct) ||
                 !await database.Memberships.AnyAsync(item => item.CommunityId == community && item.UserId == lease.UserId && item.Status == "Active", ct))
             { lease.Active = false; VoiceTransitions.Request(room); }
+            // A lost heartbeat (for example a closed tab) ends this lease, not
+            // the authorized peers' room. Access/session revocation above still
+            // requires durable generation separation.
+            else if (lease.ExpiresAt <= DateTimeOffset.UtcNow) lease.Active = false;
         }
         // Persist freeze before any external operation. A process crash or control
         // failure must not roll back the only record of required revocation.
@@ -40,8 +44,20 @@ public sealed class VoiceReconciler(AppDbContext database, IVoiceGateway gateway
                 var actual = await gateway.ParticipantsAsync(new VoiceRoom(room.Id, room.Generation), ct);
                 var allowed = await database.VoiceLeases.Where(item => item.CommunityId == community && item.Active && item.Generation == room.Generation && item.ExpiresAt > DateTimeOffset.UtcNow)
                     .Select(item => item.Id).ToArrayAsync(ct);
-                if (actual.Any(item => !allowed.Any(id => id.ToString("N") == item.Identity)))
+                foreach (var participant in actual.Where(item => !allowed.Any(id => id.ToString("N") == item.Identity)))
                 {
+                    var departed = Guid.TryParseExact(participant.Identity, "N", out var identity)
+                        ? await database.VoiceLeases.SingleOrDefaultAsync(item => item.Id == identity && item.CommunityId == community &&
+                            item.Generation == room.Generation && !item.Active && !item.DisconnectedByModerator, ct) : null;
+                    if (departed is not null && await StillAuthorizedAsync(departed, ct))
+                    {
+                        // A self-hosted SFU can accept an old token again. Remove
+                        // the closed identity on every pass without ejecting peers.
+                        // If its account/access has since been revoked, fall back
+                        // to the durable generation transition below instead.
+                        await gateway.RemoveParticipantAsync(new VoiceRoom(room.Id, room.Generation), identity, ct);
+                        continue;
+                    }
                     VoiceTransitions.Request(room);
                     await database.SaveChangesAsync(ct);
                     await controlTransaction.CommitAsync(ct);
@@ -78,6 +94,15 @@ public sealed class VoiceReconciler(AppDbContext database, IVoiceGateway gateway
         room.NextCheckAt = DateTimeOffset.UtcNow.AddSeconds(room.ControlUnavailable ? 3 : 1);
         await database.SaveChangesAsync(ct);
         await controlTransaction.CommitAsync(ct);
+    }
+
+    private async Task<bool> StillAuthorizedAsync(VoiceLease lease, CancellationToken ct)
+    {
+        var access = await ChannelAccess.VoiceAsync(database, lease.CommunityId, lease.UserId, ct);
+        return access.View && access.Connect && access.Speak == lease.CanSpeak && access.ShareScreen == lease.CanShareScreen && access.UseCamera == lease.CanUseCamera &&
+            await database.Memberships.AnyAsync(item => item.CommunityId == lease.CommunityId && item.UserId == lease.UserId && item.Status == "Active", ct) &&
+            await database.Sessions.AnyAsync(item => item.Id == lease.AuthSessionId && item.UserId == lease.UserId && item.RevokedAt == null &&
+                item.ExpiresAt > DateTimeOffset.UtcNow && item.User.SecurityStamp == lease.SecurityStamp, ct);
     }
 }
 

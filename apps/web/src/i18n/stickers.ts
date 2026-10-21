@@ -1,4 +1,9 @@
 export const russianStickers: Readonly<Record<string, string>> = {
+  'Connection recovery': 'Восстановление соединения',
+  'Connection interrupted. Saved data may be out of date.': 'Соединение прервано. Сохранённые данные могут быть устаревшими.',
+  'Restore connection': 'Восстановить соединение',
+  'Choose a PNG sticker up to 1 MiB or a GIF sticker up to 3 MiB.': 'Выберите PNG-стикер до 1 МиБ или GIF-стикер до 3 МиБ.',
+  'PNG up to 1 MiB or animated GIF up to 3 MiB, up to 512 by 512 pixels. Up to 64 stickers per pack.': 'PNG до 1 МиБ или анимированный GIF до 3 МиБ, размером до 512 × 512 пикселей. До 64 стикеров в наборе.',
   'Sticker': 'Стикер',
   'Stickers': 'Стикеры', 'stickers': 'стикеров', 'Sticker packs': 'Наборы стикеров', 'Sticker pack information': 'Информация о наборе стикеров',
   'Loading sticker pack…': 'Загрузка набора стикеров…', 'Loading sticker packs…': 'Загрузка наборов стикеров…',

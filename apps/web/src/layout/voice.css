@@ -1,0 +1,76 @@
+.voice-room-heading { display: flex; align-items: center; gap: 16px; margin-bottom: 20px; }
+.voice-quality-settings { min-width: 0; margin: 16px 0; padding: 12px; border: 1px solid var(--dv-line); border-radius: 12px; }
+.voice-quality-settings legend { padding: 0 6px; font-weight: 650; }
+.voice-quality-settings > label { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-height: 44px; margin-top: 12px; }
+.voice-quality-settings select { display: block; width: 100%; min-width: 0; min-height: 44px; margin-top: 4px; padding: 8px 10px; color: var(--dv-text); background: var(--dv-ink); border: 1px solid var(--dv-line); border-radius: 8px; font: inherit; }
+.voice-quality-settings .field-hint { margin: 8px 0; }
+.voice-quality-settings label > span { flex: 1; min-width: 0; }
+.voice-connection dl { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 12px; font-size: 13px; }
+.voice-connection dd { margin: 0; font-variant-numeric: tabular-nums; }
+.voice-connection summary { min-height: 44px; padding-top: 12px; cursor: pointer; }
+.voice-receive-toggle { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 8px 12px; font-size: 13px; }
+.voice-video-placeholder { min-height: 80px; padding: 20px; color: var(--dv-muted); }
+.voice-microphone-check { margin: 16px 0; padding: 12px; border: 1px solid var(--dv-line); border-radius: 12px; }
+.voice-microphone-check summary { min-height: 44px; cursor: pointer; }
+.voice-microphone-check select { display: block; width: 100%; min-width: 0; min-height: 44px; margin-top: 4px; padding: 8px 10px; border: 1px solid var(--dv-line); border-radius: 8px; font: inherit; color: var(--dv-text); background: var(--dv-ink); }
+.voice-check-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+.voice-microphone-check meter { display: block; width: 100%; height: 24px; }
+.voice-person-level { padding: 8px 0; min-width: 0; overflow-wrap: anywhere; border-top: 1px solid var(--dv-line); }
+.voice-person-level label { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-height: 44px; }
+.voice-person-level input[type=checkbox] { flex-shrink: 0; }
+.voice-person-level input[type=range] { display: block; width: 100%; min-height: 44px; accent-color: var(--dv-accent); }
+.voice-hold-button { width: 100%; min-height: 44px; margin-top: 8px; touch-action: none; user-select: none; color: var(--dv-text); background: var(--dv-raised); border: 1px solid var(--dv-line); border-radius: 8px; }
+.voice-hold-button.is-held { background: var(--dv-accent); color: var(--dv-ink); }
+.voice-room-heading h1, .voice-room-heading h2 { margin: 0; }
+.voice-room-heading .eyebrow { margin: 0 0 4px; }
+.voice-room-symbol { display: grid; place-items: center; height: 56px; width: 56px; flex-shrink: 0; border-radius: 16px; color: var(--dv-accent); background: var(--dv-accent-surface); }
+.voice-panel .primary-button { width: auto; min-width: 160px; }
+.voice-panel > .field-hint { max-width: 640px; }
+.voice-participants { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), 1fr)); gap: 16px; margin: 24px 0; }
+.voice-participants li { padding: 16px; min-height: 100px; background: var(--dv-ink); color: var(--dv-text); border: 1px solid var(--dv-line); border-radius: 12px; }
+.voice-participants li.is-speaking { border-color: var(--dv-accent); box-shadow: inset 0 0 0 1px var(--dv-accent); }
+.voice-participant-avatar { display: grid; place-items: center; width: 44px; height: 44px; flex-shrink: 0; border-radius: 50%; background: var(--dv-raised); color: var(--dv-text); font-weight: 650; font-size: 14px; }
+.voice-participant-info { flex: 1; }
+.voice-participant-name { font-size: 15px; }
+.voice-speaking-state { display: inline-flex; align-items: center; gap: 6px; color: var(--dv-muted); font-size: 12px; }
+.is-speaking .voice-speaking-state { color: var(--dv-accent); }
+.voice-participant-info small { color: var(--dv-muted); }
+.voice-participants button { font-size: 12px; padding: 8px; }
+.voice-room-session { padding: 16px; border-radius: 12px; background: var(--dv-ink); margin-top: 20px; }
+.voice-room-session > p { margin: 4px 0; font-size: 13px; color: var(--dv-muted); }
+.voice-room-session > [role=status], .voice-room-session > .voice-publishing-notice { color: var(--dv-accent); }
+.voice-room-page { max-width: 1200px; margin: 0 auto; }
+.voice-panel.is-room { padding: 0; border: 0; background: transparent; }
+.voice-room-page > .about-link { font-size: 13px; }
+.main-shell > .voice-video-viewer { padding: 16px 24px; }
+.voice-viewer-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; justify-content: space-between; }
+.voice-viewer-heading h2 { margin: 0; font-size: 18px; }
+.voice-viewer-heading p { font-size: 12px; color: var(--dv-muted); margin: 4px 0 0; }
+.voice-video-viewer > .field-hint { font-size: 12px; margin: 8px 0 0; }
+.voice-videos { gap: 16px; }
+.voice-video-tile { background: var(--dv-ink); border-radius: 12px; }
+.voice-video-tile video { aspect-ratio: 16 / 9; max-height: 340px; background: var(--dv-ink); }
+.voice-video-tile figcaption { padding: 12px; gap: 12px; }
+.voice-video-label { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 13px; }
+.voice-video-label svg { flex-shrink: 0; color: var(--dv-accent); }
+.voice-video-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.voice-video-actions .secondary-button { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; }
+.voice-video-actions .stop-local-video { color: var(--dv-danger); border-color: var(--dv-danger); }
+.main-shell:has(> .voice-video-viewer.is-focused-view) > main { display: none; }
+.main-shell > .voice-video-viewer.is-focused-view { flex: 1; max-height: none; min-height: 0; }
+.voice-videos.has-focus { grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); }
+.voice-videos.has-focus .is-focused video { max-height: 65dvh; }
+.voice-videos.has-focus > :not(.is-focused) video { max-height: 160px; }
+@media (max-width: 760px) {
+  .voice-participants { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .voice-participants li { padding: 12px; gap: 10px; }
+  .voice-room-heading { gap: 12px; }
+  .voice-room-heading h1 { font-size: 26px; }
+  .voice-room-symbol { width: 44px; height: 44px; border-radius: 12px; }
+  .voice-room-session { padding: 12px; }
+  .main-shell > .voice-video-viewer { padding: 12px; max-height: 45dvh; }
+  .voice-viewer-heading h2 { font-size: 16px; }
+  .voice-viewer-heading .secondary-button { font-size: 12px; }
+  .voice-videos { grid-template-columns: minmax(0, 1fr); }
+  .voice-videos.has-focus .is-focused video { max-height: 45dvh; }
+}

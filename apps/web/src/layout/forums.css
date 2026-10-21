@@ -1,0 +1,16 @@
+.forum-page { display: flex; flex: 1; flex-direction: column; gap: 16px; min-height: 0; overflow-y: auto; }
+.forum-navigation { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; }
+.forum-page.has-conversation { height: 100%; }
+.forum-conversation { display: flex; flex: 1; flex-direction: column; min-height: 0; gap: 12px; }
+.forum-heading { display: flex; align-items: start; justify-content: space-between; gap: 16px; }
+.forum-heading h1 { font-size: clamp(1.25rem, 3vw, 1.8rem); margin: 6px 0; overflow-wrap: anywhere; }
+.forum-heading p { margin: 0; }
+.forum-conversation > .message-timeline { flex: 1; min-height: 220px; }
+.forum-settings label, .forum-directory label, .management-dialog form > label { display: grid; gap: 8px; margin-block: 12px; }
+.forum-settings input:not([type=checkbox]), .forum-directory input, .management-dialog form > label > input { width: 100%; min-width: 0; min-height: 44px; padding: 12px; background: var(--dv-ink); color: var(--dv-text); border: 1px solid var(--dv-line); border-radius: 8px; font: inherit; }
+.forum-settings .forum-checkbox, .forum-directory .forum-checkbox { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.forum-checkbox input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--dv-accent); }
+.forum-settings { flex-shrink: 0; }
+@media (max-width: 760px) { .forum-heading { flex-wrap: wrap; } }
+
+.forum-settings textarea { width:100%; min-height:120px; padding:12px; border:1px solid var(--dv-line); background:var(--dv-ink); color:var(--dv-text); border-radius:8px; font:inherit; }

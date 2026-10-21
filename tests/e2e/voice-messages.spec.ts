@@ -1,3 +1,4 @@
+import { composerTools, messageAction, workspaceLink } from './workspace-navigation';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 
@@ -12,13 +13,13 @@ async function channel(page: Page) {
   await page.goto('/communities'); await page.getByLabel('Community name', { exact: true }).fill('Voice notes crew');
   await page.getByRole('button', { name: 'Create community', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Voice notes crew' })).toBeVisible();
-  await page.getByRole('link', { name: 'general', exact: true }).click(); await expect(page.getByRole('heading', { name: '#general' })).toBeVisible();
+  await workspaceLink(page, 'general'); await expect(page.getByRole('heading', { name: '#general' })).toBeVisible();
 }
 
 test('synthetic microphone records a finite preview and private playable message with deletion cleanup', async ({ page }, info) => {
   const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
   await register(page, 'Voice note author'); await channel(page);
-  await page.getByRole('button', { name: 'Record voice message', exact: true }).click();
+  await composerTools(page); await page.getByRole('button', { name: 'Record voice message', exact: true }).click();
   await expect(page.getByText('Recording your microphone: 1s', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Send message', exact: true })).toBeDisabled();
   await page.getByRole('button', { name: 'Stop recording', exact: true }).click();
@@ -40,7 +41,7 @@ test('synthetic microphone records a finite preview and private playable message
   await expect(player).toHaveCount(0);
   await page.reload(); await expect(page.getByRole('button', { name: 'Load voice message', exact: true })).toBeVisible();
   const row = page.locator('.message-list > li').first();
-  await row.getByRole('button', { name: 'Delete message by Voice note author', exact: true }).click();
+  await messageAction(row, 'Delete message by Voice note author');
   await row.getByRole('button', { name: 'Confirm delete', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Load voice message', exact: true })).toHaveCount(0);
   expect(errors).toEqual([]);
@@ -48,13 +49,13 @@ test('synthetic microphone records a finite preview and private playable message
 
 test('cancelled recording never sends and denied microphone keeps text usable', async ({ page }) => {
   await register(page, 'Voice cancel author'); await channel(page);
-  await page.getByRole('button', { name: 'Record voice message', exact: true }).click();
+  await composerTools(page); await page.getByRole('button', { name: 'Record voice message', exact: true }).click();
   await expect(page.getByText('Recording your microphone: 0s', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Cancel recording', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Record voice message', exact: true })).toBeEnabled();
   await expect(page.getByLabel('Voice message preview', { exact: true })).toHaveCount(0);
   await page.evaluate(() => { navigator.mediaDevices.getUserMedia = () => Promise.reject(new DOMException('Synthetic denial', 'NotAllowedError')); });
-  await page.getByRole('button', { name: 'Record voice message', exact: true }).click();
+  await composerTools(page); await page.getByRole('button', { name: 'Record voice message', exact: true }).click();
   await expect(page.getByText('Microphone unavailable. Allow microphone access and try again.', { exact: true })).toBeVisible();
   await page.getByLabel('Message', { exact: true }).fill('Text still works after recording denial');
   await page.getByRole('button', { name: 'Send message', exact: true }).click();
@@ -63,7 +64,7 @@ test('cancelled recording never sends and denied microphone keeps text usable', 
 
 test('lost send acknowledgement retains voice draft and retry produces one message', async ({ page }) => {
   await register(page, 'Voice retry author'); await channel(page);
-  await page.getByRole('button', { name: 'Record voice message', exact: true }).click();
+  await composerTools(page); await page.getByRole('button', { name: 'Record voice message', exact: true }).click();
   await expect(page.getByText('Recording your microphone: 1s', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Stop recording', exact: true }).click();
   await expect(page.getByLabel('Voice message preview', { exact: true })).toBeVisible();
@@ -77,6 +78,7 @@ test('lost send acknowledgement retains voice draft and retry produces one messa
   });
   await page.getByRole('button', { name: 'Send message', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Retry send', exact: true })).toBeVisible();
+  await composerTools(page);
   await expect(page.getByLabel('Voice message preview', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Retry send', exact: true }).click();
   await expect(page.getByLabel('Voice message preview', { exact: true })).toHaveCount(0);
@@ -95,9 +97,9 @@ test('unsupported recorder is explained and late microphone permission stops aft
     };
   });
   await register(page, 'Voice permission author'); await channel(page);
-  await page.getByRole('button', { name: 'Record voice message', exact: true }).click();
+  await composerTools(page); await page.getByRole('button', { name: 'Record voice message', exact: true }).click();
   await expect(page.getByText('Waiting for microphone permission…', { exact: true })).toBeVisible();
-  await page.getByRole('link', { name: 'Account', exact: true }).click();
+  await workspaceLink(page, 'My account');
   await page.evaluate(() => { (window as unknown as { recordingFixture: { resume: (() => void) | null } }).recordingFixture.resume!(); });
   await expect.poll(() => page.evaluate(() => {
     const tracks = (window as unknown as { recordingFixture: { tracks: MediaStreamTrack[] } }).recordingFixture.tracks;
@@ -105,6 +107,7 @@ test('unsupported recorder is explained and late microphone permission stops aft
   })).toBe(true);
   await page.evaluate(() => { MediaRecorder.isTypeSupported = () => false; });
   await page.goBack();
+  await composerTools(page);
   await expect(page.getByText('Voice recording is unavailable in this browser. Text and file messages still work.', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Record voice message', exact: true })).toBeDisabled();
 });

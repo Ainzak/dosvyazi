@@ -12,6 +12,8 @@ public sealed class DirectConversation
 }
 public sealed class DirectMessage
 {
+    public Guid? ReplyToId { get; set; }
+    public Guid[] MentionUserIds { get; set; } = [];
     public Guid Id { get; set; }
     public Guid ConversationId { get; set; }
     public Guid AuthorId { get; set; }
@@ -28,6 +30,8 @@ public sealed class DirectMessage
 }
 public sealed class DirectAttachment
 {
+    public Guid? PreviewId { get; set; }
+    public int? PreviewSize { get; set; }
     public Guid Id { get; set; }
     public Guid MessageId { get; set; }
     public DirectMessage Message { get; set; } = null!;

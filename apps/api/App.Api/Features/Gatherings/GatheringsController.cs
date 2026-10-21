@@ -22,6 +22,33 @@ public sealed class GatheringsController(GatheringService gatherings, AppDbConte
     public async Task<IActionResult> Seen(Guid community, Guid id, CancellationToken ct)
     { try { await gatherings.Seen(community, id, UserId, ct); return NoContent(); } catch (CommunityFailure e) { return Problem(statusCode: e.Status, title: e.Message); } }
     [HttpGet("{id:guid}")] public Task<ActionResult<GatheringDto>> Get(Guid community, Guid id, CancellationToken ct) => Execute(() => gatherings.Get(community, id, UserId, ct));
+    [HttpGet("{id:guid}/preparation")]
+    public Task<ActionResult<GatheringPreparationDto>> Preparation(Guid community, Guid id, CancellationToken ct) => Execute(() => gatherings.Preparation(community, id, UserId, ct));
+    [HttpGet("{id:guid}/choices")]
+    public Task<ActionResult<GatheringChoicesDto>> Choices(Guid community, Guid id, CancellationToken ct) => Execute(() => gatherings.Choices(community, id, UserId, ct));
+    [HttpPut("{id:guid}/capacity"), EnableRateLimiting("community-commands"), RequestSizeLimit(1024)]
+    public Task<ActionResult<GatheringDto>> Capacity(Guid community, Guid id, CapacityRequest r, CancellationToken ct) => Execute(() => gatherings.Capacity(community, id, UserId, r, ct));
+    [HttpPut("{id:guid}/seat"), EnableRateLimiting("community-commands"), RequestSizeLimit(1024)]
+    public Task<ActionResult<GatheringDto>> Seat(Guid community, Guid id, SeatRequest r, CancellationToken ct) => Execute(() => gatherings.Seat(community, id, UserId, r, ct));
+    [HttpPost("{id:guid}/polls"), EnableRateLimiting("community-commands"), RequestSizeLimit(8192)]
+    public Task<ActionResult<GatheringChoicesDto>> Poll(Guid community, Guid id, PollCreateRequest r, CancellationToken ct) => Execute(() => gatherings.CreatePoll(community, id, UserId, r, ct));
+    [HttpPut("{id:guid}/polls/{poll:guid}/vote"), EnableRateLimiting("community-commands"), RequestSizeLimit(2048)]
+    public Task<ActionResult<GatheringChoicesDto>> Vote(Guid community, Guid id, Guid poll, PollVoteRequest r, CancellationToken ct) => Execute(() => gatherings.Vote(community, id, poll, UserId, r, ct));
+    [HttpPut("{id:guid}/polls/{poll:guid}/decision"), EnableRateLimiting("community-commands"), RequestSizeLimit(1024)]
+    public Task<ActionResult<GatheringChoicesDto>> Decide(Guid community, Guid id, Guid poll, PollDecisionRequest r, CancellationToken ct) => Execute(() => gatherings.DecidePoll(community, id, poll, UserId, r, ct));
+    [HttpPut("{id:guid}/checklist/{item:guid}"), EnableRateLimiting("community-commands"), RequestSizeLimit(4096)]
+    public Task<ActionResult<GatheringPreparationDto>> Checklist(Guid community, Guid id, Guid item, ChecklistRequest r, CancellationToken ct) => Execute(() => gatherings.Checklist(community, id, item, UserId, r, ct));
+    [HttpPut("{id:guid}/reminder"), EnableRateLimiting("community-commands"), RequestSizeLimit(1024)]
+    public Task<ActionResult<GatheringPreparationDto>> Reminder(Guid community, Guid id, ReminderRequest r, CancellationToken ct) => Execute(() => gatherings.Reminder(community, id, UserId, r, ct));
+    [HttpGet("{id:guid}/calendar")]
+    public async Task<IActionResult> Calendar(Guid community, Guid id, CancellationToken ct)
+    {
+        try {
+            var content = await gatherings.Calendar(community, id, UserId, ct);
+            Response.Headers.XContentTypeOptions = "nosniff"; Response.Headers.ContentSecurityPolicy = "sandbox; default-src 'none'";
+            return File(System.Text.Encoding.UTF8.GetBytes(content), "text/calendar; charset=utf-8", "gathering.ics");
+        } catch (CommunityFailure e) { return Problem(statusCode: e.Status, title: e.Message); }
+    }
     [HttpGet("{id:guid}/revisions")] public Task<ActionResult<GatheringRevisionDto[]>> Revisions(Guid community, Guid id, CancellationToken ct) => Execute(() => gatherings.Revisions(community, id, UserId, ct));
     [HttpPost, EnableRateLimiting("community-commands"), RequestSizeLimit(32 * 1024)]
     public Task<ActionResult<GatheringDto>> Create(Guid community, GatheringPlanRequest r, CancellationToken ct) => Execute(() => gatherings.Create(community, UserId, r, ct));

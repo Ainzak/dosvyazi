@@ -5,8 +5,8 @@ import { communityKeys } from '../../api/communities';
 import { emojiImage, listEmoji, reactions } from '../../api/completeness';
 import { useI18n } from '../../i18n/LocaleContext';
 
-export function EmojiMenu({ community, user, label, disabled, reaction, pick }: {
-  community: string; user: string; label: string; disabled: boolean; reaction?: boolean; pick: (key: string) => void;
+export function EmojiMenu({ community, user, label, disabled, reaction, compact, pick }: {
+  community: string; user: string; label: string; disabled: boolean; reaction?: boolean; compact?: boolean; pick: (key: string) => void;
 }) {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
@@ -27,7 +27,7 @@ export function EmojiMenu({ community, user, label, disabled, reaction, pick }: 
   const standard = reactions.filter(key => !query || key.includes(query));
   const custom = (emoji.data ?? []).filter(item => item.name.includes(query));
   return <div className="emoji-picker" ref={root}>
-    <button type="button" className="secondary-button emoji-trigger" ref={trigger} disabled={disabled} aria-expanded={open && !disabled} aria-controls={id} onClick={() => setOpen(!open)}><Smile size={16} aria-hidden="true" />{t(label)}<ChevronDown size={14} aria-hidden="true" /></button>
+    <button type="button" className={`secondary-button emoji-trigger${reaction ? ' reaction-trigger' : ''}`} ref={trigger} disabled={disabled} aria-label={t(label)} title={t(label)} aria-expanded={open && !disabled} aria-controls={id} onClick={() => setOpen(!open)}><Smile size={18} aria-hidden="true" />{!reaction && !compact && <>{t(label)}<ChevronDown size={14} aria-hidden="true" /></>}</button>
     {open && !disabled && <div className="emoji-menu" id={id} role="group" aria-label={t(label)}>
       <label htmlFor={`${id}-search`}>{t('Find emoji')}</label><input id={`${id}-search`} type="search" maxLength={32} value={filter} onChange={event => setFilter(event.target.value)} />
       <div className="emoji-grid">{standard.map(key => <button type="button" className="secondary-button" key={key} aria-label={`${t(reaction ? 'Choose reaction' : 'Insert emoji')} ${key}`} onClick={() => choose(key)}>{key}</button>)}

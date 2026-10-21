@@ -9,6 +9,7 @@ using App.Api.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using App.Api.Features.Navigation;
 
 namespace App.Api.Features.DirectMessages;
 
@@ -96,7 +97,8 @@ public sealed class DirectService(AppDbContext db, AttachmentStore files, IOptio
     }
     public static DirectMessageDto MessageDto(DirectMessage message) => new(message.Id.ToString(), message.ConversationId.ToString(), message.AuthorId.ToString(), message.Author.DisplayName,
         message.ClientMessageId.ToString(), Sequence(message.Sequence), message.Deleted ? "" : message.Content, message.CreatedAt, Sequence(message.Version), message.UpdatedAt, message.Deleted,
-        message.Deleted || message.Attachment is null ? null : new(message.Attachment.Id.ToString(), message.Attachment.Name, message.Attachment.Size, message.Attachment.Kind, message.Attachment.ContentType, message.Attachment.DurationMs, message.Attachment.StickerPackName));
+        message.Deleted || message.Attachment is null ? null : new(message.Attachment.Id.ToString(), message.Attachment.Name, message.Attachment.Size, message.Attachment.Kind, message.Attachment.ContentType, message.Attachment.DurationMs, message.Attachment.StickerPackName, message.Attachment.PreviewId != null, message.Attachment.PreviewSize),
+        message.Deleted ? null : message.ReplyToId?.ToString(), message.Deleted ? null : message.MentionUserIds.Select(x => x.ToString()).ToArray());
     private void Event(DirectConversation conversation, string kind, Guid? message)
     {
         conversation.Sequence = checked(conversation.Sequence + 1); conversation.UpdatedAt = Now();
@@ -104,6 +106,7 @@ public sealed class DirectService(AppDbContext db, AttachmentStore files, IOptio
     }
     public async Task<DirectMessageDto> SendAsync(Guid id, SendMessageRequest request, ClaimsPrincipal principal, PreparedAttachment? attachment, CancellationToken ct, Guid? stickerId = null)
     {
+        var mentions = MessageNavigation.Mentions(request);
         if (request.ClientMessageId == Guid.Empty || request.Content.Length > 4000 || (string.IsNullOrWhiteSpace(request.Content) && attachment is null && stickerId is null) || request.Content.Any(c => char.IsControl(c) && c is not '\r' and not '\n' and not '\t'))
             throw new CommunityFailure(400, "Use a message ID and up to 4000 characters or one attachment.");
         await using var tx = await db.Database.BeginTransactionAsync(ct); var conversation = await LockAsync(id, principal, ct); var user = Actor(principal);
@@ -118,21 +121,25 @@ public sealed class DirectService(AppDbContext db, AttachmentStore files, IOptio
         }
         var hash = Hash(new { request.Content, attachment?.Name, attachment?.Kind, bytes = attachment?.InputHash ?? attachment?.Hash });
         if (attachment?.Kind == "Sticker") hash = Hash(new { request.Content, attachment.Kind, attachment.SourceStickerId, attachment.Hash });
+        if (attachment?.PreviewHash is string previewHash) hash = Hash(new { hash, previewHash });
+        hash = MessageNavigation.RequestHash(hash, request, mentions);
         if (message is null)
         {
             if (await db.DirectMessages.CountAsync(m => m.AuthorId == user && m.CreatedAt >= DateTimeOffset.UtcNow.AddMinutes(-1), ct) >= 60)
                 throw new CommunityFailure(429, "Too many direct messages. Try again in a minute.");
             Event(conversation, "message.created", null);
             message = new() { Id = Guid.NewGuid(), ConversationId = id, AuthorId = user, Author = await db.Users.SingleAsync(u => u.Id == user, ct), ClientMessageId = request.ClientMessageId,
-                Content = request.Content, RequestHash = hash, Sequence = conversation.Sequence, CreatedAt = conversation.UpdatedAt };
+                Content = request.Content, RequestHash = hash, Sequence = conversation.Sequence, CreatedAt = conversation.UpdatedAt, ReplyToId = request.ReplyToId, MentionUserIds = mentions };
+            await MessageNavigation.DirectAsync(db, conversation, message, ct);
             db.DirectEvents.Local.Single(e => e.ConversationId == id && e.Sequence == conversation.Sequence).MessageId = message.Id;
             db.DirectMessages.Add(message);
             if (attachment is not null)
             {
                 await db.Database.ExecuteSqlRawAsync("SELECT pg_advisory_xact_lock(73421891)", ct);
-                if (files.UsedBytes() + attachment.Bytes.Length > files.QuotaBytes) throw new CommunityFailure(409, "Attachment storage is full. Ask the operator to free space.");
+                if (files.UsedBytes() + attachment.Bytes.Length + (attachment.PreviewBytes?.Length ?? 0) > files.QuotaBytes) throw new CommunityFailure(409, "Attachment storage is full. Ask the operator to free space.");
                 message.Attachment = new() { Id = Guid.NewGuid(), Name = attachment.Name, Hash = attachment.Hash, Size = attachment.Bytes.Length, Kind = attachment.Kind, ContentType = attachment.ContentType, DurationMs = attachment.DurationMs, SourceStickerId = attachment.SourceStickerId, StickerPackName = attachment.StickerPackName };
                 await files.WriteAsync(message.Attachment.Id, attachment.Bytes, ct);
+                if (attachment.PreviewBytes is byte[] preview) { message.Attachment.PreviewId = Guid.NewGuid(); message.Attachment.PreviewSize = preview.Length; await files.WriteAsync(message.Attachment.PreviewId.Value, preview, ct); }
             }
             await db.SaveChangesAsync(ct);
         }

@@ -7,14 +7,29 @@ public sealed record GatheringResponseRequest(Guid ClientRequestId, int Expected
 public sealed record GatheringCommentRequest(Guid ClientRequestId, int ExpectedRevision, [Required, StringLength(2000)] string Text);
 public sealed record GatheringStatusRequest(Guid ClientRequestId, [Required] string ExpectedVersion, [Required] string Status);
 public sealed record GatheringCoverRequest(Guid ClientRequestId, [Required] string ExpectedVersion);
-public sealed record GatheringInviteDto(string UserId, string Name, string State, bool CurrentMember);
+public sealed record GatheringInviteDto(string UserId, string Name, string State, bool CurrentMember, string Place = "None");
 public sealed record GatheringCommentDto(string Id, string AuthorId, string AuthorName, int Revision, string Text, DateTimeOffset CreatedAt);
 public sealed record GatheringRevisionDto(int Revision, string PlanJson, string ResponsesJson);
 public sealed record GatheringDto(string Id, string CommunityId, string OrganizerId, string OrganizerName, string Title, string Description,
     string Game, string LocalStart, string TimeZoneId, DateTimeOffset StartAt, string Status, int Revision, string Version, string? CoverId,
-    bool CanManage, bool CanRespond, GatheringInviteDto[] Invites, GatheringCommentDto[] Comments);
+    bool CanManage, bool CanRespond, GatheringInviteDto[] Invites, GatheringCommentDto[] Comments, int? Capacity = null);
 public sealed record GatheringList(GatheringDto[] Items, bool HasMore, int NextOffset);
 public sealed record GatheringCandidate(string Id, string Name);
 public sealed record GatheringCandidates(GatheringCandidate[] Items, bool HasMore, int NextOffset);
 public sealed record GatheringNoticeDto(string Id, string GatheringId, string Kind, int Revision, string Version, DateTimeOffset CreatedAt, bool Seen);
 public sealed record GatheringNotices(GatheringNoticeDto[] Items, bool HasMore, int NextOffset);
+public sealed record ChecklistRequest(Guid ClientRequestId, [Required] string ExpectedVersion, [Required] string Action,
+    [StringLength(160)] string Text = "", Guid? AssigneeId = null, bool Done = false);
+public sealed record ReminderRequest(Guid ClientRequestId, int ExpectedRevision, [Required] string ExpectedVersion, int? Minutes);
+public sealed record ChecklistItemDto(string Id, string Text, string? AssigneeId, bool Done);
+public sealed record ReminderDto(string Version, int Revision, int? Minutes, DateTimeOffset? DueAt, DateTimeOffset? DeliveredAt);
+public sealed record GatheringPreparationDto(string Version, ChecklistItemDto[] Items, ReminderDto Reminder, bool CanRemind);
+public sealed record CapacityRequest(Guid ClientRequestId, [Required] string ExpectedVersion, int? Capacity);
+public sealed record SeatRequest(Guid ClientRequestId, [Required] string ExpectedVersion, Guid UserId, bool Confirmed);
+public sealed record PollOptionInput([StringLength(80)] string Game = "", [StringLength(16)] string LocalStart = "", [StringLength(100)] string TimeZoneId = "UTC");
+public sealed record PollCreateRequest(Guid ClientRequestId, [Required] string ExpectedVersion, [Required] string Kind, PollOptionInput[] Options);
+public sealed record PollVoteRequest(Guid ClientRequestId, int ExpectedRevision, [Required] string ExpectedVersion, Guid[] Options);
+public sealed record PollDecisionRequest(Guid ClientRequestId, [Required] string ExpectedVersion, [Required] string Action, Guid? OptionId = null);
+public sealed record PollOptionDto(string Id, string Game, string LocalStart, string TimeZoneId, DateTimeOffset? StartAt, int Votes);
+public sealed record GatheringPollDto(string Id, string Kind, int Revision, bool Closed, string? SelectedOptionId, string VoteVersion, string[] MyOptions, PollOptionDto[] Options);
+public sealed record GatheringChoicesDto(GatheringDto Gathering, GatheringPollDto[] Polls);

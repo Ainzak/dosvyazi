@@ -1,3 +1,4 @@
+import { changeLanguage, communityOverview, workspaceLink } from './workspace-navigation';
 import { expect, test } from '@playwright/test';
 
 test('language is visible, saved and preserves user input and permission option values', async ({ page }, info) => {
@@ -6,15 +7,15 @@ test('language is visible, saved and preserves user input and permission option 
   await page.getByLabel('Display name', { exact: true }).fill('Owner');
   await page.getByLabel('Email address', { exact: true }).fill(`language-${crypto.randomUUID()}@example.test`);
   await page.getByLabel('Password', { exact: true }).fill('Synthetic language passphrase 42');
-  await page.getByRole('button', { name: 'Русский', exact: true }).click();
+  await changeLanguage(page, 'ru');
   await expect(page.getByLabel('Отображаемое имя', { exact: true })).toHaveValue('Owner');
   await page.getByRole('button', { name: 'Создать аккаунт', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Добро пожаловать, Owner.' })).toBeVisible();
-  await page.getByRole('link', { name: 'Сообщества', exact: true }).click();
+  await workspaceLink(page, 'Сообщества');
   await page.getByLabel('Название сообщества', { exact: true }).fill('Community name stays unchanged');
   await page.getByRole('button', { name: 'Создать сообщество', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Community name stays unchanged', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Управлять доступом', exact: true }).click();
+  await communityOverview(page); await page.getByRole('button', { name: 'Управлять доступом', exact: true }).click();
   const rule = page.getByLabel('Правило Отправлять сообщения', { exact: true });
   await rule.selectOption('Deny');
   await expect(rule).toHaveValue('Deny');
@@ -24,18 +25,18 @@ test('language is visible, saved and preserves user input and permission option 
   expect(payload.policy.channelRules.some(value => (value.deny & 2) !== 0)).toBe(true);
   await expect(page.getByRole('button', { name: 'Сохранить доступ', exact: true })).toBeEnabled();
   await page.getByRole('button', { name: 'Закрыть настройки доступа', exact: true }).click();
-  await page.getByRole('link', { name: 'general', exact: true }).click();
+  await workspaceLink(page, 'general');
   await page.getByLabel('Сообщение', { exact: true }).fill('Owner and Community content stays English');
   await page.getByRole('button', { name: 'Отправить сообщение', exact: true }).click();
   await expect(page.locator('.message-list')).toContainText('Owner and Community content stays English');
   // A pending row is visible before persistence; reload only after acknowledgement.
   await expect(page.getByLabel('Сообщение', { exact: true })).toHaveValue('');
   await page.reload();
-  await expect(page.getByRole('button', { name: 'Русский', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('html')).toHaveAttribute('lang', 'ru');
   await expect(page.locator('.message-list')).toContainText('Owner and Community content stays English');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: info.outputPath('russian-text.png'), fullPage: true });
-  await page.getByRole('button', { name: 'English', exact: true }).click();
+  await changeLanguage(page, 'en');
   await expect(page.getByRole('button', { name: 'Send message', exact: true })).toBeVisible();
 });
 
@@ -46,7 +47,7 @@ test('brief session/community failures recover before showing connection alerts'
   await page.getByLabel('Password', { exact: true }).fill('Synthetic retry passphrase 42');
   await page.getByRole('button', { name: 'Create account', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Welcome, Recovery account.', exact: true })).toBeVisible();
-  await page.getByRole('link', { name: 'Communities', exact: true }).click();
+  await workspaceLink(page, 'Communities');
   await page.getByLabel('Community name', { exact: true }).fill('Transient errors');
   await page.getByRole('button', { name: 'Create community', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Transient errors', exact: true })).toBeVisible();

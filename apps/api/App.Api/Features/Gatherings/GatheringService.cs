@@ -41,7 +41,7 @@ public sealed partial class GatheringService(AppDbContext db, TimeProvider clock
         return new(g.Id.ToString(), g.CommunityId.ToString(), g.OrganizerId.ToString(), names[g.OrganizerId], g.Title, g.Description, g.Game,
             g.LocalStart, g.TimeZoneId, g.StartAt, g.Status, g.Revision, g.Version.ToString(CultureInfo.InvariantCulture), g.CoverId?.ToString(),
             await CanManage(g, user, ct), g.Status == "Scheduled" && g.Invites.Any(i => i.UserId == user && i.Active),
-            g.Invites.Where(i => i.Active).OrderBy(i => i.UserId).Select(i => new GatheringInviteDto(i.UserId.ToString(), names[i.UserId], i.State, members.Contains(i.UserId))).ToArray(), comments);
+            g.Invites.Where(i => i.Active).OrderBy(i => i.UserId).Select(i => new GatheringInviteDto(i.UserId.ToString(), names[i.UserId], i.State, members.Contains(i.UserId), i.State == "Accepted" ? i.HasSeat ? "Confirmed" : "Reserve" : "None")).ToArray(), comments, g.Capacity);
     }
     public async Task<GatheringDto> Get(Guid community, Guid id, Guid user, CancellationToken ct)
     {
@@ -148,7 +148,9 @@ public sealed partial class GatheringService(AppDbContext db, TimeProvider clock
             if (start != g.StartAt && start <= clock.GetUtcNow()) throw new CommunityFailure(422, "Schedule a changed start in the future.");
             var removed = g.Invites.Where(i => i.Active && !r.Participants.Contains(i.UserId)).Select(i => i.UserId).ToArray();
             var material = start != g.StartAt || r.Game.Trim() != g.Game;
-            if (material) { if (g.Revision >= 100) throw new CommunityFailure(409, "This gathering has reached its revision limit."); Archive(g); g.Revision++; foreach (var i in g.Invites) i.State = "Pending"; }
+            if (material) { if (g.Revision >= 100) throw new CommunityFailure(409, "This gathering has reached its revision limit."); Archive(g); g.Revision++; foreach (var i in g.Invites) { i.State = "Pending"; i.HasSeat = false; } }
+            await ResetAttendance(g, removed, material, false, ct);
+            await ResetPreparation(g, removed, material, false, ct);
             Apply(g, r, start); g.Version++; Command(g, user, r.ClientRequestId, hash); Changed(g, user, material ? "reconfirmation" : "updated", removed); await db.SaveChangesAsync(ct);
         }
         var result = await Dto(g, user, ct); await tx.CommitAsync(ct); return result;
@@ -169,6 +171,8 @@ public sealed partial class GatheringService(AppDbContext db, TimeProvider clock
             if (r.State is not ("Accepted" or "Declined" or "NeedsClarification")) throw new CommunityFailure(422, "Choose accept, decline or clarification.");
             if (r.State == "NeedsClarification") await AddComment(g, user, r.Comment, ct);
             else if (!string.IsNullOrEmpty(r.Comment)) throw new CommunityFailure(422, "Use the discussion action for a follow-up comment.");
+            if (r.State != "Accepted") invite.HasSeat = false;
+            else if (invite.State != "Accepted") invite.HasSeat = (g.Capacity is null || 1 + g.Invites.Count(i => i.Active && i.State == "Accepted" && i.HasSeat) < g.Capacity) && !g.Invites.Any(i => i.Active && i.State == "Accepted" && !i.HasSeat);
             invite.State = r.State; g.Version++; Command(g, user, r.ClientRequestId, hash); Changed(g, user, "response"); await db.SaveChangesAsync(ct);
         }
         var result = await Dto(g, user, ct); await tx.CommitAsync(ct); return result;
@@ -191,6 +195,8 @@ public sealed partial class GatheringService(AppDbContext db, TimeProvider clock
             Version(g, r.ExpectedVersion);
             if (r.Status is not ("Cancelled" or "Completed")) throw new CommunityFailure(422, "Choose cancel or complete.");
             if (g.Status != r.Status) { Scheduled(g); if (r.Status == "Completed" && g.StartAt > clock.GetUtcNow()) throw new CommunityFailure(422, "Complete a gathering only after its scheduled start."); g.Status = r.Status; g.Version++; Changed(g, user, r.Status == "Cancelled" ? "cancelled" : "completed"); }
+            await ResetPreparation(g, [], false, true, ct);
+            await ResetAttendance(g, [], false, true, ct);
             Command(g, user, r.ClientRequestId, hash); await db.SaveChangesAsync(ct);
         }
         var result = await Dto(g, user, ct); await tx.CommitAsync(ct); return result;

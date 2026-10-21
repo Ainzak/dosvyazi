@@ -9,6 +9,30 @@ public sealed class GifMediaTests
 {
     // Original two-frame red/blue synthetic image, generated with Pillow; no external artwork.
     public static byte[] Animated() => Convert.FromBase64String("R0lGODlhAgACAIEAAP8AAAAAAAAAAAAAACH/C05FVFNDQVBFMi4wAwEAAAAh+QQACgAAACwAAAAAAgACAAAIBgABCAQQEAAh+QQACgAAACwAAAAAAgACAIEAAP8AAAAAAAAAAAAIBgABCAQQEAA7");
+    // Inert GIF comment sub-blocks exercise byte limits without inflating decoded pixels.
+    public static byte[] Sized(int size)
+    {
+        using var output = new MemoryStream(); var image = Animated(); output.Write(image.AsSpan(0, image.Length - 1));
+        output.Write([0x21, 0xfe]);
+        while (size - output.Length - 2 > 0)
+        {
+            var remaining = size - output.Length - 2;
+            var count = (int)Math.Min(255, remaining - 1);
+            if (remaining - count - 1 == 1) count--;
+            if (count < 1) throw new InvalidOperationException("Unsupported fixture size");
+            output.WriteByte((byte)count); output.Write(new byte[count]);
+        }
+        output.Write([0, 0x3b]); return output.ToArray();
+    }
+    [Fact]
+    public void StickerByteLimitsAreFormatSpecificAndInclusive()
+    {
+        foreach (var size in new[] { 1_200_000, StickerMedia.MaxGifBytes })
+            Assert.Equal("image/gif", StickerMedia.Validate(new("test.GIF", Sized(size), "synthetic")));
+        Assert.Equal(413, Assert.Throws<CommunityFailure>(() => StickerMedia.Validate(new("test.gif", Sized(StickerMedia.MaxGifBytes + 1), "synthetic"))).Status);
+        Assert.Equal(413, Assert.Throws<CommunityFailure>(() => StickerMedia.ValidateSize("test.png", StickerMedia.MaxPngBytes + 1)).Status);
+        StickerMedia.ValidateSize("test.png", StickerMedia.MaxPngBytes);
+    }
     [Fact]
     public void AcceptsActualAnimationAndRejectsEveryTruncatedPrefix()
     {

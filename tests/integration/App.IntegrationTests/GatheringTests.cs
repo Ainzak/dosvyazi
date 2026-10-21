@@ -23,7 +23,7 @@ public sealed class GatheringTimeTests
 }
 
 [Trait("Category", "PostgreSQL")]
-public sealed class GatheringTests(AccountsDatabase database) : IClassFixture<AccountsDatabase>
+public sealed partial class GatheringTests(AccountsDatabase database) : IClassFixture<AccountsDatabase>
 {
     private FoundationFactory Factory() => new(connection: database.Connection, permitLimit: 120);
     private static async Task<HttpResponseMessage> Command(HttpClient c, string path, object payload, string method = "POST")

@@ -1,4 +1,7 @@
-import { useRef, useState } from 'react';
+import { useContext, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { CheckCheck, Search } from 'lucide-react';
+import { WorkspaceHeaderTarget } from '../../layout/WorkspaceHeader';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router';
 import { useI18n } from '../../i18n/LocaleContext';
@@ -15,16 +18,21 @@ export function UnreadBadge({ user, community, channel }: { user: string; commun
   return result.data && Number(result.data.unread) > 0 ? <small aria-hidden="true" title={t('Unread messages')}>{result.data.unread}</small> : null;
 }
 export function MessageExtras({ user, community, channel, watermark }: { user: string; community: string; channel: string; watermark: string }) {
+  const headerTarget = useContext(WorkspaceHeaderTarget);
   const { t } = useI18n(); const client = useQueryClient(); const [query, setQuery] = useState(''); const [term, setTerm] = useState('');
   const read = useQuery({ queryKey: readKey(user, community, channel), queryFn: ({ signal }) => getRead(community, channel, signal), refetchInterval: 10000 });
   const mark = useMutation({ mutationFn: () => markRead(community, channel, watermark), onSuccess: data => client.setQueryData(readKey(user, community, channel), data) });
   const [before, setBefore] = useState<string>();
+  const [searchOpen, setSearchOpen] = useState(false); const searchButton = useRef<HTMLButtonElement>(null);
+  const closeSearch = () => { setTerm(''); setSearchOpen(false); searchButton.current?.focus(); };
   const results = useQuery({ queryKey: [...communityKeys(user, community), 'channel', channel, 'search', term, before], queryFn: ({ signal }) => search(community, channel, term, before, signal), enabled: !!term, refetchInterval: 5000 });
   const visible = results.error instanceof ApiError && [401, 403, 404].includes(results.error.status) ? undefined : results.data;
-  return <section className="message-extras"><div className="composer-footer"><span>{t('Unread messages')}: {read.data?.unread ?? '…'}</span><button className="secondary-button" disabled={mark.isPending} onClick={() => mark.mutate()}>{t('Mark as read')}</button></div>{read.isError && <p role="alert">{t(read.error.message)}</p>}{mark.isError && <p role="alert">{t(mark.error.message)}</p>}
-    <form onSubmit={event => { event.preventDefault(); setBefore(undefined); setTerm(query.trim()); }}><label htmlFor="message-search">{t('Search this channel')}</label><input id="message-search" required maxLength={200} value={query} onChange={event => setQuery(event.target.value)} /><button className="secondary-button">{t('Search')}</button></form>
-    {term && <><button className="secondary-button" onClick={() => { setTerm(''); setBefore(undefined); }}>{t('Close search')}</button>{results.isPending && <p role="status">{t('Searching…')}</p>}{results.isError && <><p role="alert">{t(results.error.message)}</p><button onClick={() => void results.refetch()}>{t('Retry search')}</button></>}
-      {visible?.messages.length === 0 && <p>{t('No matching messages.')}</p>}<ul className="search-results">{visible?.messages.map(m => <li key={m.id}><Link to={`/profiles/${m.authorId}`}>{m.authorName}</Link><p>{m.content}</p><small>{m.attachment?.name}</small></li>)}</ul>{visible?.hasMore && <button onClick={() => setBefore(visible.before ?? undefined)}>{t('Older results')}</button>}</>}
+  const toolbar = <div className="channel-header-actions" role="group" aria-label={t('Channel tools')}><span className={Number(read.data?.unread) === 0 ? "sr-only" : "channel-unread"} title={t('Unread messages')} aria-label={`${t('Unread messages')}: ${read.data?.unread ?? '…'}`}>{read.data?.unread ?? '…'}</span><button className="icon-button" aria-label={t('Mark as read')} title={t('Mark as read')} disabled={mark.isPending} onClick={() => mark.mutate()}><CheckCheck size={19} aria-hidden="true" /></button><button ref={searchButton} type="button" className="icon-button" title={t('Search this channel')} aria-expanded={searchOpen} onClick={() => { if (searchOpen) closeSearch(); else setSearchOpen(true); }}><Search size={19} aria-hidden="true" /><span className="sr-only">{t('Search this channel')}</span></button></div>;
+  return <section className="message-extras">{headerTarget ? createPortal(toolbar, headerTarget) : toolbar}{read.isError && <p role="alert">{t(read.error.message)}</p>}{mark.isError && <p role="alert">{t(mark.error.message)}</p>}
+    {searchOpen && <div className="channel-search" onKeyDown={event => { if (event.key === 'Escape') { event.stopPropagation(); closeSearch(); } }}><form onSubmit={event => { event.preventDefault(); setBefore(undefined); setTerm(query.trim()); }}><label htmlFor="message-search">{t('Search this channel')}</label><input id="message-search" required maxLength={200} value={query} onChange={event => setQuery(event.target.value)} /><button className="secondary-button">{t('Search')}</button></form>
+    <button className="secondary-button" onClick={closeSearch}>{t('Close search')}</button>
+    {term && <>{results.isPending && <p role="status">{t('Searching…')}</p>}{results.isError && <><p role="alert">{t(results.error.message)}</p><button onClick={() => void results.refetch()}>{t('Retry search')}</button></>}
+      {visible?.messages.length === 0 && <p>{t('No matching messages.')}</p>}<ul className="search-results">{visible?.messages.map(m => <li key={m.id}><Link to={`/profiles/${m.authorId}`}>{m.authorName}</Link><p>{m.content}</p><small>{m.attachment?.name}</small></li>)}</ul>{visible?.hasMore && <button onClick={() => setBefore(visible.before ?? undefined)}>{t('Older results')}</button>}</>}</div>}
   </section>;
 }
 export function MessageContent({ content, community, user }: { content: string; community: string; user: string }) {
@@ -32,7 +40,7 @@ export function MessageContent({ content, community, user }: { content: string; 
   return <p>{content.split(/(:[a-z0-9_]{2,32}:)/g).map((text, index) => { const item = emoji.data?.find(e => text === `:${e.name}:`); return item ? <img key={index} width="24" height="24" src={emojiImage(community, item.id)} alt={text} /> : text; })}</p>;
 }
 export function EmojiPicker({ community, user, pick, disabled }: { community: string; user: string; pick: (text: string) => void; disabled: boolean }) {
-  return <EmojiMenu community={community} user={user} label="Insert emoji" disabled={disabled} pick={pick} />;
+  return <EmojiMenu community={community} user={user} label="Insert emoji" compact disabled={disabled} pick={pick} />;
 }
 export function MessageReactions({ message, user, community, channel, canSend }: { message: Message; user: string; community: string; channel: string; canSend: boolean }) {
   const { t } = useI18n(); const client = useQueryClient();

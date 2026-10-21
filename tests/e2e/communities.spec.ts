@@ -1,3 +1,4 @@
+import { communityOverview, confirmPendingAction, workspaceLink } from './workspace-navigation';
 import { expect, test } from '@playwright/test';
 import type { Browser, Page } from '@playwright/test';
 
@@ -17,7 +18,7 @@ async function create(page: Page, name = 'Weekend crew') {
   return page.url();
 }
 async function invite(page: Page) {
-  await page.getByRole('button', { name: 'Create invitation', exact: true }).click();
+  await communityOverview(page); await page.getByRole('button', { name: 'Create invitation', exact: true }).click();
   await expect(page.getByLabel('Share this invitation code')).toBeVisible();
   return page.getByLabel('Share this invitation code').inputValue();
 }
@@ -38,7 +39,7 @@ test('two members share a community and outsiders cannot open its channel', asyn
   const name = 'A'.repeat(80);
   await create(page, name);
   const code = await invite(page);
-  await page.getByRole('link', { name: 'general', exact: true }).click();
+  await workspaceLink(page, 'general');
   await expect(page.getByRole('heading', { name: '#general' })).toBeVisible();
   const channelUrl = page.url();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
@@ -51,7 +52,7 @@ test('two members share a community and outsiders cannot open its channel', asyn
     await register(member, 'Invited member');
     await join(member, code, name);
     await expect(member.getByRole('heading', { name: 'Invite people' })).toHaveCount(0);
-    await member.getByRole('link', { name: 'general', exact: true }).click();
+    await workspaceLink(member, 'general');
     await expect(member.getByRole('heading', { name: '#general' })).toBeVisible();
     await member.reload();
     await expect(member.getByRole('heading', { name: '#general' })).toBeVisible();
@@ -77,11 +78,12 @@ test('ban clears a cached channel, lifting requires rejoin, leave and revocation
     const member = await memberContext.newPage();
     await register(member, 'Invited member');
     await join(member, code);
-    await member.getByRole('link', { name: 'general', exact: true }).click();
+    await workspaceLink(member, 'general');
     await expect(member.getByRole('heading', { name: '#general' })).toBeVisible();
     const channelUrl = member.url();
     await page.reload();
-    await page.getByRole('button', { name: 'Ban Invited member', exact: true }).click();
+    await communityOverview(page); await page.getByRole('button', { name: 'Ban Invited member', exact: true }).click();
+    await confirmPendingAction(page);
     await expect(page.getByRole('button', { name: 'Lift ban for Invited member' })).toBeVisible();
     // No reload: the periodic query must revoke the rendered/cached private workspace.
     await expect(member.getByRole('heading', { name: 'Community unavailable.' })).toBeVisible({ timeout: 20_000 });
@@ -92,6 +94,7 @@ test('ban clears a cached channel, lifting requires rejoin, leave and revocation
     await member.getByRole('button', { name: 'Join community', exact: true }).click();
     await expect(member.getByRole('alert')).toContainText('You are banned from this community.');
     await page.getByRole('button', { name: 'Lift ban for Invited member' }).click();
+    await confirmPendingAction(page);
     await expect(page.getByRole('button', { name: 'Ban Invited member', exact: true })).toBeVisible();
     await member.goto(channelUrl);
     await expect(member.getByRole('heading', { name: 'Community unavailable.' })).toBeVisible();
@@ -131,17 +134,17 @@ test('loading, offline recovery and a lost creation response keep retries safe',
   await page.route('**/api/v1/communities', async route => { await gate; await route.continue(); });
   try {
     await page.goto('/communities');
-    await expect(page.getByRole('status')).toHaveText('Loading communities…');
+    await expect(page.getByRole('main').getByRole('status')).toHaveText('Loading communities…');
     await page.screenshot({ path: info.outputPath('community-loading.png'), fullPage: true });
   } finally { release(); }
   await expect(page.getByRole('heading', { name: 'No communities yet.' })).toBeVisible();
   await page.unroute('**/api/v1/communities');
   await page.route('**/api/v1/communities', route => route.abort('connectionfailed'));
   await page.reload();
-  await expect(page.getByRole('heading', { name: 'Connection interrupted.' })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Connection recovery', exact: true })).toBeVisible();
   await page.screenshot({ path: info.outputPath('community-error.png'), fullPage: true });
   await page.unroute('**/api/v1/communities');
-  await page.getByRole('button', { name: 'Try again', exact: true }).click();
+  await page.getByRole('button', { name: 'Restore connection', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'No communities yet.' })).toBeVisible();
   await page.route('**/api/v1/communities', async route => {
     if (route.request().method() === 'POST') { await route.fetch(); await route.abort('connectionfailed'); }
@@ -149,7 +152,7 @@ test('loading, offline recovery and a lost creation response keep retries safe',
   });
   await page.getByLabel('Community name', { exact: true }).fill('Retry-safe space');
   await page.getByRole('button', { name: 'Create community', exact: true }).click();
-  await expect(page.getByRole('alert')).toContainText('Cannot reach Dosvyazi');
+  await expect(page.getByRole('main').getByRole('alert')).toContainText('Cannot reach Dosvyazi');
   await expect(page.getByLabel('Community name', { exact: true })).toHaveValue('Retry-safe space');
   await page.unroute('**/api/v1/communities');
   await page.getByRole('button', { name: 'Create community', exact: true }).click();

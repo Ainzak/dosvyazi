@@ -15,6 +15,7 @@ public sealed class Gathering
     public int Revision { get; set; } = 1;
     public long Version { get; set; } = 1;
     public Guid? CoverId { get; set; }
+    public int? Capacity { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public List<GatheringInvite> Invites { get; set; } = [];
 }
@@ -25,6 +26,7 @@ public sealed class GatheringInvite
     public Guid UserId { get; set; }
     public bool Active { get; set; } = true;
     public string State { get; set; } = "Pending";
+    public bool HasSeat { get; set; }
 }
 public sealed class GatheringComment
 {

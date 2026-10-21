@@ -258,6 +258,153 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/communities/{community}/channels/{parent}/threads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    before?: string;
+                    roots?: string;
+                    archived?: boolean;
+                    query?: string;
+                };
+                header?: never;
+                path: {
+                    community: string;
+                    parent: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ThreadPage"];
+                        "application/json": components["schemas"]["ThreadPage"];
+                        "text/json": components["schemas"]["ThreadPage"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    community: string;
+                    parent: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CreateThreadRequest"];
+                    "text/json": components["schemas"]["CreateThreadRequest"];
+                    "application/*+json": components["schemas"]["CreateThreadRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ThreadDto"];
+                        "application/json": components["schemas"]["ThreadDto"];
+                        "text/json": components["schemas"]["ThreadDto"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/communities/{community}/channels/{parent}/threads/{thread}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    community: string;
+                    parent: string;
+                    thread: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ThreadDto"];
+                        "application/json": components["schemas"]["ThreadDto"];
+                        "text/json": components["schemas"]["ThreadDto"];
+                    };
+                };
+            };
+        };
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    community: string;
+                    parent: string;
+                    thread: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ChangeThreadRequest"];
+                    "text/json": components["schemas"]["ChangeThreadRequest"];
+                    "application/*+json": components["schemas"]["ChangeThreadRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ThreadDto"];
+                        "application/json": components["schemas"]["ThreadDto"];
+                        "text/json": components["schemas"]["ThreadDto"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sticker-packs": {
         parameters: {
             query?: never;
@@ -579,6 +726,352 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/navigation/{kind}/{container}/messages/{message}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    kind: string;
+                    container: string;
+                    message: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["SourceDto"];
+                        "application/json": components["schemas"]["SourceDto"];
+                        "text/json": components["schemas"]["SourceDto"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/navigation/{kind}/{container}/members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    query?: string;
+                };
+                header?: never;
+                path: {
+                    kind: string;
+                    container: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["MentionMember"][];
+                        "application/json": components["schemas"]["MentionMember"][];
+                        "text/json": components["schemas"]["MentionMember"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/navigation/{kind}/{container}/preference": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    kind: string;
+                    container: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["PreferenceDto"];
+                        "application/json": components["schemas"]["PreferenceDto"];
+                        "text/json": components["schemas"]["PreferenceDto"];
+                    };
+                };
+            };
+        };
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    kind: string;
+                    container: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["PreferenceRequest"];
+                    "text/json": components["schemas"]["PreferenceRequest"];
+                    "application/*+json": components["schemas"]["PreferenceRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["PreferenceDto"];
+                        "application/json": components["schemas"]["PreferenceDto"];
+                        "text/json": components["schemas"]["PreferenceDto"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/navigation/bookmarks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    before?: string;
+                    tag?: string;
+                    query?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["BookmarkPage"];
+                        "application/json": components["schemas"]["BookmarkPage"];
+                        "text/json": components["schemas"]["BookmarkPage"];
+                    };
+                };
+            };
+        };
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["BookmarkRequest"];
+                    "text/json": components["schemas"]["BookmarkRequest"];
+                    "application/*+json": components["schemas"]["BookmarkRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": boolean;
+                        "application/json": boolean;
+                        "text/json": boolean;
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/navigation/{kind}/{container}/bookmarks/{message}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    kind: string;
+                    container: string;
+                    message: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["BookmarkDto"];
+                        "application/json": components["schemas"]["BookmarkDto"];
+                        "text/json": components["schemas"]["BookmarkDto"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/navigation/notices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    before?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["NoticePage"];
+                        "application/json": components["schemas"]["NoticePage"];
+                        "text/json": components["schemas"]["NoticePage"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/navigation/notices/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["NoticeReadRequest"];
+                    "text/json": components["schemas"]["NoticeReadRequest"];
+                    "application/*+json": components["schemas"]["NoticeReadRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": boolean;
+                        "application/json": boolean;
+                        "text/json": boolean;
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/communities/{community}/channels/{channel}/stickers": {
         parameters: {
             query?: never;
@@ -661,6 +1154,21 @@ export interface paths {
                         FileName?: string;
                     } & {
                         content?: string;
+                    } & {
+                        /** Format: uuid */
+                        replyToId?: string;
+                    } & {
+                        mentionUserIds?: string[];
+                    } & {
+                        ContentType?: string;
+                        ContentDisposition?: string;
+                        Headers?: {
+                            [key: string]: string[];
+                        };
+                        /** Format: int64 */
+                        Length?: number | string;
+                        Name?: string;
+                        FileName?: string;
                     };
                 };
             };
@@ -720,6 +1228,11 @@ export interface paths {
                         FileName?: string;
                     } & {
                         content?: string;
+                    } & {
+                        /** Format: uuid */
+                        replyToId?: string;
+                    } & {
+                        mentionUserIds?: string[];
                     };
                 };
             };
@@ -752,7 +1265,9 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    preview?: boolean;
+                };
                 header?: never;
                 path: {
                     community: string;
@@ -1559,6 +2074,447 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/communities/{community}/gatherings/{id}/preparation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    community: string;
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["GatheringPreparationDto"];
+                        "application/json": components["schemas"]["GatheringPreparationDto"];
+                        "text/json": components["schemas"]["GatheringPreparationDto"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/communities/{community}/gatherings/{id}/choices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    community: string;
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["GatheringChoicesDto"];
+                        "application/json": components["schemas"]["GatheringChoicesDto"];
+                        "text/json": components["schemas"]["GatheringChoicesDto"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/communities/{community}/gatherings/{id}/capacity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    community: string;
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CapacityRequest"];
+                    "text/json": components["schemas"]["CapacityRequest"];
+                    "application/*+json": components["schemas"]["CapacityRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["GatheringDto"];
+                        "application/json": components["schemas"]["GatheringDto"];
+                        "text/json": components["schemas"]["GatheringDto"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/communities/{community}/gatherings/{id}/seat": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    community: string;
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SeatRequest"];
+                    "text/json": components["schemas"]["SeatRequest"];
+                    "application/*+json": components["schemas"]["SeatRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["GatheringDto"];
+                        "application/json": components["schemas"]["GatheringDto"];
+                        "text/json": components["schemas"]["GatheringDto"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/communities/{community}/gatherings/{id}/polls": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    community: string;
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["PollCreateRequest"];
+                    "text/json": components["schemas"]["PollCreateRequest"];
+                    "application/*+json": components["schemas"]["PollCreateRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["GatheringChoicesDto"];
+                        "application/json": components["schemas"]["GatheringChoicesDto"];
+                        "text/json": components["schemas"]["GatheringChoicesDto"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/communities/{community}/gatherings/{id}/polls/{poll}/vote": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    community: string;
+                    id: string;
+                    poll: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["PollVoteRequest"];
+                    "text/json": components["schemas"]["PollVoteRequest"];
+                    "application/*+json": components["schemas"]["PollVoteRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["GatheringChoicesDto"];
+                        "application/json": components["schemas"]["GatheringChoicesDto"];
+                        "text/json": components["schemas"]["GatheringChoicesDto"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/communities/{community}/gatherings/{id}/polls/{poll}/decision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    community: string;
+                    id: string;
+                    poll: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["PollDecisionRequest"];
+                    "text/json": components["schemas"]["PollDecisionRequest"];
+                    "application/*+json": components["schemas"]["PollDecisionRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["GatheringChoicesDto"];
+                        "application/json": components["schemas"]["GatheringChoicesDto"];
+                        "text/json": components["schemas"]["GatheringChoicesDto"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/communities/{community}/gatherings/{id}/checklist/{item}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    community: string;
+                    id: string;
+                    item: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ChecklistRequest"];
+                    "text/json": components["schemas"]["ChecklistRequest"];
+                    "application/*+json": components["schemas"]["ChecklistRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["GatheringPreparationDto"];
+                        "application/json": components["schemas"]["GatheringPreparationDto"];
+                        "text/json": components["schemas"]["GatheringPreparationDto"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/communities/{community}/gatherings/{id}/reminder": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    community: string;
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ReminderRequest"];
+                    "text/json": components["schemas"]["ReminderRequest"];
+                    "application/*+json": components["schemas"]["ReminderRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["GatheringPreparationDto"];
+                        "application/json": components["schemas"]["GatheringPreparationDto"];
+                        "text/json": components["schemas"]["GatheringPreparationDto"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/communities/{community}/gatherings/{id}/calendar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    community: string;
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/communities/{community}/gatherings/{id}/revisions": {
         parameters: {
             query?: never;
@@ -1994,6 +2950,152 @@ export interface paths {
             };
         };
         put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/communities/{community}/forums/{forum}/topics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    before?: string;
+                    archived?: boolean;
+                    query?: string;
+                };
+                header?: never;
+                path: {
+                    community: string;
+                    forum: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ForumTopicPage"];
+                        "application/json": components["schemas"]["ForumTopicPage"];
+                        "text/json": components["schemas"]["ForumTopicPage"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    community: string;
+                    forum: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CreateForumTopicRequest"];
+                    "text/json": components["schemas"]["CreateForumTopicRequest"];
+                    "application/*+json": components["schemas"]["CreateForumTopicRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ForumTopicDto"];
+                        "application/json": components["schemas"]["ForumTopicDto"];
+                        "text/json": components["schemas"]["ForumTopicDto"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/communities/{community}/forums/{forum}/topics/{topic}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    community: string;
+                    forum: string;
+                    topic: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ForumTopicDto"];
+                        "application/json": components["schemas"]["ForumTopicDto"];
+                        "text/json": components["schemas"]["ForumTopicDto"];
+                    };
+                };
+            };
+        };
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    community: string;
+                    forum: string;
+                    topic: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ChangeForumTopicRequest"];
+                    "text/json": components["schemas"]["ChangeForumTopicRequest"];
+                    "application/*+json": components["schemas"]["ChangeForumTopicRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ForumTopicDto"];
+                        "application/json": components["schemas"]["ForumTopicDto"];
+                        "text/json": components["schemas"]["ForumTopicDto"];
+                    };
+                };
+            };
+        };
         post?: never;
         delete?: never;
         options?: never;
@@ -2479,6 +3581,21 @@ export interface paths {
                         Length?: number | string;
                         Name?: string;
                         FileName?: string;
+                    } & {
+                        /** Format: uuid */
+                        replyToId?: string;
+                    } & {
+                        mentionUserIds?: string[];
+                    } & {
+                        ContentType?: string;
+                        ContentDisposition?: string;
+                        Headers?: {
+                            [key: string]: string[];
+                        };
+                        /** Format: int64 */
+                        Length?: number | string;
+                        Name?: string;
+                        FileName?: string;
                     };
                 };
             };
@@ -2537,6 +3654,11 @@ export interface paths {
                         Length?: number | string;
                         Name?: string;
                         FileName?: string;
+                    } & {
+                        /** Format: uuid */
+                        replyToId?: string;
+                    } & {
+                        mentionUserIds?: string[];
                     };
                 };
             };
@@ -2569,7 +3691,9 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    preview?: boolean;
+                };
                 header?: never;
                 path: {
                     conversation: string;
@@ -2590,6 +3714,174 @@ export interface paths {
         };
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/communities/{id}/rights": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    kind?: string;
+                    channelId?: string;
+                    userId?: string;
+                };
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["RightsExplanation"];
+                        "application/json": components["schemas"]["RightsExplanation"];
+                        "text/json": components["schemas"]["RightsExplanation"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/communities/{id}/configuration": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["CommunityConfiguration"];
+                        "application/json": components["schemas"]["CommunityConfiguration"];
+                        "text/json": components["schemas"]["CommunityConfiguration"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/communities/configuration/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ConfigurationPreviewRequest"];
+                    "text/json": components["schemas"]["ConfigurationPreviewRequest"];
+                    "application/*+json": components["schemas"]["ConfigurationPreviewRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["CommunityConfiguration"];
+                        "application/json": components["schemas"]["CommunityConfiguration"];
+                        "text/json": components["schemas"]["CommunityConfiguration"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/communities/configuration/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ConfigurationRestoreRequest"];
+                    "text/json": components["schemas"]["ConfigurationRestoreRequest"];
+                    "application/*+json": components["schemas"]["ConfigurationRestoreRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ConfigurationRestored"];
+                        "application/json": components["schemas"]["ConfigurationRestored"];
+                        "text/json": components["schemas"]["ConfigurationRestored"];
+                    };
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -3579,6 +4871,10 @@ export interface components {
             /** Format: int32 */
             durationMs?: null | number | string;
             stickerPackName?: null | string;
+            /** @default false */
+            hasPreview: boolean;
+            /** Format: int32 */
+            previewSize?: null | number | string;
         };
         AuditDto: {
             id: string;
@@ -3596,6 +4892,40 @@ export interface components {
             clientRequestId: string;
             blocked: boolean;
         };
+        BookmarkDto: {
+            id: string;
+            kind: string;
+            containerId: string;
+            messageId: string;
+            note: string;
+            tags: string[];
+            source: null | components["schemas"]["SourceDto"];
+        };
+        BookmarkPage: {
+            items: components["schemas"]["BookmarkDto"][];
+            before: null | string;
+            hasMore: boolean;
+        };
+        BookmarkRequest: {
+            /** Format: uuid */
+            clientRequestId: string;
+            kind: string;
+            /** Format: uuid */
+            containerId: string;
+            /** Format: uuid */
+            messageId: string;
+            note: string;
+            tags: string[];
+            /** @default false */
+            removed: boolean;
+        };
+        CapacityRequest: {
+            /** Format: uuid */
+            clientRequestId: string;
+            expectedVersion: string;
+            /** Format: int32 */
+            capacity: null | number | string;
+        };
         CatchUpPage: {
             events: components["schemas"]["MessageEvent"][];
             nextSequence: string;
@@ -3607,12 +4937,28 @@ export interface components {
             id: string;
             name: string;
         };
+        ChangeForumTopicRequest: {
+            /** Format: uuid */
+            clientRequestId: string;
+            expectedVersion: string;
+            title: string;
+            archived: boolean;
+        };
+        ChangeThreadRequest: {
+            /** Format: uuid */
+            clientRequestId: string;
+            expectedVersion: string;
+            title: string;
+            archived: boolean;
+        };
         ChannelPolicy: {
             /** Format: uuid */
             id: string;
             name: string;
             /** Format: uuid */
             categoryId: null | string;
+            /** @default Text */
+            kind: string;
         };
         ChannelSummary: {
             id: string;
@@ -3623,6 +4969,42 @@ export interface components {
             sendDeniedBy?: null | string;
             /** @default false */
             canManageMessages: boolean;
+            /** @default Text */
+            kind: string;
+        };
+        ChecklistItemDto: {
+            id: string;
+            text: string;
+            assigneeId: null | string;
+            done: boolean;
+        };
+        ChecklistRequest: {
+            /** Format: uuid */
+            clientRequestId: string;
+            expectedVersion: string;
+            action: string;
+            /** @default  */
+            text: string;
+            /** Format: uuid */
+            assigneeId?: null | string;
+            /** @default false */
+            done: boolean;
+        };
+        CommunityConfiguration: {
+            format: string;
+            /** Format: int32 */
+            version: number | string;
+            name: string;
+            /** Format: uuid */
+            everyoneRoleId: string;
+            roles: components["schemas"]["RolePolicy"][];
+            categories: components["schemas"]["CategoryPolicy"][];
+            channels: components["schemas"]["ChannelPolicy"][];
+            categoryRules: components["schemas"]["ResourceRule"][];
+            channelRules: components["schemas"]["ResourceRule"][];
+            /** Format: uuid */
+            voiceCategoryId: null | string;
+            voiceRules: components["schemas"]["ResourceRule"][];
         };
         CommunityDetails: {
             id: string;
@@ -3650,6 +5032,18 @@ export interface components {
             name: string;
             role: string;
         };
+        ConfigurationPreviewRequest: {
+            configuration: components["schemas"]["JsonElement"];
+        };
+        ConfigurationRestored: {
+            communityId: string;
+        };
+        ConfigurationRestoreRequest: {
+            /** Format: uuid */
+            clientRequestId: string;
+            name: string;
+            configuration: components["schemas"]["JsonElement"];
+        };
         CreateCommunityRequest: {
             /** Format: uuid */
             clientRequestId: string;
@@ -3658,6 +5052,12 @@ export interface components {
         CreatedInvite: {
             invite: components["schemas"]["InviteSummary"];
             code: string;
+        };
+        CreateForumTopicRequest: {
+            /** Format: uuid */
+            clientRequestId: string;
+            title: string;
+            content: string;
         };
         CreateInviteRequest: {
             /** Format: uuid */
@@ -3671,6 +5071,13 @@ export interface components {
             /** Format: uuid */
             clientRequestId: string;
             name: string;
+            title: string;
+        };
+        CreateThreadRequest: {
+            /** Format: uuid */
+            clientRequestId: string;
+            /** Format: uuid */
+            rootMessageId: string;
             title: string;
         };
         CsrfResponse: {
@@ -3731,6 +5138,8 @@ export interface components {
             updatedAt: null | string;
             deleted: boolean;
             attachment: null | components["schemas"]["AttachmentDto"];
+            replyToId?: null | string;
+            mentionUserIds?: null | string[];
         };
         DirectReadRequest: {
             sequence: string;
@@ -3753,6 +5162,28 @@ export interface components {
         ForgotPasswordRequest: {
             email: string;
         };
+        ForumTopicDto: {
+            id: string;
+            forumId: string;
+            title: string;
+            creatorId: string;
+            /** Format: date-time */
+            createdAt: string;
+            archived: boolean;
+            version: string;
+            sequence: string;
+            /** Format: int32 */
+            messageCount: number | string;
+            /** Format: int32 */
+            unread: number | string;
+            canSend: boolean;
+            canManage: boolean;
+        };
+        ForumTopicPage: {
+            topics: components["schemas"]["ForumTopicDto"][];
+            before: null | string;
+            hasMore: boolean;
+        };
         FoundationInfo: {
             product: string;
             milestone: string;
@@ -3766,6 +5197,10 @@ export interface components {
             hasMore: boolean;
             /** Format: int32 */
             nextOffset: number | string;
+        };
+        GatheringChoicesDto: {
+            gathering: components["schemas"]["GatheringDto"];
+            polls: components["schemas"]["GatheringPollDto"][];
         };
         GatheringCommentDto: {
             id: string;
@@ -3810,12 +5245,16 @@ export interface components {
             canRespond: boolean;
             invites: components["schemas"]["GatheringInviteDto"][];
             comments: components["schemas"]["GatheringCommentDto"][];
+            /** Format: int32 */
+            capacity?: null | number | string;
         };
         GatheringInviteDto: {
             userId: string;
             name: string;
             state: string;
             currentMember: boolean;
+            /** @default None */
+            place: string;
         };
         GatheringList: {
             items: components["schemas"]["GatheringDto"][];
@@ -3850,6 +5289,23 @@ export interface components {
             localStart: string;
             timeZoneId: string;
             participants: string[];
+        };
+        GatheringPollDto: {
+            id: string;
+            kind: string;
+            /** Format: int32 */
+            revision: number | string;
+            closed: boolean;
+            selectedOptionId: null | string;
+            voteVersion: string;
+            myOptions: string[];
+            options: components["schemas"]["PollOptionDto"][];
+        };
+        GatheringPreparationDto: {
+            version: string;
+            items: components["schemas"]["ChecklistItemDto"][];
+            reminder: components["schemas"]["ReminderDto"];
+            canRemind: boolean;
         };
         GatheringResponseRequest: {
             /** Format: uuid */
@@ -3886,6 +5342,7 @@ export interface components {
             /** Format: uuid */
             clientRequestId: string;
         };
+        JsonElement: unknown;
         LivenessResponse: {
             status: string;
         };
@@ -3908,6 +5365,10 @@ export interface components {
              * @default 0
              */
             rank: number | string;
+        };
+        MentionMember: {
+            id: string;
+            name: string;
         };
         MessageCommandResult: {
             messageId: string;
@@ -3932,6 +5393,8 @@ export interface components {
             deleted: boolean;
             attachment?: null | components["schemas"]["AttachmentDto"];
             reactions?: null | components["schemas"]["ReactionDto"][];
+            replyToId?: null | string;
+            mentionUserIds?: null | string[];
         };
         MessageEvent: {
             eventId: string;
@@ -3951,9 +5414,76 @@ export interface components {
             watermark: string;
             hasOlder: boolean;
         };
+        NoticeDto: {
+            id: string;
+            mention: boolean;
+            read: boolean;
+            /** Format: date-time */
+            createdAt: string;
+            source: components["schemas"]["SourceDto"];
+        };
+        NoticePage: {
+            items: components["schemas"]["NoticeDto"][];
+            before: null | string;
+            hasMore: boolean;
+        };
+        NoticeReadRequest: {
+            /** Format: uuid */
+            clientRequestId: string;
+            read: boolean;
+        };
         PasswordRecoveryResponse: {
             message: string;
             developmentLink?: null | string;
+        };
+        PollCreateRequest: {
+            /** Format: uuid */
+            clientRequestId: string;
+            expectedVersion: string;
+            kind: string;
+            options: components["schemas"]["PollOptionInput"][];
+        };
+        PollDecisionRequest: {
+            /** Format: uuid */
+            clientRequestId: string;
+            expectedVersion: string;
+            action: string;
+            /** Format: uuid */
+            optionId?: null | string;
+        };
+        PollOptionDto: {
+            id: string;
+            game: string;
+            localStart: string;
+            timeZoneId: string;
+            /** Format: date-time */
+            startAt: null | string;
+            /** Format: int32 */
+            votes: number | string;
+        };
+        PollOptionInput: {
+            /** @default  */
+            game: string;
+            /** @default  */
+            localStart: string;
+            /** @default UTC */
+            timeZoneId: string;
+        };
+        PollVoteRequest: {
+            /** Format: uuid */
+            clientRequestId: string;
+            /** Format: int32 */
+            expectedRevision: number | string;
+            expectedVersion: string;
+            options: string[];
+        };
+        PreferenceDto: {
+            mode: string;
+        };
+        PreferenceRequest: {
+            /** Format: uuid */
+            clientRequestId: string;
+            mode: string;
         };
         ProfileDetailsRequest: {
             about: string;
@@ -4000,6 +5530,26 @@ export interface components {
             password: string;
             displayName: string;
         };
+        ReminderDto: {
+            version: string;
+            /** Format: int32 */
+            revision: number | string;
+            /** Format: int32 */
+            minutes: null | number | string;
+            /** Format: date-time */
+            dueAt: null | string;
+            /** Format: date-time */
+            deliveredAt: null | string;
+        };
+        ReminderRequest: {
+            /** Format: uuid */
+            clientRequestId: string;
+            /** Format: int32 */
+            expectedRevision: number | string;
+            expectedVersion: string;
+            /** Format: int32 */
+            minutes: null | number | string;
+        };
         ResetPasswordRequest: {
             email: string;
             code: string;
@@ -4010,6 +5560,26 @@ export interface components {
             resourceId: string;
             /** Format: uuid */
             roleId: string;
+            /** Format: int32 */
+            allow: number | string;
+            /** Format: int32 */
+            deny: number | string;
+        };
+        RightDecision: {
+            permission: string;
+            allowed: boolean;
+            /** Format: int32 */
+            required: number | string;
+        };
+        RightsExplanation: {
+            version: string;
+            ownerOverride: boolean;
+            sources: components["schemas"]["RightSource"][];
+            decisions: components["schemas"]["RightDecision"][];
+        };
+        RightSource: {
+            scope: string;
+            role: string;
             /** Format: int32 */
             allow: number | string;
             /** Format: int32 */
@@ -4040,10 +5610,21 @@ export interface components {
             before: null | string;
             hasMore: boolean;
         };
+        SeatRequest: {
+            /** Format: uuid */
+            clientRequestId: string;
+            expectedVersion: string;
+            /** Format: uuid */
+            userId: string;
+            confirmed: boolean;
+        };
         SendMessageRequest: {
             /** Format: uuid */
             clientMessageId: string;
             content: string;
+            /** Format: uuid */
+            replyToId?: null | string;
+            mentionUserIds?: null | string[];
         };
         SendStickerRequest: {
             /** Format: uuid */
@@ -4051,6 +5632,21 @@ export interface components {
             /** Format: uuid */
             stickerId: string;
             content: null | string;
+            /** Format: uuid */
+            replyToId?: null | string;
+            mentionUserIds?: null | string[];
+        };
+        SourceDto: {
+            kind: string;
+            containerId: string;
+            messageId: string;
+            authorId: string;
+            authorName: string;
+            content: string;
+            href: string;
+            replyToId: null | string;
+            mentionUserIds: string[];
+            attachment?: null | components["schemas"]["AttachmentDto"];
         };
         StartDirectRequest: {
             /** Format: uuid */
@@ -4079,6 +5675,30 @@ export interface components {
             saved: boolean;
             /** Format: int32 */
             count: number | string;
+        };
+        ThreadDto: {
+            id: string;
+            parentChannelId: string;
+            rootMessageId: string;
+            title: string;
+            creatorId: string;
+            /** Format: date-time */
+            createdAt: string;
+            archived: boolean;
+            version: string;
+            sequence: string;
+            /** Format: int32 */
+            messageCount: number | string;
+            /** Format: int32 */
+            unread: number | string;
+            canSend: boolean;
+            canManage: boolean;
+            rootDeleted: boolean;
+        };
+        ThreadPage: {
+            threads: components["schemas"]["ThreadDto"][];
+            before: null | string;
+            hasMore: boolean;
         };
         UpdateProfileRequest: {
             displayName: string;

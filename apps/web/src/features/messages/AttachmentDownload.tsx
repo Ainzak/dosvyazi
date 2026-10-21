@@ -5,6 +5,7 @@ import { attachmentUrl } from '../../api/messages';
 import { callApi, readJson } from '../../api/http';
 import { useI18n } from '../../i18n/LocaleContext';
 import type { components } from '../../api/schema';
+import { claimMedia, releaseMedia } from './mediaBudget';
 
 // Preview only bounded raster images; never turn arbitrary downloaded bytes into HTML/SVG.
 function previewType(bytes: Uint8Array): string {
@@ -38,40 +39,43 @@ function previewType(bytes: Uint8Array): string {
   return type;
 }
 
-export function AttachmentDownload({ attachment, community, channel, url }: { attachment: components['schemas']['AttachmentDto'] } & ({ community: string; channel: string; url?: never } | { url: string; community?: never; channel?: never })) {
+export function AttachmentDownload({ attachment, community, channel, url }: { attachment: Omit<components['schemas']['AttachmentDto'], 'hasPreview'> & { hasPreview?: boolean } } & ({ community: string; channel: string; url?: never } | { url: string; community?: never; channel?: never })) {
   const { t } = useI18n();
   const [image, setImage] = useState<string | null>(null);
   const [packOpen, setPackOpen] = useState(false);
   const [decodeError, setDecodeError] = useState(false);
   const imageUrl = useRef<string | null>(null);
+  const mediaOwner = useRef(Symbol('image')); const [full, setFull] = useState(false);
   const mounted = useRef(false);
   const requests = useRef(new Set<AbortController>());
   useEffect(() => {
     mounted.current = true;
     const pending = requests.current;
-    return () => { mounted.current = false; pending.forEach(controller => controller.abort()); pending.clear(); if (imageUrl.current) URL.revokeObjectURL(imageUrl.current); imageUrl.current = null; };
+    const owner = mediaOwner.current;
+    return () => { mounted.current = false; releaseMedia(owner); pending.forEach(controller => controller.abort()); pending.clear(); if (imageUrl.current) URL.revokeObjectURL(imageUrl.current); imageUrl.current = null; };
   }, []);
-  async function fetchFile() {
+  async function fetchFile(light = false) {
     const controller = new AbortController(); requests.current.add(controller);
     try {
-      const response = await callApi(url ?? attachmentUrl(community!, channel!, attachment.id), { signal: controller.signal }, 30_000);
+      const source = url ?? attachmentUrl(community!, channel!, attachment.id);
+      const response = await callApi(source + (light ? '?preview=true' : ''), { signal: controller.signal }, 30_000);
       if (!response.ok) await readJson(response);
       const blob = await response.blob();
       if (controller.signal.aborted || !mounted.current) throw new DOMException('Canceled', 'AbortError');
-      if (blob.size > 5 * 1024 * 1024) throw new Error('The file is too large.');
+      if (blob.size > (light ? 96 * 1024 : 5 * 1024 * 1024)) throw new Error('The file is too large.');
       return blob;
     } finally { requests.current.delete(controller); }
   }
-  function hideImage() { if (imageUrl.current) URL.revokeObjectURL(imageUrl.current); imageUrl.current = null; setImage(null); setPackOpen(false); }
-  const preview = useMutation({ mutationFn: async () => {
-    const blob = await fetchFile();
+  function hideImage() { releaseMedia(mediaOwner.current); if (imageUrl.current) URL.revokeObjectURL(imageUrl.current); imageUrl.current = null; setImage(null); setPackOpen(false); setFull(false); }
+  const preview = useMutation({ mutationFn: async (original: boolean) => {
+    const blob = await fetchFile(!!attachment.hasPreview && !original);
     const type = previewType(new Uint8Array(await blob.arrayBuffer()));
     if (!mounted.current) throw new DOMException('Canceled', 'AbortError');
     return URL.createObjectURL(new Blob([blob], { type }));
-  }, onSuccess: url => {
+  }, onSuccess: (url, original) => {
     if (!mounted.current) { URL.revokeObjectURL(url); return; }
     if (imageUrl.current) URL.revokeObjectURL(imageUrl.current);
-    imageUrl.current = url; setImage(url); setDecodeError(false);
+    claimMedia(mediaOwner.current, hideImage); imageUrl.current = url; setImage(url); setDecodeError(false); setFull(original);
   } });
   const download = useMutation({ mutationFn: async () => {
     const blob = await fetchFile();
@@ -81,7 +85,9 @@ export function AttachmentDownload({ attachment, community, channel, url }: { at
   } });
   const isImage = /\.(png|jpe?g|gif)$/i.test(attachment.name);
   return <div className="message-attachment">{attachment.kind === 'Sticker' && <small>{t('Sticker')} · {attachment.stickerPackName}</small>}<div className="attachment-actions">
-    {isImage && <button type="button" className="secondary-button" disabled={preview.isPending} aria-expanded={!!image} onClick={() => image ? hideImage() : preview.mutate()}>{t(preview.isPending ? 'Loading image…' : image ? 'Hide image' : 'View image')}: {attachment.name}</button>}
+    {isImage && <button type="button" className="secondary-button" disabled={preview.isPending} aria-expanded={!!image} onClick={() => image ? hideImage() : preview.mutate(false)}>{t(preview.isPending ? 'Loading image…' : image ? 'Hide image' : attachment.hasPreview ? 'View small preview' : 'View image')}: {attachment.name}</button>}
+    {attachment.hasPreview && <button type="button" className="secondary-button" disabled={preview.isPending || full} onClick={() => preview.mutate(true)}>{t('View full image')}</button>}
+    {attachment.hasPreview && <small>{t('Preview: {value} KiB', { value: Math.ceil(Number(attachment.previewSize) / 1024) })}</small>}
     <button type="button" className="secondary-button" disabled={download.isPending} onClick={() => download.mutate()}>{t(download.isPending ? 'Downloading…' : 'Download file')}: {attachment.name}</button><small>{Math.ceil(Number(attachment.size) / 1024)} KiB</small></div>
     {image && (attachment.kind === 'Sticker' && attachment.stickerPackName ? <>
       <button type="button" className="sticker-image-button" aria-label={t('Sticker pack info: {value}', { value: attachment.stickerPackName })} aria-expanded={packOpen} onClick={() => setPackOpen(value => !value)}><img className="attachment-preview sticker-preview" src={image} alt={`${t('Image attachment')}: ${attachment.name}`} onError={() => { hideImage(); setDecodeError(true); }} /></button>

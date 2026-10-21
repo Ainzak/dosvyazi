@@ -40,6 +40,36 @@ public sealed class StickerTests(AccountsDatabase storage) : IClassFixture<Accou
         form.Add(new ByteArrayContent(bytes ?? GifMediaTests.Animated()), "file", "greeting.gif"); request.Content = form; return await client.SendAsync(request);
     }
     [Fact]
+    public async Task LargeGifUploadsRetryAndSendThroughBothMessageStoresWithoutBreakingHealth()
+    {
+        await using var host = Factory(); using var owner = host.CreateClient(); using var peer = host.CreateClient();
+        await Register(owner); var recipient = await Register(peer); var pack = await Create(owner);
+        foreach (var size in new[] { 1_200_000, StickerMedia.MaxGifBytes })
+        {
+            var command = Guid.NewGuid(); var bytes = GifMediaTests.Sized(size);
+            using var uploaded = await Upload(owner, pack.Name, command, bytes); Assert.Equal(HttpStatusCode.Created, uploaded.StatusCode);
+            var asset = (await uploaded.Content.ReadFromJsonAsync<StickerAssetDto>())!; Assert.Equal(size, asset.Size);
+            using var retried = await Upload(owner, pack.Name, command, bytes); Assert.Equal(asset, await retried.Content.ReadFromJsonAsync<StickerAssetDto>());
+            using var created = await Command(owner, "/api/v1/communities", new { ClientRequestId = Guid.NewGuid(), Name = "Large GIF tests" });
+            var community = (await created.Content.ReadFromJsonAsync<CommunityDetails>())!;
+            using var channel = await Command(owner, $"/api/v1/communities/{community.Id}/channels/{community.Channels[0].Id}/stickers", new SendStickerRequest(Guid.NewGuid(), Guid.Parse(asset.Id), ""));
+            Assert.Equal(HttpStatusCode.Created, channel.StatusCode);
+            Assert.Equal(size, (await channel.Content.ReadFromJsonAsync<MessageDto>())!.Attachment!.Size);
+            using var started = await Command(owner, "/api/v1/direct-messages", new StartDirectRequest(Guid.NewGuid(), Guid.Parse(recipient.Id)));
+            var conversation = (await started.Content.ReadFromJsonAsync<DirectConversationDto>())!;
+            using var direct = await Command(owner, $"/api/v1/direct-messages/{conversation.Id}/stickers", new SendStickerRequest(Guid.NewGuid(), Guid.Parse(asset.Id), ""));
+            Assert.Equal(HttpStatusCode.Created, direct.StatusCode);
+            Assert.Equal(size, (await direct.Content.ReadFromJsonAsync<DirectMessageDto>())!.Attachment!.Size);
+            var download = await peer.GetByteArrayAsync(Root + $"/{pack.Name}/stickers/{asset.Id}"); Assert.Equal(bytes, download);
+        }
+        Assert.Equal(HttpStatusCode.RequestEntityTooLarge, (await Upload(owner, pack.Name, Guid.NewGuid(), GifMediaTests.Sized(StickerMedia.MaxGifBytes + 1))).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await owner.GetAsync("/health/ready")).StatusCode);
+        Assert.Equal(2, (await owner.GetFromJsonAsync<StickerPackDetail>(Root + "/" + pack.Name))!.Stickers.Length);
+        using var duplicateName = await Command(peer, Root, new CreatePackRequest(Guid.NewGuid(), pack.Name, "Duplicate"));
+        Assert.Equal(HttpStatusCode.Conflict, duplicateName.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await owner.GetAsync("/health/ready")).StatusCode);
+    }
+    [Fact]
     public async Task UniqueNamesPayloadBoundUploadsAndSavedLibrariesFollowOwnership()
     {
         await using var host = Factory(); using var owner = host.CreateClient(); using var other = host.CreateClient(); using var anonymous = host.CreateClient();

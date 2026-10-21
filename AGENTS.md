@@ -22,7 +22,7 @@
 - Keep drafts, phased plans, private notes, personal information and local run results in .local/.
 - Review content and obtain approval before moving local materials into public documentation.
 - Do not present assumptions as measurements, prototypes as completed features, or proposed features as approved ones.
-- Gatherings and sticker packs are approved. Threads, automatic time matching and temporary channels require a separate scope decision.
+- Gatherings, sticker packs, message threads in text channels and forums with topics are approved. Automatic time matching and temporary channels require a separate scope decision.
 - Keep staged development plans and actual milestone results in `.local/plans/`, including `development-checkpoint.md`. Implement only the stage currently authorized by the user.
 
 ## Verification

@@ -8,9 +8,16 @@ namespace App.Api.Features.Stickers;
 
 public static class StickerMedia
 {
+    public const int MaxPngBytes = 1024 * 1024;
+    public const int MaxGifBytes = 3 * 1024 * 1024;
+    public static int Limit(string filename) => Path.GetExtension(filename).Equals(".gif", StringComparison.OrdinalIgnoreCase) ? MaxGifBytes : MaxPngBytes;
+    public static void ValidateSize(string filename, long size)
+    {
+        if (size < 1 || size > Limit(filename)) throw new CommunityFailure(413, "Choose a PNG sticker up to 1 MiB or a GIF sticker up to 3 MiB.");
+    }
     public static string Validate(PreparedAttachment file)
     {
-        if (file.Bytes.Length > 1024 * 1024) throw new CommunityFailure(413, "Choose a sticker up to 1 MiB.");
+        ValidateSize(file.Name, file.Bytes.Length);
         int width, height; string type;
         if (Path.GetExtension(file.Name).Equals(".png", StringComparison.OrdinalIgnoreCase) && file.Bytes.Length >= 24 && file.Bytes.AsSpan(12, 4).SequenceEqual("IHDR"u8))
         {
@@ -30,9 +37,10 @@ public static class StickerMedia
         var asset = await db.StickerAssets.AsNoTracking().Include(s => s.Pack).SingleOrDefaultAsync(s => s.Id == id && !s.Deleted && !s.Purged && !s.Pack.Deleted, ct)
             ?? throw new CommunityFailure(404, "Sticker or pack is unavailable.");
         await using var stream = files.Open(asset.Id);
-        if (stream.Length != asset.Size || stream.Length > 1024 * 1024) throw new CommunityFailure(503, "Sticker storage is unavailable.");
+        var limit = asset.ContentType == "image/gif" ? MaxGifBytes : MaxPngBytes;
+        if (stream.Length != asset.Size || stream.Length > limit) throw new CommunityFailure(503, "Sticker storage is unavailable.");
         using var output = new MemoryStream(); await stream.CopyToAsync(output, ct);
-        if (output.Length != asset.Size || output.Length > 1024 * 1024) throw new CommunityFailure(503, "Sticker storage is unavailable.");
+        if (output.Length != asset.Size || output.Length > limit) throw new CommunityFailure(503, "Sticker storage is unavailable.");
         return new(asset.Filename, output.ToArray(), asset.Hash, "Sticker", asset.ContentType, SourceStickerId: asset.Id, StickerPackName: asset.Pack.Name);
     }
 }

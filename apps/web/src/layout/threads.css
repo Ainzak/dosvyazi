@@ -1,0 +1,18 @@
+.threads-page { display: flex; flex: 1; flex-direction: column; gap: 16px; min-height: 0; overflow-y: auto; }
+.thread-navigation { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; }
+.threads-page.has-conversation { height: 100%; }
+.thread-conversation { display: flex; flex: 1; flex-direction: column; min-height: 0; gap: 12px; }
+.thread-heading { display: flex; align-items: start; justify-content: space-between; gap: 16px; }
+.thread-heading h1 { font-size: clamp(1.25rem, 3vw, 1.8rem); margin: 6px 0; overflow-wrap: anywhere; }
+.thread-heading p { margin: 0; }
+.thread-conversation > .message-timeline { flex: 1; min-height: 220px; }
+.thread-badge { display: inline-flex; margin-block: 6px; max-width: 100%; overflow-wrap: anywhere; }
+.channel-threads-link { align-self: start; }
+.thread-source { border: 1px solid var(--dv-line); padding: 10px 14px; border-radius: 8px; background: var(--dv-panel); }
+.thread-source summary { cursor: pointer; }
+.thread-settings label, .thread-directory label, .management-dialog form > label { display: grid; gap: 8px; margin-block: 12px; }
+.thread-settings input:not([type=checkbox]), .thread-directory input, .management-dialog form > label > input { width: 100%; min-width: 0; min-height: 44px; padding: 12px; background: var(--dv-ink); color: var(--dv-text); border: 1px solid var(--dv-line); border-radius: 8px; font: inherit; }
+.thread-settings .thread-checkbox, .thread-directory .thread-checkbox { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.thread-checkbox input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--dv-accent); }
+.thread-settings { flex-shrink: 0; }
+@media (max-width: 760px) { .thread-heading { flex-wrap: wrap; } }

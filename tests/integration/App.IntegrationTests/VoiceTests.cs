@@ -142,6 +142,60 @@ public sealed class VoiceTests(AccountsDatabase storage) : IClassFixture<Account
         Assert.Contains(new VoiceRoom(retired.RoomId, retired.Generation).Name, voice.Deleted);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task VoluntaryLeaveKeepsOtherLeasesAndRemovesOnlyDepartedIdentityAcrossControlRetry(bool failControl)
+    {
+        var voice = new FakeVoice(); await using var host = Factory(voice);
+        using var owner = host.CreateClient(); using var member = host.CreateClient(); using var peer = host.CreateClient();
+        await Register(owner); await Register(member); await Register(peer);
+        var community = await Create(owner); await AddMember(owner, member, community); await AddMember(owner, peer, community);
+        var first = await Grant(owner, community); var departing = await Grant(member, community); var remaining = await Grant(peer, community);
+        voice.Actual.Add(new(departing.Identity, true, 1));
+        var leave = new VoiceLeaseRequest(Guid.Parse(departing.LeaseId));
+        Assert.Equal(HttpStatusCode.OK, (await Send(member, Path(community, "/leave"), leave)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await Send(member, Path(community, "/leave"), leave)).StatusCode);
+        Assert.Equal("Ready", (await owner.GetFromJsonAsync<VoiceStateDto>(Path(community)))!.Status);
+        voice.Fail = failControl; await Reconcile(host, community);
+        var state = (await owner.GetFromJsonAsync<VoiceStateDto>(Path(community)))!;
+        Assert.Equal("1", state.Generation); Assert.Equal("Ready", state.Status); Assert.Equal(failControl, state.ControlUnavailable);
+        voice.Fail = false; await Reconcile(host, community);
+        Assert.Contains(Guid.Parse(departing.LeaseId), voice.Removed);
+        // Replaying the old SFU identity is removed again, without rotating peers.
+        voice.Actual.Add(new(departing.Identity, true, 1)); await Reconcile(host, community);
+        Assert.Equal(2, voice.Removed.Count(id => id == Guid.Parse(departing.LeaseId)));
+        Assert.Empty(voice.Deleted);
+        Assert.Equal(HttpStatusCode.Conflict, (await Send(member, Path(community, "/heartbeat"), leave)).StatusCode);
+        foreach (var item in new[] { (owner, first), (peer, remaining) })
+            Assert.Equal(HttpStatusCode.OK, (await Send(item.Item1, Path(community, "/heartbeat"), new VoiceLeaseRequest(Guid.Parse(item.Item2.LeaseId)))).StatusCode);
+        var fresh = await Grant(member, community); Assert.NotEqual(departing.Identity, fresh.Identity); Assert.Equal("1", fresh.Generation);
+        await Send(member, Path(community, "/leave"), leave);
+        Assert.Equal(HttpStatusCode.OK, (await Send(member, Path(community, "/heartbeat"), new VoiceLeaseRequest(Guid.Parse(fresh.LeaseId)))).StatusCode);
+    }
+
+    [Theory]
+    [InlineData("ban")]
+    [InlineData("logout")]
+    public async Task DepartedIdentityReplayAfterAccessRevocationStillFreezesAndRotates(string action)
+    {
+        var voice = new FakeVoice(); await using var host = Factory(voice);
+        using var owner = host.CreateClient(); using var member = host.CreateClient();
+        await Register(owner); var profile = await Register(member); var community = await Create(owner); await AddMember(owner, member, community);
+        var grant = await Grant(member, community);
+        await Send(member, Path(community, "/leave"), new VoiceLeaseRequest(Guid.Parse(grant.LeaseId)));
+        using var mutation = action == "ban"
+            ? await Send(owner, $"/api/v1/communities/{community}/members/{profile.Id}/ban", new { Banned = true }, "PUT")
+            : await Send(member, "/api/v1/account/logout");
+        Assert.True(mutation.IsSuccessStatusCode);
+        voice.Actual.Add(new(grant.Identity, true, 1)); await Reconcile(host, community);
+        Assert.Equal("Pending", (await owner.GetFromJsonAsync<VoiceStateDto>(Path(community)))!.Status);
+        Assert.Empty(voice.Removed);
+        await Reconcile(host, community);
+        Assert.Equal("2", (await owner.GetFromJsonAsync<VoiceStateDto>(Path(community)))!.Generation);
+        Assert.NotEmpty(voice.Deleted);
+    }
+
     [Fact]
     public async Task OldLeaveAndOldWebhookCannotClearNewLeaseAndForgedOrAlteredWebhookIsDenied()
     {
@@ -167,6 +221,49 @@ public sealed class VoiceTests(AccountsDatabase storage) : IClassFixture<Account
         db.ChangeTracker.Clear();
         Assert.True((await db.VoiceLeases.SingleAsync(item => item.Id == Guid.Parse(current.LeaseId))).Active);
         Assert.Equal("Ready", (await db.VoiceRooms.SingleAsync(item => item.CommunityId == Guid.Parse(community))).Status);
+    }
+
+    [Fact]
+    public async Task MembershipForeignKeyCanCompleteWhileVoiceGrantWaitsForCommunity()
+    {
+        await using var host = Factory(new FakeVoice());
+        using var owner = host.CreateClient(); using var member = host.CreateClient();
+        await Register(owner); var profile = await Register(member); var community = await Create(owner);
+        await using var connection = new NpgsqlConnection(storage.Connection); await connection.OpenAsync();
+        await using var transaction = await connection.BeginTransactionAsync();
+        await using (var locked = new NpgsqlCommand("SELECT \"Id\" FROM \"Communities\" WHERE \"Id\" = @id FOR UPDATE", connection, transaction))
+        {
+            locked.Parameters.AddWithValue("id", Guid.Parse(community)); await locked.ExecuteScalarAsync();
+        }
+        // Reproduce invitation membership insertion racing the first voice join:
+        // community writer -> account FK versus account writer -> community.
+        var command = new JoinVoiceRequest(Guid.NewGuid());
+        var waiting = Send(member, Path(community, "/join"), command);
+        var observed = false;
+        for (var attempt = 0; attempt < 100 && !observed; attempt++)
+        {
+            await using var clear = new NpgsqlCommand("SELECT pg_stat_clear_snapshot()", connection, transaction); await clear.ExecuteNonQueryAsync();
+            await using var probe = new NpgsqlCommand("SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE @blocker = ANY(pg_blocking_pids(pid)) AND wait_event_type = 'Lock' AND query LIKE '%Communities%FOR UPDATE%')", connection, transaction);
+            probe.Parameters.AddWithValue("blocker", connection.ProcessID);
+            observed = (bool)(await probe.ExecuteScalarAsync())!;
+            if (!observed) await Task.Delay(20);
+        }
+        Assert.True(observed, "Voice join must be waiting on this community transaction.");
+        Assert.False(waiting.IsCompleted);
+        await using (var insert = new NpgsqlCommand("INSERT INTO \"Memberships\" (\"CommunityId\", \"UserId\", \"JoinedAt\", \"Status\") VALUES (@community, @user, @joined, 'Active')", connection, transaction))
+        {
+            insert.Parameters.AddWithValue("community", Guid.Parse(community));
+            insert.Parameters.AddWithValue("user", Guid.Parse(profile.Id));
+            insert.Parameters.AddWithValue("joined", DateTimeOffset.UtcNow);
+            await insert.ExecuteNonQueryAsync();
+        }
+        await transaction.CommitAsync();
+        using var result = await waiting.WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.Equal(HttpStatusCode.OK, result.StatusCode);
+        var grant = (await result.Content.ReadFromJsonAsync<VoiceJoinDto>())!;
+        using var retry = await Send(member, Path(community, "/join"), command);
+        Assert.Equal(HttpStatusCode.OK, retry.StatusCode);
+        Assert.Equal(grant, await retry.Content.ReadFromJsonAsync<VoiceJoinDto>());
     }
 
     [Fact]
@@ -197,7 +294,7 @@ public sealed class VoiceTests(AccountsDatabase storage) : IClassFixture<Account
     }
 
     [Fact]
-    public async Task ExpiredLeaseFreezesBeforeControlAndUnknownSfuIdentityTriggersRotation()
+    public async Task ExpiredLeaseClosesBeforeControlWithoutRotatingPeersAndUnknownIdentityStillRotates()
     {
         var voice = new FakeVoice(); await using var host = Factory(voice);
         using var client = host.CreateClient(); await Register(client); var community = await Create(client); var grant = await Grant(client, community);
@@ -207,13 +304,18 @@ public sealed class VoiceTests(AccountsDatabase storage) : IClassFixture<Account
             await db.VoiceLeases.Where(item => item.Id == Guid.Parse(grant.LeaseId)).ExecuteUpdateAsync(setters => setters.SetProperty(item => item.ExpiresAt, DateTimeOffset.UtcNow.AddSeconds(-1)));
         }
         Assert.Equal(HttpStatusCode.Conflict, (await Send(client, Path(community, "/heartbeat"), new VoiceLeaseRequest(Guid.Parse(grant.LeaseId)))).StatusCode);
+        voice.Actual.Add(new(grant.Identity, true, 1));
         voice.Fail = true; await Reconcile(host, community);
-        Assert.Equal("Pending", (await client.GetFromJsonAsync<VoiceStateDto>(Path(community)))!.Status);
+        var unavailable = (await client.GetFromJsonAsync<VoiceStateDto>(Path(community)))!;
+        Assert.Equal("Ready", unavailable.Status); Assert.True(unavailable.ControlUnavailable);
+        using (var scope = host.Services.CreateScope())
+            Assert.False((await scope.ServiceProvider.GetRequiredService<AppDbContext>().VoiceLeases.SingleAsync(item => item.Id == Guid.Parse(grant.LeaseId))).Active);
         voice.Fail = false; await Reconcile(host, community); await Grant(client, community);
+        Assert.Contains(Guid.Parse(grant.LeaseId), voice.Removed); Assert.Empty(voice.Deleted);
         voice.Unknown = true; await Reconcile(host, community);
         Assert.Equal("Pending", (await client.GetFromJsonAsync<VoiceStateDto>(Path(community)))!.Status);
         voice.Unknown = false; await Reconcile(host, community);
-        Assert.Equal("3", (await client.GetFromJsonAsync<VoiceStateDto>(Path(community)))!.Generation);
+        Assert.Equal("2", (await client.GetFromJsonAsync<VoiceStateDto>(Path(community)))!.Generation);
     }
 
     [Fact]
@@ -347,12 +449,14 @@ public sealed class VoiceTests(AccountsDatabase storage) : IClassFixture<Account
         public bool LastCanShareScreen { get; set; }
         public bool LastCanUseCamera { get; set; }
         public List<string> Deleted { get; } = [];
+        public List<VoiceParticipant> Actual { get; } = [];
+        public List<Guid> Removed { get; } = [];
         public VoiceGrant CreateGrant(VoiceRoom room, Guid identity, bool canSpeak, bool canShareScreen = false, bool canUseCamera = false) { LastCanSpeak = canSpeak; LastCanShareScreen = canShareScreen; LastCanUseCamera = canUseCamera; return new($"synthetic-{room.Name}-{identity:N}", DateTimeOffset.FromUnixTimeSeconds(DateTimeOffset.UtcNow.ToUnixTimeSeconds() + 60)); }
         private Task Check() => Fail ? Task.FromException(new VoiceGatewayException()) : Task.CompletedTask;
         public Task CreateRoomAsync(VoiceRoom room, CancellationToken ct) => Check();
         public async Task DeleteRoomAsync(VoiceRoom room, CancellationToken ct) { await Check(); Deleted.Add(room.Name); }
-        public async Task<IReadOnlyList<VoiceParticipant>> ParticipantsAsync(VoiceRoom room, CancellationToken ct) { await Check(); return Unknown ? [new("unknown", true, 1)] : []; }
-        public Task RemoveParticipantAsync(VoiceRoom room, Guid identity, CancellationToken ct) => Check();
+        public async Task<IReadOnlyList<VoiceParticipant>> ParticipantsAsync(VoiceRoom room, CancellationToken ct) { await Check(); return Unknown ? [new("unknown", true, 1)] : Actual.ToArray(); }
+        public async Task RemoveParticipantAsync(VoiceRoom room, Guid identity, CancellationToken ct) { await Check(); Removed.Add(identity); Actual.RemoveAll(item => item.Identity == identity.ToString("N")); }
         public Task RestrictSpeakingAsync(VoiceRoom room, Guid identity, CancellationToken ct) => Check();
     }
 }

@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using App.Api.Features.Navigation;
 
 namespace App.Api.Features.Messages;
 
@@ -14,13 +15,14 @@ public sealed partial class MessageService(AppDbContext database, AttachmentStor
     public static MessageDto Dto(Message message) => new(message.Id.ToString(), message.ChannelId.ToString(), message.AuthorId.ToString(),
         message.Author.DisplayName, message.ClientMessageId.ToString(), message.Sequence.ToString(CultureInfo.InvariantCulture), message.Deleted ? "" : message.Content, message.CreatedAt,
         message.Version.ToString(CultureInfo.InvariantCulture), message.UpdatedAt, message.Deleted,
-        message.Deleted || message.Attachment is null ? null : new(message.Attachment.Id.ToString(), message.Attachment.Name, message.Attachment.Size, message.Attachment.Kind, message.Attachment.ContentType, message.Attachment.DurationMs, message.Attachment.StickerPackName));
+        message.Deleted || message.Attachment is null ? null : new(message.Attachment.Id.ToString(), message.Attachment.Name, message.Attachment.Size, message.Attachment.Kind, message.Attachment.ContentType, message.Attachment.DurationMs, message.Attachment.StickerPackName, message.Attachment.PreviewId != null, message.Attachment.PreviewSize),
+        ReplyToId: message.Deleted ? null : message.ReplyToId?.ToString(), MentionUserIds: message.Deleted ? null : message.MentionUserIds.Select(x => x.ToString()).ToArray());
 
     private static MessageDto DtoFor(Message message, Guid user, EffectiveChannelAccess access) => Dto(message) with
     { Reactions = message.Reactions.Count == 0 ? null : message.Reactions.GroupBy(r => r.Emoji).OrderBy(g => g.Key).Select(g => new ReactionDto(g.Key, g.Count(), g.Any(r => r.UserId == user))).ToArray() };
     private static string ContentHash(string content) => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(content)));
 
-    public async Task<TextChannel> LockAuthorizedAsync(Guid community, Guid channel, Guid user, CancellationToken ct)
+    public async Task<TextChannel> LockAuthorizedAsync(Guid community, Guid channel, Guid user, CancellationToken ct, bool allowForum = false)
     {
         var exists = await database.Communities.FromSqlInterpolated($"SELECT * FROM \"Communities\" WHERE \"Id\" = {community} FOR UPDATE").AnyAsync(ct);
         if (!exists || !await database.Memberships.AnyAsync(member => member.CommunityId == community && member.UserId == user && member.Status == "Active", ct))
@@ -28,6 +30,7 @@ public sealed partial class MessageService(AppDbContext database, AttachmentStor
         var textChannel = await database.TextChannels.FromSqlInterpolated($"SELECT * FROM \"TextChannels\" WHERE \"Id\" = {channel} AND \"CommunityId\" = {community} FOR UPDATE")
             .SingleOrDefaultAsync(ct) ?? throw new CommunityFailure(404, "Community or channel is unavailable.");
         if (!(await ChannelAccess.ResolveAsync(database, community, textChannel, user, ct)).View) throw new CommunityFailure(404, "Community or channel is unavailable.");
+        if (!allowForum && textChannel.Kind == "Forum") throw new CommunityFailure(404, "Open a forum topic to read or send messages.");
         return textChannel;
     }
 
@@ -40,6 +43,7 @@ public sealed partial class MessageService(AppDbContext database, AttachmentStor
 
     public async Task<MessageDto> SendAsync(Guid community, Guid channel, Guid user, SendMessageRequest request, CancellationToken ct, PreparedAttachment? attachment = null, Guid? stickerId = null)
     {
+        var mentions = MessageNavigation.Mentions(request);
         if (request.ClientMessageId == Guid.Empty || (string.IsNullOrWhiteSpace(request.Content) && attachment is null && stickerId is null) || request.Content.Length > 4000 ||
             request.Content.Any(character => char.IsControl(character) && character is not '\n' and not '\r' and not '\t'))
             throw new CommunityFailure(400, "Use a message ID and 1–4000 characters of text.");
@@ -57,26 +61,30 @@ public sealed partial class MessageService(AppDbContext database, AttachmentStor
         var hash = attachment is null ? ContentHash(request.Content) : ContentHash(JsonSerializer.Serialize(new { request.Content, attachment.Name, attachment.Hash }));
         if (attachment?.Kind == "Voice") hash = ContentHash(JsonSerializer.Serialize(new { request.Content, attachment.Kind, attachment.InputHash }));
         if (attachment?.Kind == "Sticker") hash = ContentHash(JsonSerializer.Serialize(new { request.Content, attachment.Kind, attachment.SourceStickerId, attachment.Hash }));
+        if (attachment?.PreviewHash is string previewHash) hash = ContentHash(JsonSerializer.Serialize(new { hash, previewHash }));
+        hash = MessageNavigation.RequestHash(hash, request, mentions);
         if (message is null)
         {
             var now = DateTimeOffset.UtcNow;
             now = now.AddTicks(-(now.Ticks % 10));
             message = new Message { Id = Guid.NewGuid(), ChannelId = channel, AuthorId = user, ClientMessageId = request.ClientMessageId,
                 Sequence = checked(++textChannel.LastSequence), Content = request.Content, OriginalContentHash = hash, CreatedAt = now,
-                Author = await database.Users.SingleAsync(item => item.Id == user, ct) };
+                Author = await database.Users.SingleAsync(item => item.Id == user, ct), ReplyToId = request.ReplyToId, MentionUserIds = mentions };
+            await MessageNavigation.ChannelAsync(database, textChannel, message, ct);
             var change = new ChannelEvent { Id = Guid.NewGuid(), ChannelId = channel, Sequence = message.Sequence, Message = message, CreatedAt = now };
             database.Messages.Add(message);
             if (attachment is not null)
             {
                 // Serialize quota/file creation across communities and API instances.
                 await database.Database.ExecuteSqlRawAsync("SELECT pg_advisory_xact_lock(73421891)", ct);
-                if (files.UsedBytes() + attachment.Bytes.Length > files.QuotaBytes)
+                if (files.UsedBytes() + attachment.Bytes.Length + (attachment.PreviewBytes?.Length ?? 0) > files.QuotaBytes)
                     throw new CommunityFailure(409, "Attachment storage is full. Ask the operator to free space.");
                 message.Attachment = new MessageAttachment { Id = Guid.NewGuid(), Name = attachment.Name, Hash = attachment.Hash, Size = attachment.Bytes.Length,
                     Kind = attachment.Kind, ContentType = attachment.ContentType, DurationMs = attachment.DurationMs, SourceStickerId = attachment.SourceStickerId, StickerPackName = attachment.StickerPackName };
                 // Crash/ambiguous commit leftovers stay private and count against quota;
                 // never compensate an uncertain commit by deleting a committed blob.
                 await files.WriteAsync(message.Attachment.Id, attachment.Bytes, ct);
+                if (attachment.PreviewBytes is byte[] preview) { message.Attachment.PreviewId = Guid.NewGuid(); message.Attachment.PreviewSize = preview.Length; await files.WriteAsync(message.Attachment.PreviewId.Value, preview, ct); }
             }
             database.ChannelEvents.Add(change);
             database.OutboxEntries.Add(new OutboxEntry { Id = Guid.NewGuid(), Event = change });

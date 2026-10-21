@@ -4,7 +4,7 @@ using App.Api.Features.Communities;
 
 namespace App.Api.Features.Messages;
 
-public sealed record PreparedAttachment(string Name, byte[] Bytes, string Hash, string Kind = "File", string? ContentType = null, int? DurationMs = null, string? InputHash = null, Guid? SourceStickerId = null, string? StickerPackName = null);
+public sealed record PreparedAttachment(string Name, byte[] Bytes, string Hash, string Kind = "File", string? ContentType = null, int? DurationMs = null, string? InputHash = null, Guid? SourceStickerId = null, string? StickerPackName = null, byte[]? PreviewBytes = null, string? PreviewHash = null);
 
 public sealed class AttachmentStore(IConfiguration configuration, IWebHostEnvironment environment)
 {

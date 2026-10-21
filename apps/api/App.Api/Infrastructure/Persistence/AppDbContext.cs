@@ -11,6 +11,12 @@ namespace App.Api.Infrastructure.Persistence;
 
 public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityUserContext<AppUser, Guid>(options)
 {
+    public DbSet<App.Api.Features.Threads.ThreadCommand> ThreadCommands => Set<App.Api.Features.Threads.ThreadCommand>();
+    public DbSet<App.Api.Features.Forums.ForumTopicCommand> ForumTopicCommands => Set<App.Api.Features.Forums.ForumTopicCommand>();
+    public DbSet<App.Api.Features.Navigation.ConversationPreference> ConversationPreferences => Set<App.Api.Features.Navigation.ConversationPreference>();
+    public DbSet<App.Api.Features.Navigation.MessageBookmark> MessageBookmarks => Set<App.Api.Features.Navigation.MessageBookmark>();
+    public DbSet<App.Api.Features.Navigation.MessageNotice> MessageNotices => Set<App.Api.Features.Navigation.MessageNotice>();
+    public DbSet<App.Api.Features.Navigation.NavigationCommand> NavigationCommands => Set<App.Api.Features.Navigation.NavigationCommand>();
     public DbSet<App.Api.Features.Stickers.StickerPack> StickerPacks => Set<App.Api.Features.Stickers.StickerPack>();
     public DbSet<App.Api.Features.Stickers.StickerAsset> StickerAssets => Set<App.Api.Features.Stickers.StickerAsset>();
     public DbSet<App.Api.Features.Stickers.SavedStickerPack> SavedStickerPacks => Set<App.Api.Features.Stickers.SavedStickerPack>();
@@ -44,6 +50,11 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : Ident
     public DbSet<GatheringNotice> GatheringNotices => Set<GatheringNotice>();
     public DbSet<GatheringEvent> GatheringEvents => Set<GatheringEvent>();
     public DbSet<GatheringCover> GatheringCovers => Set<GatheringCover>();
+    public DbSet<GatheringChecklistItem> GatheringChecklistItems => Set<GatheringChecklistItem>();
+    public DbSet<GatheringReminder> GatheringReminders => Set<GatheringReminder>();
+    public DbSet<GatheringPoll> GatheringPolls => Set<GatheringPoll>();
+    public DbSet<GatheringPollOption> GatheringPollOptions => Set<GatheringPollOption>();
+    public DbSet<GatheringPollVote> GatheringPollVotes => Set<GatheringPollVote>();
     public DbSet<MessageReaction> MessageReactions => Set<MessageReaction>();
     public DbSet<ChannelReadState> ChannelReadStates => Set<ChannelReadState>();
     public DbSet<CommunityEmoji> CommunityEmojis => Set<CommunityEmoji>();
@@ -61,6 +72,11 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : Ident
         base.OnModelCreating(builder);
         App.Api.Features.Stickers.StickerModel.Configure(builder);
         DirectModel.Configure(builder);
+        App.Api.Features.Navigation.NavigationModel.Configure(builder);
+        PreparationModel.Configure(builder);
+        AttendanceModel.Configure(builder);
+        builder.Entity<MessageAttachment>().ToTable(t => t.HasCheckConstraint("CK_MessageAttachment_Preview", "(\"PreviewId\" IS NULL AND \"PreviewSize\" IS NULL) OR (\"PreviewId\" IS NOT NULL AND \"PreviewSize\" IS NOT NULL AND \"PreviewSize\" BETWEEN 1 AND 98304)"));
+        builder.Entity<DirectAttachment>().ToTable(t => t.HasCheckConstraint("CK_DirectAttachment_Preview", "(\"PreviewId\" IS NULL AND \"PreviewSize\" IS NULL) OR (\"PreviewId\" IS NOT NULL AND \"PreviewSize\" IS NOT NULL AND \"PreviewSize\" BETWEEN 1 AND 98304)"));
         builder.Entity<Gathering>(g =>
         {
             g.HasAlternateKey(x => new { x.CommunityId, x.Id });
@@ -136,7 +152,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : Ident
             attachment.Property(a => a.Hash).HasMaxLength(64);
             attachment.Property(a => a.Kind).HasMaxLength(8);
             attachment.Property(a => a.ContentType).HasMaxLength(32);
-            attachment.ToTable(t => t.HasCheckConstraint("CK_MessageAttachments_Media", "(\"Kind\" = 'File' AND \"ContentType\" IS NULL AND \"DurationMs\" IS NULL) OR (\"Kind\" = 'Voice' AND \"ContentType\" IS NOT NULL AND \"ContentType\" = 'audio/webm;codecs=opus' AND \"DurationMs\" IS NOT NULL AND \"DurationMs\" BETWEEN 1 AND 60000 AND \"Size\" <= 2097152) OR (\"Kind\" = 'Sticker' AND \"ContentType\" IS NOT NULL AND \"ContentType\" IN ('image/png', 'image/gif') AND \"DurationMs\" IS NULL AND \"SourceStickerId\" IS NOT NULL AND \"StickerPackName\" IS NOT NULL AND \"Size\" <= 1048576)"));
+            attachment.ToTable(t => t.HasCheckConstraint("CK_MessageAttachments_Media", "(\"Kind\" = 'File' AND \"ContentType\" IS NULL AND \"DurationMs\" IS NULL) OR (\"Kind\" = 'Voice' AND \"ContentType\" IS NOT NULL AND \"ContentType\" = 'audio/webm;codecs=opus' AND \"DurationMs\" IS NOT NULL AND \"DurationMs\" BETWEEN 1 AND 60000 AND \"Size\" <= 2097152) OR (\"Kind\" = 'Sticker' AND \"ContentType\" IS NOT NULL AND \"ContentType\" IN ('image/png', 'image/gif') AND \"DurationMs\" IS NULL AND \"SourceStickerId\" IS NOT NULL AND \"StickerPackName\" IS NOT NULL AND ((\"ContentType\" = 'image/png' AND \"Size\" <= 1048576) OR (\"ContentType\" = 'image/gif' AND \"Size\" <= 3145728)))"));
             attachment.Property(x => x.StickerPackName).HasMaxLength(32);
             attachment.HasOne<App.Api.Features.Stickers.StickerAsset>().WithMany().HasForeignKey(x => x.SourceStickerId).OnDelete(DeleteBehavior.Restrict);
             attachment.ToTable(t => t.HasCheckConstraint("CK_MessageAttachments_Size", "\"Size\" BETWEEN 1 AND 5242880"));
@@ -278,9 +294,38 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : Ident
         });
         builder.Entity<TextChannel>(channel =>
         {
+            channel.Property(c => c.DiscussionCreatorId).HasColumnName("ThreadCreatorId");
+            channel.Property(c => c.DiscussionCreatedAt).HasColumnName("ThreadCreatedAt");
+            channel.Property(c => c.DiscussionArchived).HasColumnName("ThreadArchived");
+            channel.Property(c => c.DiscussionVersion).HasColumnName("ThreadVersion").HasDefaultValue(1L);
+            channel.Property(c => c.DiscussionSequence).HasColumnName("ThreadSequence");
+            channel.Property(c => c.LastDiscussionNumber).HasColumnName("LastThreadNumber");
+            channel.Property(c => c.Kind).HasMaxLength(20).HasDefaultValue("Text");
             channel.Property(item => item.Name).HasMaxLength(80).IsRequired();
             channel.HasOne(item => item.Community).WithMany(item => item.Channels).HasForeignKey(item => item.CommunityId).OnDelete(DeleteBehavior.Cascade);
-            channel.HasIndex(item => new { item.CommunityId, item.Name }).IsUnique();
+            channel.HasIndex(item => new { item.CommunityId, item.Name }).IsUnique().HasFilter("\"ParentChannelId\" IS NULL");
+            channel.HasIndex(c => new { c.ParentChannelId, c.RootMessageId }).IsUnique().HasFilter("\"ParentChannelId\" IS NOT NULL");
+            channel.HasIndex(c => new { c.ParentChannelId, c.DiscussionSequence }).HasDatabaseName("IX_TextChannels_ParentChannelId_ThreadSequence").IsUnique().HasFilter("\"ParentChannelId\" IS NOT NULL");
+            channel.HasOne<TextChannel>().WithMany().HasForeignKey(c => new { c.CommunityId, c.ParentChannelId }).HasPrincipalKey(c => new { c.CommunityId, c.Id }).OnDelete(DeleteBehavior.Restrict);
+            channel.HasOne<Message>().WithMany().HasForeignKey(c => new { c.RootMessageId, c.ParentChannelId }).HasPrincipalKey(m => new { m.Id, m.ChannelId }).OnDelete(DeleteBehavior.Restrict);
+            channel.HasOne<AppUser>().WithMany().HasForeignKey(c => c.DiscussionCreatorId).HasConstraintName("FK_TextChannels_AspNetUsers_ThreadCreatorId").OnDelete(DeleteBehavior.Restrict);
+            channel.ToTable(t => t.HasCheckConstraint("CK_TextChannels_Discussion", "\"LastThreadNumber\" BETWEEN 0 AND 1000 AND \"ThreadVersion\" > 0 AND ((\"Kind\" IN ('Text', 'Forum') AND \"ParentChannelId\" IS NULL AND \"RootMessageId\" IS NULL AND \"ThreadCreatorId\" IS NULL AND \"ThreadCreatedAt\" IS NULL AND \"ThreadSequence\" = 0 AND NOT \"ThreadArchived\") OR (\"ParentChannelId\" IS NOT NULL AND \"ParentChannelId\" <> \"Id\" AND ((\"Kind\" = 'MessageThread' AND \"RootMessageId\" IS NOT NULL) OR (\"Kind\" = 'ForumTopic' AND \"RootMessageId\" IS NULL)) AND \"ThreadCreatorId\" IS NOT NULL AND \"ThreadCreatedAt\" IS NOT NULL AND \"ThreadSequence\" BETWEEN 1 AND 1000 AND \"LastThreadNumber\" = 0 AND \"CategoryId\" IS NULL))"));
+        });
+        builder.Entity<App.Api.Features.Forums.ForumTopicCommand>(command =>
+        {
+            command.HasKey(c => new { c.ForumId, c.ActorId, c.ClientRequestId });
+            command.Property(c => c.Hash).HasMaxLength(64);
+            command.HasOne<TextChannel>().WithMany().HasForeignKey(c => c.ForumId).OnDelete(DeleteBehavior.Restrict);
+            command.HasOne<TextChannel>().WithMany().HasForeignKey(c => c.TopicId).OnDelete(DeleteBehavior.Restrict);
+            command.HasOne<AppUser>().WithMany().HasForeignKey(c => c.ActorId).OnDelete(DeleteBehavior.Restrict);
+        });
+        builder.Entity<App.Api.Features.Threads.ThreadCommand>(command =>
+        {
+            command.HasKey(c => new { c.ParentChannelId, c.ActorId, c.ClientRequestId });
+            command.Property(c => c.Hash).HasMaxLength(64);
+            command.HasOne<TextChannel>().WithMany().HasForeignKey(c => c.ParentChannelId).OnDelete(DeleteBehavior.Restrict);
+            command.HasOne<TextChannel>().WithMany().HasForeignKey(c => c.ThreadId).OnDelete(DeleteBehavior.Restrict);
+            command.HasOne<AppUser>().WithMany().HasForeignKey(c => c.ActorId).OnDelete(DeleteBehavior.Restrict);
         });
         builder.Entity<CommunityInvite>(invite =>
         {

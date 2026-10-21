@@ -52,7 +52,7 @@ public static class StickerModel
             s.HasIndex(x => new { x.PackId, x.ClientRequestId }).IsUnique();
             s.Property(x => x.Label).HasMaxLength(64); s.Property(x => x.Filename).HasMaxLength(120); s.Property(x => x.ContentType).HasMaxLength(16);
             s.Property(x => x.Hash).HasMaxLength(64); s.Property(x => x.RequestHash).HasMaxLength(64);
-            s.ToTable(t => t.HasCheckConstraint("CK_StickerAssets_Media", "\"Size\" BETWEEN 1 AND 1048576 AND \"ContentType\" IN ('image/png', 'image/gif')"));
+            s.ToTable(t => t.HasCheckConstraint("CK_StickerAssets_Media", "(\"ContentType\" = 'image/png' AND \"Size\" BETWEEN 1 AND 1048576) OR (\"ContentType\" = 'image/gif' AND \"Size\" BETWEEN 1 AND 3145728)"));
         });
         model.Entity<SavedStickerPack>(s =>
         {

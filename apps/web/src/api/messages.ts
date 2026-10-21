@@ -1,5 +1,8 @@
 import type { components } from './schema';
 import { callApi, mutateApi, readJson } from './http';
+import { appendOptions } from './navigation';
+import type { MessageOptions } from './navigation';
+import { preparePreview } from '../features/messages/imagePreparation';
 
 export type Message = components['schemas']['MessageDto'];
 export type MessageSnapshot = components['schemas']['MessageSnapshot'] & { deletedVersions?: Record<string, string> };
@@ -9,11 +12,13 @@ export const history = (community: string, channel: string, signal: AbortSignal,
   callApi(`${root(community, channel)}/messages${before === undefined ? '' : `?before=${encodeURIComponent(before)}`}`, { signal }).then(readJson<MessageSnapshot>);
 export const catchUp = (community: string, channel: string, after: string, signal: AbortSignal) =>
   callApi(`${root(community, channel)}/events?after=${encodeURIComponent(after)}`, { signal }).then(readJson<CatchUpPage>);
-export const sendMessage = (community: string, channel: string, clientMessageId: string, content: string) =>
-  mutateApi<Message>(`${root(community, channel)}/messages`, 'POST', { clientMessageId, content });
-export async function sendAttachment(community: string, channel: string, id: string, content: string, file: File, voice = false) {
+export const sendMessage = (community: string, channel: string, clientMessageId: string, content: string, options: MessageOptions = {}) =>
+  mutateApi<Message>(`${root(community, channel)}/messages`, 'POST', { clientMessageId, content, ...options });
+export async function sendAttachment(community: string, channel: string, id: string, content: string, file: File, voice = false, options: MessageOptions = {}) {
   const token = await readJson<components['schemas']['CsrfResponse']>(await callApi('/api/v1/account/csrf'));
   const body = new FormData(); body.append('clientMessageId', id); body.append('content', content); body.append('file', file);
+  if (!voice) { const preview = await preparePreview(file); if (preview) body.append('preview', preview, 'preview.image'); }
+  appendOptions(body, options);
   return readJson<Message>(await callApi(`${root(community, channel)}/${voice ? 'voice-messages' : 'attachments'}`, { method: 'POST', body, headers: { 'X-CSRF-TOKEN': token.requestToken } }, 30_000));
 }
 export const attachmentUrl = (community: string, channel: string, id: string) => `${root(community, channel)}/attachments/${id}`;

@@ -9,7 +9,7 @@ public sealed record DirectConversationDto(string Id, string OtherUserId, string
     int Unread, bool BlockedByMe, bool ContactUnavailable, DateTimeOffset UpdatedAt);
 public sealed record DirectInbox(DirectConversationDto[] Conversations, string? Before, bool HasMore);
 public sealed record DirectMessageDto(string Id, string ConversationId, string AuthorId, string AuthorName, string ClientMessageId,
-    string Sequence, string Content, DateTimeOffset CreatedAt, string Version, DateTimeOffset? UpdatedAt, bool Deleted, AttachmentDto? Attachment);
+    string Sequence, string Content, DateTimeOffset CreatedAt, string Version, DateTimeOffset? UpdatedAt, bool Deleted, AttachmentDto? Attachment, string? ReplyToId = null, string[]? MentionUserIds = null);
 public sealed record DirectSnapshot(DirectMessageDto[] Messages, string Watermark, bool HasOlder);
 public sealed record DirectEventDto(string EventId, string ConversationId, string Sequence, string Kind, DirectMessageDto? Message);
 public sealed record DirectCatchUp(DirectEventDto[] Events, string Watermark, string NextSequence, bool HasMore);

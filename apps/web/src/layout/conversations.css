@@ -1,0 +1,158 @@
+.sr-only, .connection-status.is-quiet { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+.workspace-shell main.conversation-main { display: flex; flex-direction: column; padding: 16px 24px; overflow: hidden; }
+.conversation-main .community-workspace { display: flex; flex: 1; min-height: 0; margin: 0; overflow: visible; }
+.conversation-main .chat-workspace { display: flex; flex-direction: column; flex: 1; padding: 0; min-height: 0; }
+.message-timeline { min-height: 0; display: flex; flex-direction: column; flex: 1; }
+.message-timeline > .message-list { flex: 1; min-height: 80px; max-height: none; overflow-y: auto; margin: 8px 0 16px; padding: 4px; }
+.message-list > .message-row { display: flex; align-items: flex-start; gap: 12px; padding: 12px 8px; border: 0; border-radius: 8px; }
+.message-row:hover { background: var(--dv-sidebar); }
+.message-avatar { width: 40px; height: 40px; display: grid; place-items: center; border-radius: 50%; flex: 0 0 40px; background: var(--dv-raised); color: var(--dv-text); font-size: 12px; font-weight: 600; }
+.message-body { flex: 1; min-width: 0; position: relative; padding-right: 4px; }
+.message-body:has(.message-action-menu) { padding-right: 48px; }
+.message-row .message-meta { min-height: 24px; gap: 8px; }
+.message-row .message-meta strong { font-size: 14px; }
+.message-row .message-meta time { color: var(--dv-muted); font-size: 12px; }
+.message-row .message-body > p { font-size: 16px; line-height: 1.5; margin-top: 4px; }
+.message-actions { margin: 0; }
+.message-action-menu { width: 100%; }
+.message-action-menu > summary { position: absolute; top: -6px; right: 0; display: grid; place-items: center; list-style: none; cursor: pointer; width: 44px; min-height: 44px; color: var(--dv-muted); border-radius: 8px; }
+.message-action-menu > summary::-webkit-details-marker { display: none; }
+.message-action-menu > summary:hover, .message-action-menu[open] > summary { background: var(--dv-raised); color: var(--dv-text); }
+.message-action-options { width: fit-content; margin: 12px 0 4px auto; padding: 8px; display: flex; flex-wrap: wrap; gap: 8px; border: 1px solid var(--dv-line); background: var(--dv-sidebar); border-radius: 8px; }
+.message-action-menu:not([open]) > .message-action-options { display: none; }
+.message-actions textarea { width: 100%; color: var(--dv-text); background: var(--dv-ink); border: 1px solid var(--dv-line); border-radius: 8px; padding: 12px; font: inherit; }
+.message-actions label { font-size: 14px; }
+.message-actions .primary-button { width: auto; }
+.message-reactions { margin: 8px 0 0; }
+.message-reactions button { min-width: 44px; width: auto; }
+.message-reactions .reaction-trigger { width: 44px; padding: 8px; }
+.message-extras { flex-shrink: 0; padding: 0 0 8px; margin: 0; }
+.message-extras .composer-footer { margin: 0; justify-content: flex-end; gap: 8px; }
+.message-extras .composer-footer > span { margin-right: auto; font-size: 12px; color: var(--dv-muted); }
+.message-extras .composer-footer > button { font-size: 12px; padding: 8px 12px; }
+.channel-search { max-height: min(40dvh, 320px); overflow-y: auto; padding: 12px; border: 1px solid var(--dv-line); border-radius: 8px; margin-top: 8px; background: var(--dv-sidebar); }
+.channel-search form { margin: 0 0 8px; }
+.message-composer { flex-shrink: 0; position: relative; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; border-top: 1px solid var(--dv-line); padding-top: 12px; }
+.message-composer > label { flex-basis: 100%; margin: 0; font-size: 12px; color: var(--dv-muted); }
+.message-composer > textarea { flex-basis: 100%; width: 100%; min-height: 68px; max-height: 160px; margin: 0; font-size: 16px; background: var(--dv-ink); }
+.message-composer > .composer-footer { flex: 1 1 180px; margin: 0; gap: 8px; }
+.message-composer .composer-footer .primary-button { width: auto; margin: 0; }
+.message-composer > .primary-button { width: auto; margin: 0 0 0 auto; }
+.composer-count { font-size: 11px; margin-right: auto; }
+.message-composer .composer-help { flex-basis: 100%; color: var(--dv-muted); font-size: 11px; margin: 0; }
+.message-composer > .form-error, .message-composer > [role=alert] { flex-basis: 100%; }
+.message-composer .sticker-picker { overflow-wrap: anywhere; max-width: 100%; }
+.message-composer .secondary-button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; margin: 0; }
+.message-composer .emoji-picker, .message-composer .sticker-picker, .composer-tools { min-width: 0; position: static; }
+.message-composer .emoji-menu, .message-composer .sticker-picker-content, .composer-attachments { position: absolute; z-index: 25; left: 0; bottom: calc(100% + 8px); width: min(440px, 100%); max-height: min(55dvh, 440px); overflow-y: auto; margin: 0; padding: 16px; background: var(--dv-sidebar); border: 1px solid var(--dv-line); border-radius: 12px; box-shadow: 0 10px 30px #0005; }
+.message-composer .emoji-menu { width: min(320px, 100%); }
+.composer-attachments { width: min(520px, 100%); }
+.composer-tools-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.composer-tools-heading h3 { font-size: 16px; margin: 0; }
+.composer-attachments input[type=file] { max-width: 100%; min-height: 44px; }
+.composer-attachments > label { display: block; margin: 16px 0 8px; }
+.selected-attachment { flex-basis: 100%; margin: 0; font-size: 12px; color: var(--dv-accent); overflow-wrap: anywhere; }
+.message-composer .voice-recorder { border: 0; padding: 0; }
+.message-attachment { width: fit-content; max-width: 100%; border: 1px solid var(--dv-line); border-radius: 12px; padding: 12px; margin: 8px 0; background: var(--dv-sidebar); }
+.message-attachment .secondary-button { font-size: 13px; }
+.message-body > .voice-message-player { width: min(100%, 380px); margin-top: 8px; background: var(--dv-sidebar); }
+.workspace-shell main.direct-main { display: flex; flex-direction: column; padding: 20px 24px; overflow: hidden; }
+.direct-page { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.direct-page > h1 { font-size: 24px; margin: 0 0 8px; }
+.direct-page > p { font-size: 12px; color: var(--dv-muted); margin: 0 0 12px; }
+.direct-workspace { display: grid; grid-template-columns: 220px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); align-items: stretch; gap: 16px; flex: 1; min-height: 0; }
+.direct-inbox { overflow-y: auto; padding: 16px; }
+.direct-inbox nav { display: grid; }
+.direct-thread { display: flex; flex-direction: column; min-height: 0; padding: 16px; overflow: hidden; background: transparent; border: 0; border-radius: 0; }
+.direct-thread > header { display: flex; align-items: center; gap: 12px; flex-shrink: 0; border-bottom: 1px solid var(--dv-line); margin-bottom: 12px; padding-bottom: 12px; }
+.direct-thread > header h2 { flex: 1; min-width: 0; font-size: 20px; margin: 4px 0; }
+.direct-thread > header a { font-size: 12px; color: var(--dv-accent); }
+.direct-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; flex-shrink: 0; }
+.direct-controls p { margin: 0 auto 0 0; font-size: 12px; color: var(--dv-muted); }
+.direct-controls button { width: auto; font-size: 12px; padding: 8px 12px; }
+.direct-thread > .message-list { flex: 1; min-height: 80px; max-height: none; overflow-y: auto; padding: 4px; }
+.direct-thread > p { font-size: 12px; color: var(--dv-muted); margin: 6px 0; }
+.direct-back { display: none; }
+.public-profile { max-width: 720px; margin: 0 auto; }
+@media (max-width: 1050px) and (min-width: 761px) { .direct-workspace { grid-template-columns: 180px minmax(0, 1fr); gap: 8px; } .direct-thread { padding: 12px 4px; } }
+@media (max-width: 760px) {
+  .workspace-shell main.conversation-main, .workspace-shell main.direct-main { padding: 12px; }
+  .message-list > .message-row { gap: 8px; padding: 10px 2px; }
+  .message-avatar { width: 32px; height: 32px; flex-basis: 32px; font-size: 10px; }
+  .message-row .message-meta { gap: 4px; }
+  .message-row .message-meta time { font-size: 10px; }
+  .message-row .message-body > p { font-size: 15px; }
+  .message-composer > .composer-footer { flex-basis: 100%; }
+  .message-composer .composer-help { font-size: 10px; }
+  .composer-attachments, .message-composer .sticker-picker-content { max-height: 48dvh; }
+  .direct-workspace { display: block; overflow-y: auto; }
+  .direct-workspace.has-thread { display: flex; flex-direction: column; overflow: hidden; }
+  .direct-workspace.has-thread .direct-inbox { display: none; }
+  .direct-workspace:not(.has-thread) > .about-panel { margin-top: 16px; }
+  .direct-thread { flex: 1; padding: 0; }
+  .direct-thread .direct-back { display: inline-grid; }
+  .direct-thread .message-composer > .primary-button { margin-left: 0; }
+}
+/* Compose text and tools share one input surface. */
+.message-extras { padding: 0; }
+.message-extras:empty { display: none; }
+.channel-search { margin: 0 0 8px; }
+.message-composer { padding-top: 8px; gap: 6px; border-top: 0; }
+.composer-input-row { display: flex; align-items: flex-end; gap: 4px; width: 100%; min-width: 0; padding: 6px; border: 1px solid var(--dv-line); border-radius: 12px; background: var(--dv-ink); }
+.composer-input-row:focus-within { border-color: var(--dv-accent); }
+.message-composer .composer-input-row textarea { display: block; flex: 1; width: 0; min-width: 0; min-height: 48px; height: 48px; max-height: 160px; margin: 0; padding: 4px 8px; color: var(--dv-text); background: transparent; border: 0; border-radius: 6px; box-shadow: none; font-size: 15px; line-height: 20px; resize: vertical; }
+.message-composer .composer-input-row textarea:focus-visible { outline-offset: -2px; }
+.composer-inline-tools { display: flex; align-items: center; gap: 3px; flex-shrink: 0; padding: 4px 0; }
+.message-composer .composer-inline-tools > .composer-tools > button,
+.message-composer .composer-inline-tools > .sticker-picker > button,
+.message-composer .composer-inline-tools > .emoji-picker > button,
+.message-composer .composer-inline-tools > .composer-send { display: inline-grid; place-items: center; width: 36px; height: 36px; min-height: 36px; padding: 8px; margin: 0; border-radius: 8px; flex: 0 0 36px; }
+.message-composer .composer-inline-tools > .composer-tools > button, .message-composer .composer-inline-tools > .sticker-picker > button, .message-composer .composer-inline-tools > .emoji-picker > button { border-color: transparent; background: transparent; color: var(--dv-muted); }
+.message-composer .composer-inline-tools > .composer-tools > button:hover, .message-composer .composer-inline-tools > .sticker-picker > button:hover, .message-composer .composer-inline-tools > .emoji-picker > button:hover { background: var(--dv-raised); color: var(--dv-text); }
+.message-composer .composer-inline-tools .composer-send { color: var(--dv-ink); background: var(--dv-accent); }
+.message-composer .composer-inline-tools .composer-send:disabled { opacity: .45; }
+.composer-count { width: 100%; margin: 0; text-align: right; color: var(--dv-muted); }
+.message-composer .selected-attachment { flex-basis: 100%; }
+.message-composer .selected-attachment button { width: auto; min-height: 32px; padding: 4px 8px; font-size: 12px; }
+@media (max-width: 760px) {
+  .workspace-shell main.conversation-main { padding: 8px; }
+  .composer-input-row { padding: 4px; }
+  .composer-inline-tools { gap: 1px; }
+  .message-composer .composer-inline-tools > .composer-tools > button,
+  .message-composer .composer-inline-tools > .sticker-picker > button,
+  .message-composer .composer-inline-tools > .emoji-picker > button,
+  .message-composer .composer-inline-tools > .composer-send { width: 34px; height: 40px; min-height: 40px; flex-basis: 34px; padding: 8px; }
+}
+.conversation-notifications { flex-shrink: 0; padding: 4px 0; font-size: 13px; }
+.conversation-notifications summary { cursor: pointer; width: fit-content; padding: 6px 8px; border-radius: 6px; background: var(--dv-raised); }
+.conversation-notifications[open] { max-height: 220px; overflow-y: auto; }
+.conversation-notifications label { display: grid; gap: 6px; max-width: 380px; }
+.conversation-notifications small { display: block; max-width: 600px; }
+.mention-picker { position: static; }
+.mention-options { position: absolute; z-index: 25; bottom: calc(100% + 8px); left: 0; width: min(360px, 100%); max-height: 320px; overflow-y: auto; padding: 14px; border: 1px solid var(--dv-line); border-radius: 10px; background: var(--dv-ink); box-shadow: 0 12px 24px #0005; }
+.message-composer .composer-inline-tools > .mention-picker > button { display: inline-grid; place-items: center; width: 36px; height: 36px; min-height: 36px; padding: 8px; margin: 0; border: 0; border-radius: 8px; background: transparent; color: var(--dv-muted); font-size: 18px; }
+.mention-options label { display: grid; gap: 8px; }
+.mention-options input { min-width: 0; width: 100%; }
+.mention-options > button { display: block; width: 100%; margin-top: 6px; text-align: left; overflow-wrap: anywhere; }
+.draft-references { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; max-height: 140px; overflow-y: auto; overflow-wrap: anywhere; }
+.draft-references:empty { display: none; }
+.draft-references p { margin: 0; }
+.draft-references button { min-height: 36px; padding: 6px 10px; }
+.reply-reference { margin: 4px 0; border-left: 3px solid var(--dv-accent); padding: 4px 10px; color: var(--dv-muted); font-size: 13px; overflow-wrap: anywhere; }
+.message-mentions { display: flex; flex-wrap: wrap; gap: 8px; font-size: 13px; }
+.message-mentions a { color: var(--dv-accent); }
+.focused-message { flex-shrink: 0; max-height: 260px; overflow-y: auto; margin-bottom: 8px; padding: 16px; background: var(--dv-ink); border: 1px solid var(--dv-accent); border-radius: 8px; overflow-wrap: anywhere; }
+.focused-message p { white-space: pre-wrap; }
+.focused-message h3 { margin-top: 0; }
+.bookmark-dialog form, .bookmark-dialog label { display: grid; gap: 10px; }
+.personal-navigation { max-width: 960px; margin: auto; }
+.bookmark-filters { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; }
+.bookmark-filters label { display: grid; flex: 1 1 180px; min-width: 0; gap: 8px; }
+.bookmark-filters input { min-width: 0; width: 100%; }
+.personal-navigation-list { display: grid; gap: 16px; list-style: none; padding: 0; }
+.personal-navigation-list > li { padding: 20px; border: 1px solid var(--dv-line); border-radius: 10px; background: var(--dv-ink); overflow-wrap: anywhere; }
+.personal-navigation-list h2 { margin-top: 6px; font-size: 18px; }
+.personal-navigation-list p { white-space: pre-wrap; }
+.bookmark-tags { color: var(--dv-accent); }
+.personal-navigation input, .conversation-notifications select, .mention-options input, .bookmark-dialog input, .bookmark-dialog textarea { min-height: 44px; min-width: 0; width: 100%; border: 1px solid var(--dv-line); border-radius: 8px; padding: 10px 12px; background: var(--dv-ink); color: var(--dv-text); font: inherit; }
+@media (max-width: 760px) { .message-composer .composer-inline-tools > .mention-picker > button { width: 34px; height: 40px; min-height: 40px; } }

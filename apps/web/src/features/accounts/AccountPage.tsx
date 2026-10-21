@@ -1,7 +1,8 @@
 import { useI18n } from '../../i18n/LocaleContext';
+import { LanguageSwitcher } from '../../i18n/LanguageProvider';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router';
-import { LogOut, ShieldCheck, UserRound } from 'lucide-react';
+import { ArrowRight, LogOut, ShieldCheck, UserRound } from 'lucide-react';
 import { login, logout, register, sessionKey, updateProfile } from '../../api/accounts';
 import type { UserProfile } from '../../api/accounts';
 import { useSession } from './useSession';
@@ -16,22 +17,21 @@ function Profile({ user }: { user: UserProfile }) {
     queryClient.setQueryData(sessionKey, null);
     navigate('/login');
   } });
-  return <section className="account-card"><div className="account-avatar"><UserRound size={28} aria-hidden="true" /></div>
+  return <section className="account-card account-settings"><header className="settings-page-heading"><div className="account-avatar"><UserRound size={28} aria-hidden="true" /></div><div>
     <p className="eyebrow">{t("YOUR ACCOUNT")}</p><h1>{t("Welcome, ")}{user.displayName}.</h1>
-    <p className="account-intro">{t("Your profile is ready. ")}<Link to="/communities">{t("Explore your communities.")}</Link></p>
-    <div className="account-email"><span>{t("Email address")}</span><strong>{user.email}</strong></div>
-    <p><Link to={`/profiles/${user.id}`}>{t('Edit games, interests and profile details')}</Link></p>
-    <form onSubmit={event => { event.preventDefault(); const data = new FormData(event.currentTarget); update.mutate({ displayName: String(data.get('displayName') ?? '') }); }}>
+    <p className="account-intro">{t("Your profile is ready. ")}<Link to="/communities">{t("Explore your communities.")}</Link></p></div></header>
+    <div className="account-settings-grid"><section className="settings-surface"><h2>{t('Account details')}</h2><div className="account-email"><span>{t("Email address")}</span><strong>{user.email}</strong><p className="field-hint">{t('Only you can see your account email.')}</p></div>
+    <form onSubmit={event => { event.preventDefault(); if (update.isPending || signOut.isPending) return; const data = new FormData(event.currentTarget); update.mutate({ displayName: String(data.get('displayName') ?? '') }); }}>
       <label htmlFor="displayName">{t("Display name")}</label>
       <input key={user.displayName} id="displayName" name="displayName" autoComplete="nickname" minLength={2} maxLength={40} defaultValue={user.displayName} required />
       <p className="field-hint">{t("2–40 characters. This is how others will see you.")}</p>
       {update.isError && <p role="alert" className="form-error">{t(update.error.message)}</p>}
       {update.isSuccess && <p role="status" className="form-success">{t("Profile saved.")}</p>}
       <button className="primary-button" disabled={update.isPending || signOut.isPending}>{update.isPending ? t("Saving…") : t("Save profile")}</button>
-    </form>
-    <div className="account-security"><ShieldCheck size={17} aria-hidden="true" /><span>{t("Sign out when you finish on a shared device.")}</span></div>
+    </form></section><aside className="account-settings-aside"><section className="settings-surface"><h2>{t('Your public profile')}</h2><p className="field-hint">{t('Share your games, interests and what you are looking for with other signed-in users.')}</p><Link className="secondary-button profile-edit-link" to={`/profiles/${user.id}`}>{t('Edit games, interests and profile details')}<ArrowRight size={18} aria-hidden="true" /></Link></section>
+    <section className="settings-surface"><h2>{t('Account security')}</h2><Link className="settings-text-link" to="/forgot-password">{t('Forgot your password?')}</Link><div className="account-security"><ShieldCheck size={17} aria-hidden="true" /><span>{t("Sign out when you finish on a shared device.")}</span></div>
     {signOut.isError && <p role="alert" className="form-error">{t(signOut.error.message)}</p>}
-    <button className="sign-out-button" onClick={() => signOut.mutate()} disabled={signOut.isPending || update.isPending}><LogOut size={16} aria-hidden="true" />{signOut.isPending ? t("Signing out…") : t("Sign out")}</button>
+    <button className="sign-out-button" onClick={() => signOut.mutate()} disabled={signOut.isPending || update.isPending}><LogOut size={16} aria-hidden="true" />{signOut.isPending ? t("Signing out…") : t("Sign out")}</button></section></aside></div>
   </section>;
 }
 
@@ -69,12 +69,7 @@ export function AccountPage({ mode = 'login' }: { mode?: 'login' | 'register' })
   const { t } = useI18n();
   const session = useSession();
   return <div className="account-page">
+    <section className="account-language" aria-label={t('Interface language')}><LanguageSwitcher /></section>
     {session.isPending ? <section className="account-card"><p role="status">{t("Checking your session…")}</p></section> : session.isError ? <section className="account-card"><h1>{t("Connection interrupted.")}</h1><p role="alert" className="form-error">{t("We could not check your session. Check your connection and try again.")}</p><button className="primary-button" onClick={() => void session.refetch()} disabled={session.isFetching}>{session.isFetching ? t("Checking…") : t("Try again")}</button></section> : session.data ? <Profile key={session.data.id} user={session.data} /> : <SignInForm key={mode} mode={mode} />}
   </div>;
-}
-
-export function SessionLink() {
-  const { t } = useI18n();
-  const session = useSession();
-  return <Link className="session-link" to="/account"><UserRound size={16} aria-hidden="true" />{session.isError ? t("Check session") : session.data ? t("My account") : t("Sign in")}</Link>;
 }

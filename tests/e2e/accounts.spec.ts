@@ -1,5 +1,7 @@
+import { changeLanguage } from './workspace-navigation';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
+import { expectReadableText } from './readability';
 
 const password = 'Synthetic browser passphrase 42';
 const email = () => `browser-${crypto.randomUUID()}@example.test`;
@@ -13,6 +15,18 @@ async function createAccount(page: Page, address = email()) {
   await expect(page.getByRole('heading', { name: 'Welcome, Browser member.' })).toBeVisible();
   return address;
 }
+
+test('account and personal profile remain readable in English and Russian', async ({ page }, info) => {
+  await createAccount(page);
+  await expectReadableText(page.locator('.account-card'));
+  await changeLanguage(page, 'ru');
+  await expectReadableText(page.locator('.account-card'));
+  await page.screenshot({ path: info.outputPath('account-readable-ru.png'), fullPage: true });
+  await page.getByRole('link', { name: 'Изменить игры, интересы и данные профиля', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Сохранить данные профиля', exact: true })).toBeVisible();
+  await expectReadableText(page.locator('.public-profile'));
+  await page.screenshot({ path: info.outputPath('profile-readable-ru.png'), fullPage: true });
+});
 
 test('register, edit, reload, logout and login against the actual API', async ({ page, context }, testInfo) => {
   const errors: string[] = [];

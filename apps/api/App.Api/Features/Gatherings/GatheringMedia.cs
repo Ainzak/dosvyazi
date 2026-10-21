@@ -54,9 +54,11 @@ public sealed partial class GatheringService
     // Called by membership writers under the same community lock/transaction.
     public async Task RevokeMember(Guid community, Guid user, CancellationToken ct)
     {
-        foreach (var g in await db.Gatherings.Include(g => g.Invites).Where(g => g.CommunityId == community && g.Invites.Any(i => i.UserId == user && i.Active)).ToArrayAsync(ct))
+        foreach (var g in await db.Gatherings.Include(g => g.Invites).Where(g => g.CommunityId == community && (g.OrganizerId == user || g.Invites.Any(i => i.UserId == user && i.Active))).ToArrayAsync(ct))
         {
-            g.Invites.Single(i => i.UserId == user).Active = false; g.Version++; Changed(g, user, "membership", [user]);
+            var invite = g.Invites.SingleOrDefault(i => i.UserId == user); if (invite is not null) invite.Active = false;
+            await ResetPreparation(g, [user], false, false, ct); g.Version++; Changed(g, user, "membership", [user]);
+            await ResetAttendance(g, [user], false, false, ct);
         }
     }
 }

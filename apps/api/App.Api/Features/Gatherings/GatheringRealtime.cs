@@ -93,6 +93,7 @@ public sealed class GatheringWorker(IServiceScopeFactory scopes, IConfiguration 
                 using var scope = scopes.CreateScope(); var db = scope.ServiceProvider.GetRequiredService<AppDbContext>(); var publisher = scope.ServiceProvider.GetRequiredService<GatheringPublisher>();
                 foreach (var id in await db.GatheringEvents.AsNoTracking().Where(e => e.PublishedAt == null).OrderBy(e => e.Id).Select(e => e.Id).Take(100).ToArrayAsync(ct)) { db.ChangeTracker.Clear(); await publisher.Publish(id, ct); }
                 await publisher.Reconcile(ct);
+                await scope.ServiceProvider.GetRequiredService<GatheringService>().DeliverReminders(ct);
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested) { break; }
             catch { logger.LogWarning("Gatherings delivery is interrupted; durable hints will be retried."); }

@@ -27,6 +27,15 @@ public sealed class Membership
 
 public sealed class TextChannel
 {
+    public string Kind { get; set; } = "Text";
+    public Guid? ParentChannelId { get; set; }
+    public Guid? RootMessageId { get; set; }
+    public Guid? DiscussionCreatorId { get; set; }
+    public DateTimeOffset? DiscussionCreatedAt { get; set; }
+    public bool DiscussionArchived { get; set; }
+    public long DiscussionVersion { get; set; } = 1;
+    public long DiscussionSequence { get; set; }
+    public long LastDiscussionNumber { get; set; }
     public Guid? CategoryId { get; set; }
     public long LastSequence { get; set; }
     public Guid Id { get; set; }

@@ -1,6 +1,39 @@
+import { changeLanguage, communityOverview, composerTools, workspaceLink } from './workspace-navigation';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 const gif = Buffer.from('R0lGODlhAgACAIEAAP8AAAAAAAAAAAAAACH/C05FVFNDQVBFMi4wAwEAAAAh+QQACgAAACwAAAAAAgACAAAIBgABCAQQEAAh+QQACgAAACwAAAAAAgACAIEAAP8AAAAAAAAAAAAIBgABCAQQEAA7', 'base64');
+function sizedGif(size: number) {
+  const blocks: Buffer[] = [gif.subarray(0, -1), Buffer.from([0x21, 0xfe])]; let remaining = size - gif.length - 3;
+  while (remaining > 0) { let n = Math.min(255, remaining - 1); if (remaining - n - 1 === 1) n--; if (n < 1) throw new Error('Fixture size'); blocks.push(Buffer.from([n]), Buffer.alloc(n)); remaining -= n + 1; }
+  blocks.push(Buffer.from([0, 0x3b])); const result = Buffer.concat(blocks); expect(result.length).toBe(size); return result;
+}
+
+test('large GIF sticker selection stays responsive, uploads through 3 MiB and retains an ambiguous upload for safe retry', async ({ page }, info) => {
+  test.setTimeout(60000); const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
+  await register(page, 'Large GIF tester'); const name = 'large-' + crypto.randomUUID().slice(0, 12);
+  await createPack(page, name); let posts = 0; let dropped = false;
+  await page.route('**/sticker-packs/*/stickers', async route => { if (route.request().method() !== 'POST') return route.continue(); posts++; if (!dropped) { dropped = true; expect((await route.fetch()).status()).toBe(201); return route.abort(); } return route.continue(); });
+  await page.getByLabel('Sticker label', { exact: true }).fill('Large wave');
+  await page.getByLabel('Sticker artwork', { exact: true }).setInputFiles({ name: 'large.gif', mimeType: 'image/gif', buffer: sizedGif(1_200_000) });
+  await expect(page.getByRole('button', { name: 'Add sticker', exact: true })).toBeEnabled(); expect(posts).toBe(0);
+  await page.getByRole('button', { name: 'Add sticker', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('Cannot reach Dosvyazi.');
+  await expect(page.getByLabel('Sticker label', { exact: true })).toHaveValue('Large wave');
+  await page.getByRole('button', { name: 'Add sticker', exact: true }).click();
+  await expect(page.locator('.sticker-list > li')).toHaveCount(3); expect(posts).toBe(2);
+  await page.getByLabel('Sticker label', { exact: true }).fill('Maximum wave');
+  await page.getByLabel('Sticker artwork', { exact: true }).setInputFiles({ name: 'maximum.gif', mimeType: 'image/gif', buffer: sizedGif(3 * 1024 * 1024) });
+  await page.getByRole('button', { name: 'Add sticker', exact: true }).click(); await expect(page.locator('.sticker-list > li')).toHaveCount(4);
+  await page.getByRole('button', { name: 'View image: maximum.gif', exact: true }).click();
+  await expect.poll(() => page.getByRole('img', { name: 'Image attachment: maximum.gif', exact: true }).evaluate(e => (e as HTMLImageElement).naturalWidth)).toBe(2);
+  await changeLanguage(page, 'ru'); const before = posts;
+  await page.getByLabel('Изображение стикера', { exact: true }).setInputFiles({ name: 'too-large.gif', mimeType: 'image/gif', buffer: Buffer.alloc(3 * 1024 * 1024 + 1) });
+  await expect(page.getByRole('alert')).toContainText('GIF-стикер до 3 МиБ'); await expect(page.getByRole('button', { name: 'Добавить стикер', exact: true })).toBeDisabled();
+  await page.getByLabel('Изображение стикера', { exact: true }).setInputFiles({ name: 'too-large.png', mimeType: 'image/png', buffer: Buffer.alloc(1024 * 1024 + 1) });
+  await expect(page.getByRole('alert')).toContainText('PNG-стикер до 1 МиБ'); expect(posts).toBe(before); expect(errors).toEqual([]);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: info.outputPath('sticker-limits-ru.png'), fullPage: true });
+});
 async function register(page: Page, name: string) {
   await page.goto('/register'); await page.getByLabel('Display name', { exact: true }).fill(name);
   await page.getByLabel('Email address', { exact: true }).fill(`sticker-${crypto.randomUUID()}@example.test`);
@@ -33,9 +66,9 @@ test('animated packs are shared from a sent sticker, saved without artwork downl
     await createPack(page, unique); expect(artworkRequests).toBe(0);
     await page.goto('/communities'); await page.getByLabel('Community name', { exact: true }).fill('Sticker crew'); await page.getByRole('button', { name: 'Create community', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Sticker crew', exact: true })).toBeVisible();
-    await page.getByRole('button', { name: 'Create invitation', exact: true }).click(); const code = await page.getByLabel('Share this invitation code').inputValue();
+    await communityOverview(page); await page.getByRole('button', { name: 'Create invitation', exact: true }).click(); const code = await page.getByLabel('Share this invitation code').inputValue();
     await peer.goto('/communities'); await peer.getByLabel('Invitation code', { exact: true }).fill(code); await peer.getByRole('button', { name: 'Join community', exact: true }).click();
-    for (const p of [page, peer]) await p.getByRole('link', { name: 'general', exact: true }).click();
+    for (const p of [page, peer]) await workspaceLink(p, 'general');
     let messageRequests = 0; peer.on('request', request => { if (request.method() === 'GET' && /\/attachments\//.test(request.url())) messageRequests++; });
     await choose(page, unique); await page.getByRole('button', { name: 'Send message', exact: true }).click();
     await expect(peer.getByRole('button', { name: 'View image: wave.gif', exact: true })).toBeVisible(); expect(artworkRequests).toBe(0); expect(messageRequests).toBe(0);
@@ -68,16 +101,16 @@ test('animated packs are shared from a sent sticker, saved without artwork downl
     await page.reload(); await expect(page.getByRole('button', { name: 'View image: wave.gif', exact: true })).toBeVisible(); await expect(page.locator('.attachment-preview')).toHaveCount(0);
     expect(await peer.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await peer.screenshot({ path: info.outputPath('sticker-dm.png'), fullPage: true });
-    await peer.getByRole('button', { name: 'Русский', exact: true }).click(); await expect(peer.getByRole('button', { name: 'Стикеры', exact: true })).toBeVisible(); expect(errors).toEqual([]);
+    await changeLanguage(peer, 'ru'); await expect(peer.getByRole('button', { name: 'Стикеры', exact: true })).toBeVisible(); expect(errors).toEqual([]);
   } finally { await context.close(); }
 });
 
 test('ordinary GIF attachments stay unloaded through reload and exact retry, then hide and revoke their local URL', async ({ page }) => {
   await register(page, 'GIF owner'); await page.goto('/communities'); await page.getByLabel('Community name', { exact: true }).fill('GIF crew'); await page.getByRole('button', { name: 'Create community', exact: true }).click();
-  await page.getByRole('link', { name: 'general', exact: true }).click(); let requested = 0; let dropped = false;
+  await workspaceLink(page, 'general'); let requested = 0; let dropped = false;
   page.on('request', request => { if (request.method() === 'GET' && /\/attachments\//.test(request.url())) requested++; });
   await page.route('**/channels/*/attachments', async route => { if (route.request().method() !== 'POST' || dropped) return route.continue(); dropped = true; expect((await route.fetch()).status()).toBe(201); await route.abort(); });
-  await page.getByLabel('Attach a file', { exact: true }).setInputFiles({ name: 'animation.gif', mimeType: 'image/gif', buffer: gif }); await page.getByRole('button', { name: 'Send message', exact: true }).click();
+  await composerTools(page); await page.getByLabel('Attach a file', { exact: true }).setInputFiles({ name: 'animation.gif', mimeType: 'image/gif', buffer: gif }); await page.getByRole('button', { name: 'Send message', exact: true }).click();
   await page.getByRole('button', { name: 'Retry send', exact: true }).click(); await expect(page.locator('.message-list > li')).toHaveCount(1); expect(requested).toBe(0);
   await page.reload(); await expect(page.getByRole('button', { name: 'View image: animation.gif', exact: true })).toBeVisible(); expect(requested).toBe(0);
   await page.getByRole('button', { name: 'View image: animation.gif', exact: true }).click(); const image = page.getByRole('img', { name: 'Image attachment: animation.gif', exact: true });

@@ -19,7 +19,7 @@ CultureInfo.DefaultThreadCurrentUICulture = CultureInfo.GetCultureInfo("en");
 
 var builder = WebApplication.CreateBuilder(args);
 
-// This deployment uses one local TLS proxy; never trust arbitrary forwarding sources.
+// Trust one explicitly configured TLS proxy; never trust arbitrary forwarding sources.
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
     options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
@@ -28,6 +28,11 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
     options.KnownProxies.Clear();
     options.KnownProxies.Add(IPAddress.Loopback);
     options.KnownProxies.Add(IPAddress.IPv6Loopback);
+    foreach (var value in builder.Configuration.GetSection("ReverseProxy:KnownProxies").Get<string[]>() ?? [])
+    {
+        if (!IPAddress.TryParse(value, out var address)) throw new InvalidOperationException("Configure explicit IP addresses for trusted proxies.");
+        options.KnownProxies.Add(address);
+    }
 });
 
 builder.Services.AddControllers(options => options.Filters.Add<CsrfFilter>());
@@ -56,7 +61,11 @@ builder.Services.Configure<DataProtectionTokenProviderOptions>(options => option
 builder.Services.AddScoped<AccountService>();
 builder.Services.AddScoped<CommunityService>();
 builder.Services.AddScoped<AccessService>();
+builder.Services.AddScoped<AdministrationService>();
+builder.Services.AddScoped<App.Api.Features.Threads.ThreadService>();
+builder.Services.AddScoped<App.Api.Features.Forums.ForumService>();
 builder.Services.AddScoped<MessageService>();
+builder.Services.AddScoped<App.Api.Features.Navigation.NavigationService>();
 builder.Services.AddScoped<DirectService>();
 builder.Services.AddSingleton<DirectConnections>();
 builder.Services.AddScoped<DirectPublisher>();

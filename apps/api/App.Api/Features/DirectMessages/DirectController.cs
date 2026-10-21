@@ -23,7 +23,7 @@ public sealed class DirectController(DirectService service, AppDbContext db, Att
     public Task<ActionResult<DirectInbox>> Inbox([FromQuery] Guid? before, CancellationToken ct) => Execute(() => service.InboxAsync(User, before, ct));
     [HttpPost("{conversation:guid}/stickers"), EnableRateLimiting("direct-commands"), RequestSizeLimit(32768)]
     public Task<ActionResult<DirectMessageDto>> Sticker(Guid conversation, App.Api.Features.Stickers.SendStickerRequest request, CancellationToken ct)
-        => Execute(() => service.SendAsync(conversation, new(request.ClientMessageId, request.Content ?? ""), User, null, ct, request.StickerId), 201);
+        => Execute(() => service.SendAsync(conversation, new(request.ClientMessageId, request.Content ?? "", request.ReplyToId, request.MentionUserIds), User, null, ct, request.StickerId), 201);
     [HttpPost, EnableRateLimiting("direct-starts"), RequestSizeLimit(4096)]
     public Task<ActionResult<DirectConversationDto>> Start(StartDirectRequest request, CancellationToken ct) => Execute(() => service.StartAsync(request, User, ct), 201);
     [HttpGet("{conversation:guid}")]
@@ -44,23 +44,24 @@ public sealed class DirectController(DirectService service, AppDbContext db, Att
     public Task<ActionResult<DirectConversationDto>> Block(Guid conversation, BlockDirectRequest request, CancellationToken ct) => Execute(() => service.BlockAsync(conversation, request, User, ct));
     [HttpPost("{conversation:guid}/attachments"), EnableRateLimiting("attachment-uploads")]
     [RequestSizeLimit(6 * 1024 * 1024), RequestFormLimits(MultipartBodyLengthLimit = 6 * 1024 * 1024)]
-    public Task<ActionResult<DirectMessageDto>> Attachment(Guid conversation, [FromForm] Guid clientMessageId, [FromForm] string? content, [FromForm] IFormFile file, CancellationToken ct)
-        => Execute(async () => await service.SendAsync(conversation, new(clientMessageId, content ?? ""), User, await AttachmentStore.PrepareAsync(file, ct), ct), 201);
+    public Task<ActionResult<DirectMessageDto>> Attachment(Guid conversation, [FromForm] Guid clientMessageId, [FromForm] string? content, [FromForm] IFormFile file, [FromForm] Guid? replyToId, [FromForm] Guid[]? mentionUserIds, [FromForm] IFormFile? preview, CancellationToken ct)
+        => Execute(async () => await service.SendAsync(conversation, new(clientMessageId, content ?? "", replyToId, mentionUserIds), User, await ImagePreview.PrepareAsync(file, preview, ct), ct), 201);
     [HttpPost("{conversation:guid}/voice-messages"), EnableRateLimiting("attachment-uploads")]
     [RequestSizeLimit(3 * 1024 * 1024), RequestFormLimits(MultipartBodyLengthLimit = 3 * 1024 * 1024)]
-    public Task<ActionResult<DirectMessageDto>> Voice(Guid conversation, [FromForm] Guid clientMessageId, [FromForm] string? content, [FromForm] IFormFile file, CancellationToken ct)
-        => Execute(async () => await service.SendAsync(conversation, new(clientMessageId, content ?? ""), User, await AttachmentStore.PrepareVoiceAsync(file, ct), ct), 201);
+    public Task<ActionResult<DirectMessageDto>> Voice(Guid conversation, [FromForm] Guid clientMessageId, [FromForm] string? content, [FromForm] IFormFile file, [FromForm] Guid? replyToId, [FromForm] Guid[]? mentionUserIds, CancellationToken ct)
+        => Execute(async () => await service.SendAsync(conversation, new(clientMessageId, content ?? "", replyToId, mentionUserIds), User, await AttachmentStore.PrepareVoiceAsync(file, ct), ct), 201);
     [HttpGet("{conversation:guid}/attachments/{attachment:guid}")]
-    public async Task<IActionResult> Download(Guid conversation, Guid attachment, CancellationToken ct)
+    public async Task<IActionResult> Download(Guid conversation, Guid attachment, [FromQuery] bool preview, CancellationToken ct)
     {
         try
         {
             await using var tx = await db.Database.BeginTransactionAsync(ct); await service.LockAsync(conversation, User, ct);
             var item = await db.DirectAttachments.AsNoTracking().SingleOrDefaultAsync(a => a.Id == attachment && a.Message.ConversationId == conversation && !a.Message.Deleted && !a.Purged, ct);
             if (item is null) return Problem(statusCode: 404, title: "Attachment is unavailable.");
-            var stream = files.Open(item.Id); Response.Headers.XContentTypeOptions = "nosniff"; Response.Headers.ContentSecurityPolicy = "sandbox; default-src 'none'";
+            if (preview && item.PreviewId is null) return Problem(statusCode: 404, title: "Image preview is unavailable. Load the original instead.");
+            var stream = files.Open(preview ? item.PreviewId!.Value : item.Id); Response.Headers.XContentTypeOptions = "nosniff"; Response.Headers.ContentSecurityPolicy = "sandbox; default-src 'none'";
             try { await tx.CommitAsync(ct); } catch { await stream.DisposeAsync(); throw; }
-            return File(stream, "application/octet-stream", item.Name, enableRangeProcessing: false);
+            return File(stream, "application/octet-stream", preview ? "preview.image" : item.Name, enableRangeProcessing: false);
         }
         catch (CommunityFailure error) { return Problem(statusCode: error.Status, title: error.Message); }
         catch (IOException) { return Problem(statusCode: 503, title: "Attachment storage is unavailable. Try again later."); }

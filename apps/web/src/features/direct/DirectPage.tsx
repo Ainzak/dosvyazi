@@ -1,8 +1,15 @@
-import { StickerPicker } from '../stickers/StickerPicker';
+import { HistoryWindowControls } from '../messages/HistoryWindowControls';
+import { ImageSendOptions } from '../messages/ImageSendOptions';
+import { useHistoryWindow, captureMessageAnchor, restoreMessageAnchor } from '../messages/historyWindow';
+import { SendHorizontal } from 'lucide-react';
+import { sendOnEnter } from '../messages/composerKeyboard';
+import { ComposerTools, MessageActionMenu, MessageAvatar } from '../messages/ConversationUi';
+import { StickerPicker, StickerSelection } from '../stickers/StickerPicker';
 import * as stickers from '../../api/stickers';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { HubConnectionBuilder, HttpTransportType, LogLevel } from '@microsoft/signalr';
+import { ArrowLeft } from 'lucide-react';
 import { Link, NavLink, useNavigate, useParams, useSearchParams } from 'react-router';
 import * as api from '../../api/direct';
 import { ApiError } from '../../api/http';
@@ -12,6 +19,10 @@ import { useI18n } from '../../i18n/LocaleContext';
 import { AttachmentDownload } from '../messages/AttachmentDownload';
 import { VoiceRecorder } from '../messages/VoiceRecorder';
 import { VoiceMessagePlayer } from '../messages/VoiceMessagePlayer';
+import { BookmarkButton, DraftReferences, FocusedMessage, MentionLabels, MentionPicker, NotificationPreference, ReplyReference } from '../messages/NavigationTools';
+import { navigationKeys } from '../../api/navigation';
+import type { Member } from '../../api/navigation';
+import type { ReactNode } from 'react';
 
 function targetId(value: string) {
   const guid = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i;
@@ -65,9 +76,9 @@ function DirectWorkspace({ user, id, target }: { user: UserProfile; id?: string 
     window.addEventListener('online', online); window.addEventListener('offline', offline); void start();
     return () => { disposed = true; clearTimeout(timer); window.removeEventListener('online', online); window.removeEventListener('offline', offline); void connection.stop(); };
   }, [cache, user.id, id, retry]);
-  return <><h1>{t('Direct messages')}</h1><p className="field-hint">{t('Conversations belong to their two participants. Community owners and moderators cannot access them.')}</p>
+  return <section className="direct-page"><h1 className={id ? 'sr-only' : undefined}>{t('Direct messages')}</h1><p className={id ? 'sr-only' : 'field-hint'}>{t('Conversations belong to their two participants. Community owners and moderators cannot access them.')}</p>
     {updates && <div role="status"><p>{t(updates)}</p><button className="secondary-button" onClick={() => setRetry(value => value + 1)}>{t('Check for new messages')}</button></div>}
-    <div className="direct-workspace"><aside className="direct-inbox" aria-label={t('Your conversations')}>
+    <div className={`direct-workspace${id ? ' has-thread' : ''}`}><aside className="direct-inbox" aria-label={t('Your conversations')}>
       <h2>{t('Your conversations')}</h2>
       {inbox.isPending && <p role="status">{t('Loading conversations…')}</p>}
       {inbox.isError && <><p role="alert">{t(inbox.error.message)}</p><button className="secondary-button" onClick={() => void inbox.refetch()}>{t('Try again')}</button></>}
@@ -76,17 +87,17 @@ function DirectWorkspace({ user, id, target }: { user: UserProfile; id?: string 
       {before && <button className="secondary-button" onClick={() => setBefore(undefined)}>{t('Recent conversations')}</button>}
       {inbox.data?.hasMore && <button className="secondary-button" onClick={() => setBefore(inbox.data!.before ?? undefined)}>{t('Older conversations')}</button>}
       <StartConversation key={`${user.id}:${target ?? ''}`} user={user.id} target={target} />
-    </aside>{id ? <DirectThread key={`${user.id}:${id}`} user={user} id={id} /> : <section className="about-panel"><h2>{t('Choose a conversation')}</h2><p>{t('Start from a profile or open an existing conversation.')}</p></section>}</div></>;
+    </aside>{id ? <DirectThread key={`${user.id}:${id}`} user={user} id={id} /> : <section className="about-panel"><h2>{t('Choose a conversation')}</h2><p>{t('Start from a profile or open an existing conversation.')}</p></section>}</div></section>;
 }
 
-function DirectActions({ message, id, refresh, editable }: { message: api.DirectMessage; id: string; refresh: () => void; editable: boolean }) {
+function DirectActions({ message, id, refresh, editable, mine, navigation }: { message: api.DirectMessage; id: string; refresh: () => void; editable: boolean; mine: boolean; navigation: ReactNode }) {
   const { t } = useI18n(); const [mode, setMode] = useState<'edit' | 'delete' | null>(null); const [draft, setDraft] = useState(message.content);
   const command = useRef({ payload: '', id: crypto.randomUUID() }); const version = useRef(message.version);
   const change = useMutation({ mutationFn: () => { const payload = JSON.stringify({ mode, draft, version: version.current }); if (command.current.payload !== payload) command.current = { payload, id: crypto.randomUUID() };
     return mode === 'delete' ? api.remove(id, message.id, command.current.id, version.current) : api.edit(id, message.id, command.current.id, version.current, draft); }, onSuccess: () => { setMode(null); refresh(); } });
   return <div className="message-actions">
-    {!mode && <>{editable && <button className="secondary-button" onClick={() => { setMode('edit'); setDraft(message.content); version.current = message.version; change.reset(); }}>{t('Edit')}</button>}<button className="secondary-button" onClick={() => { setMode('delete'); version.current = message.version; change.reset(); }}>{t('Delete')}</button></>}
-    {mode === 'edit' && <form onSubmit={event => { event.preventDefault(); change.mutate(); }}><label>{t('Edit message')}<textarea aria-label={t('Edit direct message text')} value={draft} onChange={event => setDraft(event.target.value)} maxLength={4000} required disabled={change.isPending} /></label><button className="primary-button" disabled={change.isPending || !draft.trim() || !editable}>{t('Save message')}</button></form>}
+    {!mode && <MessageActionMenu name={message.authorName}>{navigation}{editable && <button className="secondary-button" onClick={() => { setMode('edit'); setDraft(message.content); version.current = message.version; change.reset(); }}>{t('Edit')}</button>}{mine && <button className="secondary-button" onClick={() => { setMode('delete'); version.current = message.version; change.reset(); }}>{t('Delete')}</button>}</MessageActionMenu>}
+    {mode === 'edit' && <form onSubmit={event => { event.preventDefault(); change.mutate(); }}><label>{t('Edit message')}<textarea autoFocus aria-label={t('Edit direct message text')} value={draft} onChange={event => setDraft(event.target.value)} maxLength={4000} required disabled={change.isPending} /></label><button className="primary-button" disabled={change.isPending || !draft.trim() || !editable}>{t('Save message')}</button></form>}
     {mode === 'delete' && <><p>{t('Delete this message?')}</p><button className="secondary-button" disabled={change.isPending} onClick={() => change.mutate()}>{t('Confirm delete')}</button></>}
     {mode && <button className="secondary-button" disabled={change.isPending} onClick={() => setMode(null)}>{t('Cancel change')}</button>}
     {change.isError && <p role="alert">{t(change.error.message)}</p>}
@@ -95,56 +106,77 @@ function DirectActions({ message, id, refresh, editable }: { message: api.Direct
 
 function DirectThread({ user, id }: { user: UserProfile; id: string }) {
   const { t, locale } = useI18n(); const cache = useQueryClient(); const keys = api.directKeys(user.id); const key = [...keys, id, 'messages'];
-  const [draft, setDraft] = useState(''); const [sticker, setSticker] = useState<stickers.Selection | null>(null); const [file, setFile] = useState<File | null>(null); const [voice, setVoice] = useState(false); const [recording, setRecording] = useState(false); const [fileError, setFileError] = useState<string | null>(null);
-  const fileInput = useRef<HTMLInputElement>(null); const list = useRef<HTMLOListElement>(null); const follow = useRef(true); const position = useRef<{ height: number; top: number } | null>(null);
-  const request = useRef({ content: '', file: null as File | null, sticker: null as string | null, id: crypto.randomUUID(), confirmed: false });
+  const scope = { kind: 'direct' as const, container: id, user: user.id };
+  const [reply, setReply] = useState<{ id: string; authorName: string } | null>(null); const [mentions, setMentions] = useState<Member[]>([]);
+  const [draft, setDraft] = useState(''); const [sticker, setSticker] = useState<stickers.Selection | null>(null); const [file, setFile] = useState<File | null>(null); const [voice, setVoice] = useState(false); const [recording, setRecording] = useState(false); const [fileError, setFileError] = useState<string | null>(null); const [imageSelection, setImageSelection] = useState(0); const [imageProcessing, setImageProcessing] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null); const list = useRef<HTMLOListElement>(null); const follow = useRef(true); const position = useRef<ReturnType<typeof captureMessageAnchor>>(null);
+  const request = useRef({ content: '', file: null as File | null, sticker: null as string | null, id: crypto.randomUUID(), confirmed: false, references: '' });
   const details = useQuery({ queryKey: [...keys, id, 'details'], queryFn: ({ signal }) => api.conversation(id, signal), refetchInterval: 5000 });
   const feed = useQuery({ queryKey: key, queryFn: async ({ signal }) => {
     let previous = cache.getQueryData<api.DirectSnapshot>(key); if (!previous) return api.history(id, signal);
-    try { for (;;) { const page = await api.events(id, previous.watermark, signal); previous = api.applyDirect(previous, page); if (!page.hasMore) return previous; } }
+    try { for (;;) { const page = await api.events(id, previous.watermark, signal); previous = api.applyDirect(previous, page); if (!page.hasMore) {
+      // A pending recovery must not replace history added by pagination.
+      const latest = cache.getQueryData<api.DirectSnapshot>(key);
+      if (!latest) return previous;
+      if (BigInt(latest.watermark) > BigInt(previous.watermark)) return latest;
+      const deletedVersions = { ...latest.deletedVersions, ...previous.deletedVersions };
+      return { ...previous, messages: api.mergeDirect(latest.messages, previous.messages, deletedVersions),
+        deletedVersions, hasOlder: latest.hasOlder };
+    } } }
     catch (error) { if (error instanceof ApiError && [401, 403, 404].includes(error.status)) throw error; return api.history(id, signal); }
   }, refetchInterval: 5000 });
   const refresh = () => { void cache.invalidateQueries({ queryKey: keys }); };
   const read = useMutation({ mutationFn: (sequence: string) => api.markRead(id, sequence), onSuccess: refresh });
   const blocking = useRef({ blocked: false, id: crypto.randomUUID(), initialized: false });
   const block = useMutation({ mutationFn: (blocked: boolean) => { if (!blocking.current.initialized || blocking.current.blocked !== blocked) blocking.current = { blocked, id: crypto.randomUUID(), initialized: true }; return api.block(id, blocking.current.id, blocked); }, onSuccess: result => { cache.setQueryData([...keys, id, 'details'], result); refresh(); } });
+  const historyWindow = useHistoryWindow(feed.data?.messages);
   const older = useMutation({ mutationFn: () => api.history(id, AbortSignal.timeout(8000), feed.data?.messages[0]?.sequence), onSuccess: page => {
-    if (list.current) position.current = { height: list.current.scrollHeight, top: list.current.scrollTop };
+    if (list.current) position.current = captureMessageAnchor(list.current);
     cache.setQueryData<api.DirectSnapshot>(key, current => current && BigInt(page.watermark) >= BigInt(current.watermark) ? { ...current, messages: api.mergeDirect(current.messages, page.messages, current.deletedVersions), hasOlder: page.hasOlder } : current);
+    historyWindow.first(page.messages[0]?.sequence);
   } });
-  const send = useMutation({ mutationFn: (content: string) => { follow.current = true; if (request.current.confirmed || request.current.content !== content || request.current.file !== file || request.current.sticker !== (sticker?.id ?? null)) request.current = { content, file, sticker: sticker?.id ?? null, id: crypto.randomUUID(), confirmed: false };
-    return sticker ? stickers.sendDirect(id, request.current.id, sticker.id, content) : file ? api.sendFile(id, request.current.id, content, file, voice) : api.send(id, request.current.id, content); }, onSuccess: () => { request.current.confirmed = true; setDraft(''); setSticker(null); setFile(null); setVoice(false); setFileError(null); if (fileInput.current) fileInput.current.value = ''; refresh(); } });
+  const send = useMutation({ mutationFn: (content: string) => { follow.current = true; historyWindow.latest(); const options = { replyToId: reply?.id ?? null, mentionUserIds: mentions.map(m => m.id) }; const references = JSON.stringify(options); if (request.current.confirmed || request.current.content !== content || request.current.file !== file || request.current.sticker !== (sticker?.id ?? null) || request.current.references !== references) request.current = { content, file, sticker: sticker?.id ?? null, id: crypto.randomUUID(), confirmed: false, references };
+    return sticker ? stickers.sendDirect(id, request.current.id, sticker.id, content, options) : file ? api.sendFile(id, request.current.id, content, file, voice, options) : api.send(id, request.current.id, content, options); }, onSuccess: () => { request.current.confirmed = true; setDraft(''); setSticker(null); setReply(null); setMentions([]); setFile(null); setVoice(false); setFileError(null); if (fileInput.current) fileInput.current.value = ''; refresh(); } });
+  useEffect(() => { if (feed.data) void cache.invalidateQueries({ queryKey: [...navigationKeys(user.id), 'direct', id, 'source'] }); }, [feed.data, cache, user.id, id]);
   useLayoutEffect(() => {
     const element = list.current; if (!element) return;
-    if (position.current) { element.scrollTop = position.current.top + element.scrollHeight - position.current.height; position.current = null; }
+    if (position.current) { restoreMessageAnchor(element, position.current); position.current = null; }
     else if (follow.current) element.scrollTop = element.scrollHeight;
   }, [feed.data, send.isPending, send.isError]);
   if ([details.error, feed.error].some(error => error instanceof ApiError && [401, 403, 404].includes(error.status))) return <section className="about-panel"><h2>{t('Conversation is unavailable.')}</h2><p>{t('Sign in again or choose another conversation.')}</p></section>;
   const allowed = !!details.data && !details.data.contactUnavailable;
-  return <section className="direct-thread" aria-label={t('Direct conversation')}><header><h2>{details.data?.otherName ?? t('Loading conversation…')}</h2>{details.data && <Link to={`/profiles/${details.data.otherUserId}`}>{t('View profile')}</Link>}</header>
+  return <section className="direct-thread" aria-label={t('Direct conversation')}><header><Link className="direct-back icon-button" to="/messages" aria-label={t('Back to conversations')} title={t('Back to conversations')}><ArrowLeft size={20} aria-hidden="true" /></Link><h2>{details.data?.otherName ?? t('Loading conversation…')}</h2>{details.data && <Link to={`/profiles/${details.data.otherUserId}`}>{t('View profile')}</Link>}</header>
     {details.isError && <p role="alert">{t(details.error.message)}</p>}
-    {details.data && <><p>{t('{value} unread', { value: Number(details.data.unread) })}</p><button className="secondary-button" disabled={read.isPending || !feed.data} onClick={() => read.mutate(feed.data!.watermark)}>{t('Mark as read')}</button>
-      <button className="secondary-button" disabled={block.isPending} onClick={() => block.mutate(!details.data!.blockedByMe)}>{t(details.data.blockedByMe ? 'Unblock direct contact' : 'Block direct contact')}</button></>}
+    {details.data && <><NotificationPreference scope={scope} /><FocusedMessage scope={scope} /></>}
+    {details.data && <div className="direct-controls"><p>{t('{value} unread', { value: Number(details.data.unread) })}</p><button className="secondary-button" disabled={read.isPending || !feed.data} onClick={() => read.mutate(feed.data!.watermark)}>{t('Mark as read')}</button>
+      <button className="secondary-button" disabled={block.isPending} onClick={() => block.mutate(!details.data!.blockedByMe)}>{t(details.data.blockedByMe ? 'Unblock direct contact' : 'Block direct contact')}</button></div>}
     <p className="field-hint">{t('Blocking prevents messages and attachments in both directions. Earlier history remains available.')}</p>
     {[read.error, block.error].map((error, index) => error && <p key={index} role="alert">{t(error.message)}</p>)}
     {details.data?.contactUnavailable && <p role="status">{t('Contact is unavailable. You can still read earlier messages.')}</p>}
     {feed.isPending && <p role="status">{t('Loading messages…')}</p>}{feed.isError && <><p role="alert">{t(feed.error.message)}</p><button className="secondary-button" onClick={() => void feed.refetch()}>{t('Retry history')}</button></>}
     {feed.data?.hasOlder && <button className="secondary-button" disabled={older.isPending} onClick={() => older.mutate()}>{t(older.isPending ? 'Loading older messages…' : 'Load older messages')}</button>}{older.isError && <p role="alert">{t(older.error.message)}</p>}
     {feed.data?.messages.length === 0 && <p>{t('No messages yet. Say hello.')}</p>}
+    <HistoryWindowControls window={historyWindow} move={(action, latest = false) => { follow.current = latest; action(); requestAnimationFrame(() => { if (list.current) list.current.scrollTop = latest ? list.current.scrollHeight : 0; }); }} />
     <ol ref={list} className="message-list" aria-label={t('Direct messages')} onScroll={event => { const element = event.currentTarget; follow.current = element.scrollHeight - element.scrollTop - element.clientHeight < 64; }}>
-      {feed.data?.messages.map(message => <li key={message.id} data-message-id={message.id}><div className="message-meta"><Link to={`/profiles/${message.authorId}`}><strong>{message.authorName}</strong></Link><time dateTime={message.createdAt}>{new Date(message.createdAt).toLocaleString(locale)}</time></div><p className="direct-message-content">{message.content}</p>
+      {historyWindow.messages.map((message, index) => <li aria-posinset={historyWindow.startIndex + index + 1} aria-setsize={historyWindow.total} className="message-row" key={message.id} data-message-id={message.id}><MessageAvatar name={message.authorName} user={message.authorId} /><div className="message-body"><div className="message-meta"><Link to={`/profiles/${message.authorId}`}><strong>{message.authorName}</strong></Link><time dateTime={message.createdAt}>{new Date(message.createdAt).toLocaleString(locale, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</time></div>{message.replyToId && <ReplyReference scope={scope} message={message.replyToId} />}<MentionLabels user={user.id} users={message.mentionUserIds} /><p className="direct-message-content">{message.content}</p>
         {message.attachment && <>{message.attachment.kind === 'Voice' && <VoiceMessagePlayer url={api.attachmentUrl(id, message.attachment.id)} duration={Number(message.attachment.durationMs)} />}<AttachmentDownload attachment={message.attachment} url={api.attachmentUrl(id, message.attachment.id)} /></>}
-        {message.updatedAt && <small>{t('Edited')}</small>}{message.authorId === user.id && <DirectActions message={message} id={id} refresh={refresh} editable={allowed} />}
-      </li>)}
+        {message.updatedAt && <small>{t('Edited')}</small>}<DirectActions message={message} id={id} refresh={refresh} editable={allowed && message.authorId === user.id} mine={message.authorId === user.id} navigation={<>{allowed && <button type="button" className="secondary-button" disabled={send.isPending} onClick={event => { setReply({ id: message.id, authorName: message.authorName }); event.currentTarget.closest('details')?.removeAttribute('open'); document.getElementById('direct-content')?.focus(); }}>{t('Reply')}</button>}<BookmarkButton scope={scope} message={message.id} /></>} />
+      </div></li>)}
       {(send.isPending || send.isError) && !request.current.confirmed && !feed.data?.messages.some(message => message.authorId === user.id && message.clientMessageId === request.current.id) && <li className="pending-message"><strong>{user.displayName}</strong><p>{send.variables}</p><span>{t(send.isPending ? 'Sending…' : 'Not confirmed. Retry with the same text.')}</span></li>}
     </ol>
-    {allowed && <form className="message-composer" onSubmit={event => { event.preventDefault(); if (!recording) send.mutate(draft); }}><label htmlFor="direct-content">{t('Direct message')}</label><textarea id="direct-content" value={draft} onChange={event => setDraft(event.target.value)} maxLength={4000} required={!file && !sticker} disabled={send.isPending} rows={3} placeholder={t('Write a direct message…')} />
-      <StickerPicker user={user.id} selected={sticker} disabled={send.isPending || recording} pick={next => { setSticker(next); if (next) { setFile(null); setFileError(null); setVoice(false); if (fileInput.current) fileInput.current.value = ''; } }} />
-      <VoiceRecorder file={voice ? file : null} disabled={send.isPending || !!sticker || (!!file && !voice)} busy={setRecording} ready={next => { setFile(next); setSticker(null); setVoice(!!next); setFileError(null); if (fileInput.current) fileInput.current.value = ''; }} />
-      <label htmlFor="direct-file">{t('Attach a file')}</label><input ref={fileInput} id="direct-file" type="file" accept=".txt,.png,.jpg,.jpeg,.gif,.pdf" disabled={send.isPending || recording || voice} onChange={event => { const next = event.currentTarget.files?.[0] ?? null; const valid = !next || (next.size > 0 && next.size <= 5 * 1024 * 1024 && /\.(txt|png|jpe?g|gif|pdf)$/i.test(next.name)); setFile(valid ? next : null); setSticker(null); setVoice(false); setFileError(valid ? null : 'Choose a nonempty TXT, PNG, JPEG, GIF or PDF file up to 5 MiB.'); }} />
+    {allowed && <form className="message-composer" onSubmit={event => { event.preventDefault(); if (!recording && !imageProcessing && !send.isPending && !fileError && (draft.trim() || file || sticker)) send.mutate(draft); }}><DraftReferences reply={reply} mentions={mentions} clearReply={() => setReply(null)} removeMention={member => setMentions(values => values.filter(v => v.id !== member))} disabled={send.isPending} /><label className="sr-only" htmlFor="direct-content">{t('Direct message')}</label><div className="composer-input-row"><textarea aria-describedby="direct-content-help" onKeyDown={sendOnEnter} id="direct-content" value={draft} onChange={event => setDraft(event.target.value)} maxLength={4000} required={!file && !sticker} disabled={send.isPending} rows={2} placeholder={t('Write a direct message…')} /><div className="composer-inline-tools">
+      <MentionPicker scope={scope} selected={mentions} change={setMentions} disabled={send.isPending || recording} />
+      <StickerPicker compact user={user.id} selected={sticker} disabled={send.isPending || recording} pick={next => { setSticker(next); if (next) { setFile(null); setFileError(null); setVoice(false); if (fileInput.current) fileInput.current.value = ''; } }} />
+      <ComposerTools recording={recording}><VoiceRecorder file={voice ? file : null} disabled={send.isPending || !!sticker || (!!file && !voice)} busy={setRecording} ready={next => { setFile(next); setSticker(null); setVoice(!!next); setFileError(null); if (fileInput.current) fileInput.current.value = ''; }} />
+      <label htmlFor="direct-file">{t('Attach a file')}</label><input ref={fileInput} id="direct-file" type="file" accept=".txt,.png,.jpg,.jpeg,.gif,.pdf" disabled={send.isPending || recording || voice} onChange={event => { setImageSelection(value => value + 1); const next = event.currentTarget.files?.[0] ?? null; const valid = !next || (next.size > 0 && next.size <= 5 * 1024 * 1024 && /\.(txt|png|jpe?g|gif|pdf)$/i.test(next.name)); setFile(valid ? next : null); setSticker(null); setVoice(false); setFileError(valid ? null : 'Choose a nonempty TXT, PNG, JPEG, GIF or PDF file up to 5 MiB.'); }} />
       {!voice && (file || fileError) && <button type="button" className="secondary-button" disabled={send.isPending} onClick={() => { setFile(null); setFileError(null); if (fileInput.current) fileInput.current.value = ''; }}>{t('Remove selected file')}</button>}
-      {fileError && <p role="alert">{t(fileError)}</p>}{send.isError && <p role="alert">{t(send.error.message)}</p>}
-      <button className="primary-button" disabled={send.isPending || recording || !!fileError || (!draft.trim() && !file && !sticker)}>{t(send.isPending ? 'Sending…' : send.isError ? 'Retry send' : 'Send direct message')}</button>
+      </ComposerTools><button className="primary-button composer-send" aria-label={t(send.isPending ? 'Sending…' : send.isError ? 'Retry send' : 'Send direct message')} title={t(send.isPending ? 'Sending…' : send.isError ? 'Retry send' : 'Send direct message')} disabled={send.isPending || recording || imageProcessing || !!fileError || (!draft.trim() && !file && !sticker)}><SendHorizontal size={19} aria-hidden="true" /></button></div></div><StickerSelection selected={sticker} disabled={send.isPending || recording} remove={() => setSticker(null)} />
+      {fileError && <p role="alert">{t(fileError)}</p>}
+      {file && !voice && <ImageSendOptions key={imageSelection} file={file} busy={send.isPending || recording} choose={setFile} processing={setImageProcessing} />}
+      {file && <p className="selected-attachment" role="status">{t(voice ? 'Voice message preview' : 'Selected file: {value}', { value: file.name })}</p>}
+      {send.isError && <p role="alert">{t(send.error.message)}</p>}
+
+      <p id="direct-content-help" className="composer-help sr-only">{t('Enter to send · Shift + Enter for a new line')}</p>
     </form>}
   </section>;
 }

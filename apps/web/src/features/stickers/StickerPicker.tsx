@@ -4,14 +4,15 @@ import { Link } from 'react-router';
 import * as api from '../../api/stickers';
 import { useI18n } from '../../i18n/LocaleContext';
 import { AttachmentDownload } from '../messages/AttachmentDownload';
+import { Sticker } from 'lucide-react';
 
-export function StickerPicker({ user, disabled, selected, pick }: { user: string; disabled: boolean; selected: api.Selection | null; pick: (value: api.Selection | null) => void }) {
+export function StickerPicker({ user, disabled, selected, pick, compact = false }: { user: string; disabled: boolean; selected: api.Selection | null; pick: (value: api.Selection | null) => void; compact?: boolean }) {
   const { t } = useI18n(); const [open, setOpen] = useState(false); const [name, setName] = useState('');
   const packs = useQuery({ queryKey: [...api.stickerKeys(user), 'library'], queryFn: ({ signal }) => api.library(signal), enabled: open });
   const details = useQuery({ queryKey: [...api.stickerKeys(user), name], queryFn: ({ signal }) => api.pack(name, signal), enabled: open && !!name });
   return <div className="sticker-picker">
-    <button type="button" className="secondary-button" aria-expanded={open} disabled={disabled} onClick={() => setOpen(value => !value)}>{t('Stickers')}</button>
-    {selected && <p>{t('Sticker ready: {value}', { value: selected.label })} <button type="button" className="secondary-button" disabled={disabled} onClick={() => pick(null)}>{t('Remove selected sticker')}</button></p>}
+    <button type="button" className="secondary-button" aria-label={t('Stickers')} title={t('Stickers')} aria-expanded={open} disabled={disabled} onClick={() => setOpen(value => !value)}>{compact ? <Sticker size={18} aria-hidden="true" /> : t('Stickers')}</button>
+    {!compact && <StickerSelection selected={selected} disabled={disabled} remove={() => pick(null)} />}
     {open && <div className="sticker-picker-content">
       <Link to="/stickers">{t('Manage sticker packs')}</Link>
       {packs.isPending && <p role="status">{t('Loading sticker packs…')}</p>}
@@ -25,4 +26,9 @@ export function StickerPicker({ user, disabled, selected, pick }: { user: string
       </li>)}</ul></>}
     </div>}
   </div>;
+}
+
+export function StickerSelection({ selected, disabled, remove }: { selected: api.Selection | null; disabled: boolean; remove: () => void }) {
+  const { t } = useI18n();
+  return selected && <p className="selected-attachment">{t('Sticker ready: {value}', { value: selected.label })} <button type="button" className="secondary-button" disabled={disabled} onClick={remove}>{t('Remove selected sticker')}</button></p>;
 }

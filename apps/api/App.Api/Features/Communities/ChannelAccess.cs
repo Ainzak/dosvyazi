@@ -33,8 +33,16 @@ public static class ChannelAccess
         return (roles.Aggregate(0, (value, role) => value | role.Grants), roles.Select(r => r.Rank).DefaultIfEmpty(0).Max());
     }
 
-    public static Task<EffectiveChannelAccess> ResolveAsync(AppDbContext db, Guid community, TextChannel channel, Guid user, CancellationToken ct) =>
-        channel.CommunityId != community ? Task.FromResult(new EffectiveChannelAccess(0, null, null)) : ResolveCoreAsync(db, community, channel.Id, channel.CategoryId, user, false, ct);
+    public static async Task<EffectiveChannelAccess> ResolveAsync(AppDbContext db, Guid community, TextChannel channel, Guid user, CancellationToken ct)
+    {
+        if (channel.CommunityId != community) return new(0, null, null);
+        if (channel.ParentChannelId is not Guid parentId) return await ResolveCoreAsync(db, community, channel.Id, channel.CategoryId, user, false, ct);
+        var parent = await db.TextChannels.AsNoTracking().SingleOrDefaultAsync(c => c.Id == parentId && c.CommunityId == community && c.ParentChannelId == null, ct);
+        if (parent is null) return new(0, null, null);
+        if ((channel.Kind == "MessageThread" && parent.Kind != "Text") || (channel.Kind == "ForumTopic" && parent.Kind != "Forum")) return new(0, null, null);
+        var access = await ResolveCoreAsync(db, community, parent.Id, parent.CategoryId, user, false, ct);
+        return channel.DiscussionArchived ? access with { Permissions = access.Permissions & ~Send, SendDeniedBy = channel.Kind == "ForumTopic" ? "This forum topic is archived. Reopen it to send messages." : "This thread is archived. Reopen it to send messages." } : access;
+    }
 
     public static async Task<EffectiveChannelAccess> VoiceAsync(AppDbContext db, Guid community, Guid user, CancellationToken ct)
     {

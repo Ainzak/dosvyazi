@@ -4,7 +4,7 @@ namespace App.Api.Features.Communities;
 
 public sealed record RolePolicy(Guid Id, [Required, StringLength(80)] string Name, [Range(0, 65535)] int Grants, [Range(0, 1000)] int Rank = 1);
 public sealed record CategoryPolicy(Guid Id, [Required, StringLength(80)] string Name);
-public sealed record ChannelPolicy(Guid Id, [Required, StringLength(80)] string Name, Guid? CategoryId);
+public sealed record ChannelPolicy(Guid Id, [Required, StringLength(80)] string Name, Guid? CategoryId, string Kind = "Text");
 public sealed record MemberRolePolicy(Guid UserId, Guid[] RoleIds);
 public sealed record ResourceRule(Guid ResourceId, Guid RoleId, [Range(0, 65535)] int Allow, [Range(0, 65535)] int Deny);
 public sealed record AccessPolicy(string Version, RolePolicy[] Roles, CategoryPolicy[] Categories, ChannelPolicy[] Channels,

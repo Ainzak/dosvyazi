@@ -1,5 +1,8 @@
 import type { components } from './schema';
 import { callApi, mutateApi, readJson } from './http';
+import { appendOptions } from './navigation';
+import type { MessageOptions } from './navigation';
+import { preparePreview } from '../features/messages/imagePreparation';
 
 export type Conversation = components['schemas']['DirectConversationDto'];
 export type DirectMessage = components['schemas']['DirectMessageDto'];
@@ -12,10 +15,12 @@ export const conversation = (id: string, signal: AbortSignal) => callApi(`${root
 export const startConversation = (id: string, clientRequestId: string) => mutateApi<Conversation>(root, 'POST', { userId: id, clientRequestId });
 export const history = (id: string, signal: AbortSignal, before?: string) => callApi(`${root}/${id}/messages${before ? `?before=${encodeURIComponent(before)}` : ''}`, { signal }).then(readJson<DirectSnapshot>);
 export const events = (id: string, after: string, signal: AbortSignal) => callApi(`${root}/${id}/events?after=${encodeURIComponent(after)}`, { signal }).then(readJson<components['schemas']['DirectCatchUp']>);
-export const send = (id: string, clientMessageId: string, content: string) => mutateApi<DirectMessage>(`${root}/${id}/messages`, 'POST', { clientMessageId, content });
-export async function sendFile(id: string, clientMessageId: string, content: string, file: File, voice: boolean) {
+export const send = (id: string, clientMessageId: string, content: string, options: MessageOptions = {}) => mutateApi<DirectMessage>(`${root}/${id}/messages`, 'POST', { clientMessageId, content, ...options });
+export async function sendFile(id: string, clientMessageId: string, content: string, file: File, voice: boolean, options: MessageOptions = {}) {
   const token = await callApi('/api/v1/account/csrf').then(readJson<components['schemas']['CsrfResponse']>);
   const body = new FormData(); body.append('clientMessageId', clientMessageId); body.append('content', content); body.append('file', file);
+  if (!voice) { const preview = await preparePreview(file); if (preview) body.append('preview', preview, 'preview.image'); }
+  appendOptions(body, options);
   return callApi(`${root}/${id}/${voice ? 'voice-messages' : 'attachments'}`, { method: 'POST', body, headers: { 'X-CSRF-TOKEN': token.requestToken } }, 30000).then(readJson<DirectMessage>);
 }
 export const attachmentUrl = (id: string, attachment: string) => `${root}/${id}/attachments/${attachment}`;

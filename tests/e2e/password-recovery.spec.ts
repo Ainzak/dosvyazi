@@ -1,3 +1,4 @@
+import { changeLanguage } from './workspace-navigation';
 import { test, expect } from '@playwright/test';
 
 test('development recovery changes password, clears the link and requires a fresh login', async ({ page }, info) => {
@@ -47,7 +48,7 @@ test('invalid recovery link error persists and recovery forms translate', async 
   await expect(page.getByRole('alert')).toContainText('The reset link is invalid or expired');
   await page.waitForTimeout(6000);
   await expect(page.getByRole('alert')).toContainText('The reset link is invalid or expired');
-  await page.getByRole('button', { name: 'Русский', exact: true }).click();
+  await changeLanguage(page, 'ru');
   await expect(page.getByRole('heading', { name: 'Сброс пароля', exact: true })).toBeVisible();
   await expect(page.getByLabel('Новый пароль', { exact: true })).toBeVisible();
 });

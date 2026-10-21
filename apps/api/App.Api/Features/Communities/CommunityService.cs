@@ -26,7 +26,7 @@ public sealed class CommunityService(AppDbContext database, IDataProtectionProvi
         var access = await ChannelAccess.ResolveAsync(database, id, channel, user, ct);
         if (!access.View) return null;
         var category = channel.CategoryId is Guid categoryId ? await database.Categories.AsNoTracking().Where(c => c.Id == categoryId && c.CommunityId == id).Select(c => c.Name).SingleAsync(ct) : null;
-        return new(channel.Id.ToString(), channel.Name, category, access.Send, access.SendDeniedBy, access.Has(ChannelAccess.ManageMessages));
+        return new(channel.Id.ToString(), channel.Name, category, access.Send, access.SendDeniedBy, access.Has(ChannelAccess.ManageMessages), channel.Kind);
     }
 
     public async Task<CommunityDetails> GetAsync(Guid id, Guid user, CancellationToken cancellationToken)
@@ -34,7 +34,7 @@ public sealed class CommunityService(AppDbContext database, IDataProtectionProvi
         await using var tx = await database.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
         var community = await LockAsync(id, cancellationToken);
         if (!await database.Memberships.AnyAsync(m => m.CommunityId == id && m.UserId == user && m.Status == "Active", cancellationToken)) throw Missing();
-        var channels = await database.TextChannels.AsNoTracking().Where(c => c.CommunityId == id).OrderBy(c => c.Name).ToArrayAsync(cancellationToken);
+        var channels = await database.TextChannels.AsNoTracking().Where(c => c.CommunityId == id && c.ParentChannelId == null).OrderBy(c => c.Name).ToArrayAsync(cancellationToken);
         var visible = new List<ChannelSummary>();
         foreach (var channel in channels) if (await VisibleAsync(id, channel, user, cancellationToken) is { } summary) visible.Add(summary);
         var count = await database.Memberships.CountAsync(m => m.CommunityId == id && m.Status == "Active", cancellationToken);

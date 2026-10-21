@@ -1,0 +1,140 @@
+.gatherings-page { max-width: 1180px; }
+.gathering-choices { margin: 24px 0; }
+.gathering-choices input:not([type=checkbox]), .gathering-choices select { background: var(--dv-ink); color: var(--dv-text); border: 1px solid var(--dv-line); border-radius: 8px; padding: 10px 12px; min-height: 44px; width: 100%; }
+.gathering-poll { border: 1px solid var(--dv-line); border-radius: 8px; padding: 16px; margin: 16px 0; }
+.gathering-poll-option { display: flex; gap: 12px; align-items: flex-start; padding: 12px 0; overflow-wrap: anywhere; }
+.gathering-poll-option input { width: 20px; height: 20px; flex: 0 0 20px; accent-color: var(--dv-accent); }
+.gathering-poll-option small { display: block; color: var(--dv-muted); padding-top: 4px; }
+.gathering-place-status { color: var(--dv-accent); }
+.gathering-preparation { margin: 24px 0; }
+.gathering-checklist { list-style: none; padding: 0; margin: 16px 0; }
+.gathering-checklist > li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--dv-line); }
+.gathering-task { display: flex; align-items: center; gap: 12px; min-width: 0; flex: 1; overflow-wrap: anywhere; cursor: pointer; }
+.gathering-task > input { width: 20px; height: 20px; flex: 0 0 20px; accent-color: var(--dv-accent); }
+.gathering-task small { display: block; color: var(--dv-muted); margin-top: 6px; font-size: 12px; }
+.gathering-task .is-ready { color: var(--dv-accent); }
+.gathering-reminder, .gathering-calendar { border-top: 1px solid var(--dv-line); padding-top: 20px; margin-top: 24px; }
+.gathering-reminder h3, .gathering-calendar summary { display: flex; align-items: center; gap: 8px; }
+.gathering-calendar summary { cursor: pointer; min-height: 44px; color: var(--dv-accent); }
+.gathering-reminder-form { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+.gathering-preparation select, .gathering-preparation input:not([type=checkbox]) { background: var(--dv-ink); color: var(--dv-text); border: 1px solid var(--dv-line); border-radius: 8px; padding: 10px 12px; min-height: 44px; max-width: 100%; }
+@media (max-width: 600px) { .gathering-checklist > li { align-items: flex-start; flex-wrap: wrap; } .gathering-reminder-form > * { width: 100%; } }
+.gathering-back { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; color: var(--dv-muted); font-size: 13px; }
+.gathering-back:hover { color: var(--dv-accent); }
+.gatherings-page .page-heading { margin: 16px 0; padding: 0; align-items: center; }
+.gatherings-page .page-heading h1 { margin: 0; }
+.gatherings-page .page-heading .eyebrow { margin-bottom: 8px; }
+.gatherings-page .primary-button { width: auto; margin-top: 0; }
+.gatherings-page .primary-button, .gatherings-page .secondary-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.gatherings-page button svg, .gatherings-page a svg { flex-shrink: 0; }
+.gathering-introduction { max-width: 720px; margin: 0 0 28px; }
+.gathering-surface { padding: 20px; border: 1px solid var(--dv-line); border-radius: 12px; background: var(--dv-sidebar); min-width: 0; }
+.gatherings-page h2 { font-size: 18px; margin: 0 0 16px; }
+.gatherings-page h3 { font-size: 16px; }
+.gathering-surface h2 { display: flex; gap: 10px; align-items: center; }
+.gathering-index { display: grid; grid-template-columns: minmax(0, 1fr) 300px; align-items: start; gap: 24px; }
+.gathering-index > * { min-width: 0; }
+.gathering-cards { display: grid; gap: 16px; }
+.gathering-list .gathering-card { margin: 0; }
+.gathering-card-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--dv-muted); }
+.gathering-status { display: inline-block; border-radius: 6px; background: var(--dv-raised); color: var(--dv-muted); font-size: 12px; padding: 5px 8px; line-height: 1.4; }
+.gathering-status.state-accepted, .gathering-status.state-scheduled { background: var(--dv-accent-surface); color: var(--dv-accent); }
+.gathering-status.state-declined, .gathering-status.state-cancelled { background: var(--dv-danger-surface); color: var(--dv-danger); }
+.gathering-status.state-needsclarification { background: var(--dv-warning-surface); color: var(--dv-warning); }
+.gathering-card h3 { font-size: 20px; margin: 16px 0 8px; }
+.gathering-card h3 a:hover { text-decoration: underline; }
+.gathering-card-game { font-size: 13px; color: var(--dv-muted); margin: 8px 0 16px; }
+.gathering-time { margin: 20px 0; }
+.gathering-local-time { display: flex; gap: 12px; padding: 18px; border: 1px solid var(--dv-line); border-radius: 12px; background: var(--dv-sidebar); }
+.gathering-local-time svg { color: var(--dv-accent); flex-shrink: 0; margin-top: 2px; }
+.gathering-local-time > div { min-width: 0; }
+.gathering-local-time strong { display: block; font-size: 16px; margin-bottom: 8px; }
+.gathering-local-time time { display: block; color: var(--dv-muted); font-size: 14px; line-height: 1.6; }
+.gathering-time > p { color: var(--dv-muted); font-size: 12px; margin: 12px 0 0; }
+.gathering-card .gathering-local-time { padding: 0; border: 0; }
+.gathering-card .gathering-local-time strong { font-size: 12px; }
+.gatherings-page .gathering-counts { gap: 6px; }
+.gatherings-page .gathering-counts > span { font-size: 12px; color: var(--dv-muted); background: var(--dv-raised); padding: 5px 8px; border-radius: 6px; }
+.gatherings-page .gathering-counts .state-accepted { color: var(--dv-accent); background: var(--dv-accent-surface); }
+.gatherings-page .gathering-counts .state-needsclarification { color: var(--dv-warning); background: var(--dv-warning-surface); }
+.gathering-view { margin-top: 8px; font-size: 13px; }
+.gathering-empty { padding: 32px 20px; color: var(--dv-muted); }
+.gathering-empty > svg { color: var(--dv-accent); }
+.gathering-notices > summary { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-height: 44px; font-weight: 600; font-size: 14px; }
+.gathering-notices > summary::after { content: '+'; color: var(--dv-muted); margin-left: auto; }
+.gathering-notices[open] > summary::after { content: '−'; }
+.gathering-notices > summary .gathering-badge { font-size: 12px; color: var(--dv-accent); }
+.gathering-notices > p { color: var(--dv-muted); font-size: 13px; }
+.gathering-notice-list { list-style: none; margin: 12px 0 0; padding: 0; }
+.gathering-notice-list li { padding: 16px 0; border-top: 1px solid var(--dv-line); }
+.gathering-notice-list a { font-size: 14px; }
+.gathering-notice-list a:hover { text-decoration: underline; }
+.gathering-notice-list .is-unread a { color: var(--dv-accent); }
+.gathering-notice-list small { display: block; color: var(--dv-muted); font-size: 12px; margin: 6px 0; }
+.gathering-notice-list button { font-size: 12px; margin-top: 8px; }
+.gathering-detail { margin: 16px 0 0; }
+.gathering-detail-heading h1 { margin: 12px 0; font-size: 28px; }
+.gathering-detail-heading > p { color: var(--dv-muted); font-size: 14px; }
+.gathering-detail a:not(.secondary-button) { color: var(--dv-text); }
+.gathering-detail a:hover { text-decoration: underline; }
+.gathering-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; color: var(--dv-muted); font-size: 12px; }
+.gathering-description { line-height: 1.7; margin: 20px 0; }
+.gathering-detail .gathering-cover { max-width: 100%; max-height: 360px; background: var(--dv-ink); }
+.gathering-participants { margin: 24px 0; }
+.gathering-participant-list { padding: 0; margin: 0; list-style: none; }
+.gathering-participant-list li { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 0; border-top: 1px solid var(--dv-line); }
+.gathering-person { display: flex; align-items: center; gap: 12px; min-width: 0; font-size: 14px; }
+.gathering-participant-list small { display: block; font-size: 12px; color: var(--dv-muted); }
+.gathering-participant-list li > span:last-child { flex-shrink: 0; max-width: 45%; text-align: right; }
+.gathering-response { margin: 24px 0; }
+.gathering-response-heading { display: flex; align-items: center; gap: 12px; }
+.gathering-response-heading h2 { margin: 0; }
+.gathering-response button[aria-pressed=true] { outline: 2px solid var(--dv-accent); outline-offset: 2px; }
+.gathering-response button[aria-pressed=true]:focus-visible { outline-width: 3px; outline-offset: 4px; }
+.gathering-actions > button { min-height: 44px; }
+.gathering-discussion-section { margin: 24px 0; }
+.gathering-discussion { list-style: none; padding: 0; margin: 0; }
+.gathering-discussion li { padding: 16px 0; border-bottom: 1px solid var(--dv-line); }
+.gathering-discussion li > div { display: flex; flex-wrap: wrap; gap: 12px; font-size: 14px; }
+.gathering-discussion small { font-size: 12px; color: var(--dv-muted); }
+.gathering-discussion p { margin: 8px 0 0; line-height: 1.6; }
+.gatherings-page .gathering-form { max-width: none; gap: 10px; }
+.gathering-form label, .gathering-form legend { font-size: 13px; font-weight: 600; }
+.gathering-form textarea { resize: vertical; }
+.gathering-form > button { justify-self: start; }
+.gathering-form .field-hint { margin: 0; font-size: 12px; }
+.gathering-plan-form { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 20px; row-gap: 16px; }
+.gathering-plan-form > :not(.gathering-field), .gathering-plan-form > .is-wide { grid-column: 1 / -1; }
+.gathering-field { min-width: 0; display: grid; gap: 8px; }
+.gathering-form input:not([type=checkbox]), .gathering-form textarea { color: var(--dv-text); background: var(--dv-ink); }
+.gathering-form fieldset { margin: 4px 0; padding: 16px; }
+.gathering-candidates { margin-top: 12px; }
+.gathering-candidates > div { padding: 8px 0; }
+.gathering-candidates label { flex: 1; min-width: 0; min-height: 44px; }
+.gathering-candidates a { font-size: 12px; min-height: 44px; display: inline-flex; align-items: center; }
+.gathering-candidates input { accent-color: var(--dv-accent); }
+.gathering-create { margin-bottom: 28px; }
+.gathering-management { margin: 24px 0; }
+.gathering-cover-editor { border-top: 1px solid var(--dv-line); margin-top: 24px; padding-top: 20px; }
+.gathering-cover-editor input[type=file] { padding: 8px; font: inherit; font-size: 13px; color: var(--dv-muted); }
+.gathering-cover-editor input::file-selector-button { padding: 10px; margin-right: 12px; border: 1px solid var(--dv-line); border-radius: 8px; background: var(--dv-raised); color: var(--dv-text); font: inherit; cursor: pointer; }
+.gathering-history { margin-bottom: 32px; }
+.gathering-previous { margin-top: 16px; }
+.gathering-previous h3 { margin-top: 0; }
+.gathering-previous p { font-size: 13px; color: var(--dv-muted); line-height: 1.7; }
+.gatherings-page .gathering-danger, .gathering-dialog .gathering-danger { color: var(--dv-danger); border-color: var(--dv-danger); }
+.gathering-dialog { color: var(--dv-text); background: var(--dv-sidebar); border: 1px solid var(--dv-line); border-radius: 16px; width: min(460px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); padding: 24px; overflow: auto; overflow-wrap: anywhere; }
+.gathering-dialog::backdrop { background: #0009; }
+.gathering-dialog h2 { font-size: 20px; }
+@media (max-width: 1100px) { .gathering-index { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 760px) {
+  .gathering-surface { padding: 16px; }
+  .gathering-detail-heading h1 { font-size: 26px; }
+  .gathering-plan-form { grid-template-columns: minmax(0, 1fr); }
+  .gathering-candidates > div { align-items: start; }
+  .gathering-participant-list li { gap: 10px; }
+  .gathering-person { gap: 8px; }
+  .gathering-person .workspace-avatar { width: 32px; height: 32px; }
+}
+
+.gathering-place-reserve { color: var(--dv-warning); }

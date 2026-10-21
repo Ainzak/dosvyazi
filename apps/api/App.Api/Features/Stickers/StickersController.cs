@@ -19,7 +19,7 @@ namespace App.Api.Features.Stickers;
 
 public sealed record CreatePackRequest(Guid ClientRequestId, [Required] string Name, [Required] string Title);
 public sealed record SavePackRequest(bool Saved);
-public sealed record SendStickerRequest(Guid ClientMessageId, Guid StickerId, string? Content);
+public sealed record SendStickerRequest(Guid ClientMessageId, Guid StickerId, string? Content, Guid? ReplyToId = null, Guid[]? MentionUserIds = null);
 public sealed record StickerPackDto(string Id, string Name, string Title, bool BuiltIn, bool Mine, bool Saved, int Count);
 public sealed record StickerAssetDto(string Id, string Label, string Name, long Size, string ContentType);
 public sealed record StickerPackDetail(StickerPackDto Pack, StickerAssetDto[] Stickers);
@@ -98,11 +98,11 @@ public sealed class StickersController(AppDbContext db, AttachmentStore files, I
         await db.SaveChangesAsync(ct); var result = await Dto(pack, ct); await tx.CommitAsync(ct); return result;
     });
     [HttpPost("{name}/stickers"), EnableRateLimiting("attachment-uploads")]
-    [RequestSizeLimit(2 * 1024 * 1024), RequestFormLimits(MultipartBodyLengthLimit = 2 * 1024 * 1024)]
+    [RequestSizeLimit(4 * 1024 * 1024), RequestFormLimits(MultipartBodyLengthLimit = 4 * 1024 * 1024)]
     public Task<ActionResult<StickerAssetDto>> Upload(string name, [FromForm] Guid clientRequestId, [FromForm] string label, [FromForm] IFormFile file, CancellationToken ct) => Execute<StickerAssetDto>(async () =>
     {
         if (clientRequestId == Guid.Empty || !Label(label)) throw new CommunityFailure(422, "Use a request ID and sticker label up to 64 characters.");
-        if (file.Length > 1024 * 1024) throw new CommunityFailure(413, "Choose a sticker up to 1 MiB.");
+        StickerMedia.ValidateSize(file.FileName, file.Length);
         var prepared = await AttachmentStore.PrepareAsync(file, ct); var type = StickerMedia.Validate(prepared);
         await using var tx = await db.Database.BeginTransactionAsync(ct); await LockUser(ct); var pack = await Pack(name, true, ct);
         var hash = Hash(new { label, prepared.Name, prepared.Hash }); var asset = await db.StickerAssets.SingleOrDefaultAsync(s => s.PackId == pack.Id && s.ClientRequestId == clientRequestId, ct);

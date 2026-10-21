@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router';
 import { forgotPassword, resetPassword, sessionKey } from '../../api/accounts';
 import { useI18n } from '../../i18n/LocaleContext';
+import { KeyRound } from 'lucide-react';
 
 export function PasswordRecoveryPage({ reset = false }: { reset?: boolean }) {
   const { t } = useI18n();
@@ -17,6 +18,7 @@ export function PasswordRecoveryPage({ reset = false }: { reset?: boolean }) {
     await queryClient.cancelQueries(); queryClient.clear(); queryClient.setQueryData(sessionKey, null);
   } });
   return <div className="account-page"><section className="account-card">
+    <div className="account-avatar"><KeyRound size={28} aria-hidden="true" /></div>
     <h1>{t(reset ? 'Reset your password' : 'Forgot your password?')}</h1>
     <p className="field-hint">{t('During development, local builds show a reset link without sending email. On a public server, ask the operator for a link. Email delivery is planned for a future release.')}</p>
     {reset ? submit.isSuccess ? <><p role="status">{t('Password reset. Your previous sessions have been signed out.')}</p><Link to="/login">{t('Sign in')}</Link></> : !link.email || !link.code ? <><p role="alert">{t('This reset link is incomplete. Request a new link.')}</p><Link to="/forgot-password">{t('Request a reset link')}</Link></> : <form onSubmit={event => {

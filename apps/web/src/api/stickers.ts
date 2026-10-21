@@ -1,5 +1,6 @@
 import type { components } from './schema';
 import { callApi, mutateApi, readJson } from './http';
+import type { MessageOptions } from './navigation';
 export type Pack = components['schemas']['StickerPackDto'];
 export type Asset = components['schemas']['StickerAssetDto'];
 export type Selection = { id: string; label: string; pack: string };
@@ -17,5 +18,5 @@ export async function upload(name: string, id: string, label: string, file: File
   const body = new FormData(); body.append('clientRequestId', id); body.append('label', label); body.append('file', file);
   return callApi(`${root}/${encodeURIComponent(name)}/stickers`, { method: 'POST', body, headers: { 'X-CSRF-TOKEN': token.requestToken } }, 30000).then(readJson<Asset>);
 }
-export const sendChannel = (community: string, channel: string, clientMessageId: string, stickerId: string, content: string) => mutateApi<components['schemas']['MessageDto']>(`/api/v1/communities/${community}/channels/${channel}/stickers`, 'POST', { clientMessageId, stickerId, content });
-export const sendDirect = (conversation: string, clientMessageId: string, stickerId: string, content: string) => mutateApi<components['schemas']['DirectMessageDto']>(`/api/v1/direct-messages/${conversation}/stickers`, 'POST', { clientMessageId, stickerId, content });
+export const sendChannel = (community: string, channel: string, clientMessageId: string, stickerId: string, content: string, options: MessageOptions = {}) => mutateApi<components['schemas']['MessageDto']>(`/api/v1/communities/${community}/channels/${channel}/stickers`, 'POST', { clientMessageId, stickerId, content, ...options });
+export const sendDirect = (conversation: string, clientMessageId: string, stickerId: string, content: string, options: MessageOptions = {}) => mutateApi<components['schemas']['DirectMessageDto']>(`/api/v1/direct-messages/${conversation}/stickers`, 'POST', { clientMessageId, stickerId, content, ...options });

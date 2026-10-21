@@ -27,7 +27,7 @@ public sealed class AccessService(AppDbContext db)
         var community = await ManagerAsync(id, user, ct);
         var roles = await db.CommunityRoles.AsNoTracking().Where(r => r.CommunityId == id).OrderBy(r => r.Id).Select(r => new RolePolicy(r.Id, r.Name, r.Grants, r.Rank)).ToArrayAsync(ct);
         var categories = await db.Categories.AsNoTracking().Where(c => c.CommunityId == id).OrderBy(c => c.Id).Select(c => new CategoryPolicy(c.Id, c.Name)).ToArrayAsync(ct);
-        var channels = await db.TextChannels.AsNoTracking().Where(c => c.CommunityId == id).OrderBy(c => c.Id).Select(c => new ChannelPolicy(c.Id, c.Name, c.CategoryId)).ToArrayAsync(ct);
+        var channels = await db.TextChannels.AsNoTracking().Where(c => c.CommunityId == id && c.ParentChannelId == null).OrderBy(c => c.Id).Select(c => new ChannelPolicy(c.Id, c.Name, c.CategoryId, c.Kind)).ToArrayAsync(ct);
         var assignments = await db.MemberRoles.AsNoTracking().Where(m => m.CommunityId == id && db.Memberships.Any(member => member.CommunityId == id && member.UserId == m.UserId && member.Status == "Active")).ToArrayAsync(ct);
         var members = assignments.GroupBy(m => m.UserId).OrderBy(g => g.Key).Select(g => new MemberRolePolicy(g.Key, g.Select(m => m.RoleId).Order().ToArray())).ToArray();
         var categoryRules = await db.CategoryRoleRules.AsNoTracking().Where(r => r.CommunityId == id).OrderBy(r => r.CategoryId).ThenBy(r => r.RoleId).Select(r => new ResourceRule(r.CategoryId, r.RoleId, r.Allow, r.Deny)).ToArrayAsync(ct);
@@ -38,7 +38,7 @@ public sealed class AccessService(AppDbContext db)
         return result;
     }
 
-    private static void Validate(Guid id, SaveAccessRequest request)
+    internal static void Validate(Guid id, SaveAccessRequest request)
     {
         var p = request.Policy;
         if (request.ClientRequestId == Guid.Empty || p.Roles is null || p.Categories is null || p.Channels is null || p.Members is null || p.CategoryRules is null || p.ChannelRules is null ||
@@ -54,7 +54,7 @@ public sealed class AccessService(AppDbContext db)
             roles.Count != p.Roles.Length || categories.Count != p.Categories.Length || channels.Count != p.Channels.Length ||
             p.Roles.Select(r => r.Name).Distinct().Count() != p.Roles.Length || p.Categories.Select(c => c.Name).Distinct().Count() != p.Categories.Length ||
             p.Roles.Any(r => !Name(r.Name) || !ChannelAccess.Valid(r.Grants) || r.Rank is < 0 or > 1000 || (r.Id != id && r.Rank == 0) || (r.Id == id && r.Name != "everyone")) ||
-            p.Categories.Any(c => !Name(c.Name)) || p.Channels.Any(c => !Name(c.Name) || (c.CategoryId is Guid category && !categories.Contains(category))) ||
+            p.Categories.Any(c => !Name(c.Name)) || p.Channels.Any(c => !Name(c.Name) || c.Kind is not ("Text" or "Forum") || (c.CategoryId is Guid category && !categories.Contains(category))) ||
             p.Channels.Select(c => c.Name).Distinct().Count() != p.Channels.Length ||
             p.Members.Select(m => m.UserId).Distinct().Count() != p.Members.Length || p.Members.Any(m => m.RoleIds is null || m.RoleIds.Length > 19 || m.RoleIds.Distinct().Count() != m.RoleIds.Length || m.RoleIds.Any(r => r == id || !roles.Contains(r))))
             throw new CommunityFailure(400, "Invalid names, duplicate IDs or references in this policy. The everyone role is implicit for every member.");
@@ -85,7 +85,10 @@ public sealed class AccessService(AppDbContext db)
         if (p.Version != community.PolicyVersion.ToString(CultureInfo.InvariantCulture)) throw new CommunityFailure(409, "Access changed. Reload before saving your changes.");
         var roles = await db.CommunityRoles.Where(r => r.CommunityId == id).ToDictionaryAsync(r => r.Id, ct);
         var categories = await db.Categories.Where(c => c.CommunityId == id).ToDictionaryAsync(c => c.Id, ct);
-        var channels = await db.TextChannels.Where(c => c.CommunityId == id).ToDictionaryAsync(c => c.Id, ct);
+        var channels = await db.TextChannels.Where(c => c.CommunityId == id && c.ParentChannelId == null).ToDictionaryAsync(c => c.Id, ct);
+        var proposedChannels = p.Channels.Select(c => c.Id).ToArray();
+        if (await db.TextChannels.AnyAsync(c => proposedChannels.Contains(c.Id) && c.ParentChannelId != null, ct))
+            throw new CommunityFailure(400, "Threads inherit their parent channel permissions and cannot be configured as ordinary channels.");
         await CheckDelegationAsync(community, user, p, roles, categories, channels, ct);
         if (roles.Keys.Except(p.Roles.Select(r => r.Id)).Any() || categories.Keys.Except(p.Categories.Select(c => c.Id)).Any() || channels.Keys.Except(p.Channels.Select(c => c.Id)).Any())
             throw new CommunityFailure(400, "Existing resources must be retained. Resource deletion is not available.");
@@ -107,11 +110,11 @@ public sealed class AccessService(AppDbContext db)
             entity.Name = c.Name;
         }
         // Avoid a unique-name swap violating the existing channel index mid-update.
-        if (p.Channels.Any(c => channels.TryGetValue(c.Id, out var current) && current.Name != c.Name))
-            throw new CommunityFailure(400, "Existing channel names cannot be changed in this slice.");
+        if (p.Channels.Any(c => channels.TryGetValue(c.Id, out var current) && (current.Name != c.Name || current.Kind != c.Kind)))
+            throw new CommunityFailure(400, "Existing channel names and types cannot be changed in this slice.");
         foreach (var c in p.Channels)
         {
-            if (!channels.TryGetValue(c.Id, out var entity)) { entity = new TextChannel { Id = c.Id, CommunityId = id, Name = c.Name }; db.TextChannels.Add(entity); }
+            if (!channels.TryGetValue(c.Id, out var entity)) { entity = new TextChannel { Id = c.Id, CommunityId = id, Name = c.Name, Kind = c.Kind }; db.TextChannels.Add(entity); }
             entity.CategoryId = c.CategoryId;
         }
         await db.SaveChangesAsync(ct);

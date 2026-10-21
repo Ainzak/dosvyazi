@@ -15,6 +15,18 @@ The development foundation, text messaging, voice and access/moderation are impl
 
 ## Development
 
+Replies, explicit mentions, per-conversation in-app notification preferences and private tagged bookmarks are described in [conversation navigation](docs/conversation-navigation.md).
+
+[Message threads](docs/message-threads.md) branch from text-channel messages, with independent history, unread state and search, inherited access and explicit archiving.
+
+[Forums](docs/forums.md) are separate community channels with named topics and a first post. Topics inherit forum access; message threads continue to branch from ordinary chat messages.
+
+[On-prem delivery](docs/on-prem.md) provides a Linux operator bundle with prebuilt images, explicit setup/preflight/install, private backups, isolated restore and guarded upgrades.
+
+Community overviews explain effective rights. Owners can export a reviewed [configuration template](docs/community-configuration.md) and create an isolated community from it. [Installable browser delivery](docs/installable-app.md) provides desktop/home-screen installation where supported, with private offline guidance and deliberate updates.
+
+[Gatherings](docs/gatherings.md) also support assigned preparation tasks, places/reserve, manual time/game polls, personal in-app reminders and private calendar snapshots. [File handling](docs/attachments.md) includes optional light image previews, original/optimized sending and a bounded history display in channel chats and DMs.
+
 Prerequisites: .NET SDK 10.0.400, Node.js 22.22.2 (or compatible Node 24+), npm 10.9.7+, and Docker with a running Linux engine and Compose v2. Run commands from the repository root.
 
 ```powershell

@@ -447,6 +447,39 @@ namespace App.Api.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("CommunityId")
                         .HasColumnType("uuid");
 
+                    b.Property<bool>("DiscussionArchived")
+                        .HasColumnType("boolean")
+                        .HasColumnName("ThreadArchived");
+
+                    b.Property<DateTimeOffset?>("DiscussionCreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("ThreadCreatedAt");
+
+                    b.Property<Guid?>("DiscussionCreatorId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("ThreadCreatorId");
+
+                    b.Property<long>("DiscussionSequence")
+                        .HasColumnType("bigint")
+                        .HasColumnName("ThreadSequence");
+
+                    b.Property<long>("DiscussionVersion")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(1L)
+                        .HasColumnName("ThreadVersion");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("Text");
+
+                    b.Property<long>("LastDiscussionNumber")
+                        .HasColumnType("bigint")
+                        .HasColumnName("LastThreadNumber");
+
                     b.Property<long>("LastSequence")
                         .HasColumnType("bigint");
 
@@ -455,14 +488,39 @@ namespace App.Api.Infrastructure.Persistence.Migrations
                         .HasMaxLength(80)
                         .HasColumnType("character varying(80)");
 
+                    b.Property<Guid?>("ParentChannelId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("RootMessageId")
+                        .HasColumnType("uuid");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("DiscussionCreatorId");
 
                     b.HasIndex("CommunityId", "CategoryId");
 
                     b.HasIndex("CommunityId", "Name")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("\"ParentChannelId\" IS NULL");
 
-                    b.ToTable("TextChannels");
+                    b.HasIndex("CommunityId", "ParentChannelId");
+
+                    b.HasIndex("ParentChannelId", "DiscussionSequence")
+                        .IsUnique()
+                        .HasDatabaseName("IX_TextChannels_ParentChannelId_ThreadSequence")
+                        .HasFilter("\"ParentChannelId\" IS NOT NULL");
+
+                    b.HasIndex("ParentChannelId", "RootMessageId")
+                        .IsUnique()
+                        .HasFilter("\"ParentChannelId\" IS NOT NULL");
+
+                    b.HasIndex("RootMessageId", "ParentChannelId");
+
+                    b.ToTable("TextChannels", t =>
+                        {
+                            t.HasCheckConstraint("CK_TextChannels_Discussion", "\"LastThreadNumber\" BETWEEN 0 AND 1000 AND \"ThreadVersion\" > 0 AND ((\"Kind\" IN ('Text', 'Forum') AND \"ParentChannelId\" IS NULL AND \"RootMessageId\" IS NULL AND \"ThreadCreatorId\" IS NULL AND \"ThreadCreatedAt\" IS NULL AND \"ThreadSequence\" = 0 AND NOT \"ThreadArchived\") OR (\"ParentChannelId\" IS NOT NULL AND \"ParentChannelId\" <> \"Id\" AND ((\"Kind\" = 'MessageThread' AND \"RootMessageId\" IS NOT NULL) OR (\"Kind\" = 'ForumTopic' AND \"RootMessageId\" IS NULL)) AND \"ThreadCreatorId\" IS NOT NULL AND \"ThreadCreatedAt\" IS NOT NULL AND \"ThreadSequence\" BETWEEN 1 AND 1000 AND \"LastThreadNumber\" = 0 AND \"CategoryId\" IS NULL))");
+                        });
                 });
 
             modelBuilder.Entity("App.Api.Features.Communities.VoiceRoleRule", b =>
@@ -518,6 +576,12 @@ namespace App.Api.Infrastructure.Persistence.Migrations
                         .HasMaxLength(120)
                         .HasColumnType("character varying(120)");
 
+                    b.Property<Guid?>("PreviewId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int?>("PreviewSize")
+                        .HasColumnType("integer");
+
                     b.Property<bool>("Purged")
                         .HasColumnType("boolean");
 
@@ -540,7 +604,9 @@ namespace App.Api.Infrastructure.Persistence.Migrations
 
                     b.ToTable("DirectAttachments", t =>
                         {
-                            t.HasCheckConstraint("CK_DirectAttachments_Media", "(\"Kind\" = 'File' AND \"ContentType\" IS NULL AND \"DurationMs\" IS NULL) OR (\"Kind\" = 'Voice' AND \"ContentType\" = 'audio/webm;codecs=opus' AND \"ContentType\" IS NOT NULL AND \"DurationMs\" IS NOT NULL AND \"DurationMs\" BETWEEN 1 AND 60000 AND \"Size\" <= 2097152) OR (\"Kind\" = 'Sticker' AND \"ContentType\" IS NOT NULL AND \"ContentType\" IN ('image/png', 'image/gif') AND \"DurationMs\" IS NULL AND \"SourceStickerId\" IS NOT NULL AND \"StickerPackName\" IS NOT NULL AND \"Size\" <= 1048576)");
+                            t.HasCheckConstraint("CK_DirectAttachment_Preview", "(\"PreviewId\" IS NULL AND \"PreviewSize\" IS NULL) OR (\"PreviewId\" IS NOT NULL AND \"PreviewSize\" IS NOT NULL AND \"PreviewSize\" BETWEEN 1 AND 98304)");
+
+                            t.HasCheckConstraint("CK_DirectAttachments_Media", "(\"Kind\" = 'File' AND \"ContentType\" IS NULL AND \"DurationMs\" IS NULL) OR (\"Kind\" = 'Voice' AND \"ContentType\" = 'audio/webm;codecs=opus' AND \"ContentType\" IS NOT NULL AND \"DurationMs\" IS NOT NULL AND \"DurationMs\" BETWEEN 1 AND 60000 AND \"Size\" <= 2097152) OR (\"Kind\" = 'Sticker' AND \"ContentType\" IS NOT NULL AND \"ContentType\" IN ('image/png', 'image/gif') AND \"DurationMs\" IS NULL AND \"SourceStickerId\" IS NOT NULL AND \"StickerPackName\" IS NOT NULL AND ((\"ContentType\" = 'image/png' AND \"Size\" <= 1048576) OR (\"ContentType\" = 'image/gif' AND \"Size\" <= 3145728)))");
 
                             t.HasCheckConstraint("CK_DirectAttachments_Size", "\"Size\" BETWEEN 1 AND 5242880");
                         });
@@ -667,6 +733,13 @@ namespace App.Api.Infrastructure.Persistence.Migrations
                     b.Property<bool>("Deleted")
                         .HasColumnType("boolean");
 
+                    b.PrimitiveCollection<Guid[]>("MentionUserIds")
+                        .IsRequired()
+                        .HasColumnType("uuid[]");
+
+                    b.Property<Guid?>("ReplyToId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("RequestHash")
                         .IsRequired()
                         .HasMaxLength(64)
@@ -739,11 +812,42 @@ namespace App.Api.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("App.Api.Features.Forums.ForumTopicCommand", b =>
+                {
+                    b.Property<Guid>("ForumId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ActorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ClientRequestId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Hash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<Guid>("TopicId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("ForumId", "ActorId", "ClientRequestId");
+
+                    b.HasIndex("ActorId");
+
+                    b.HasIndex("TopicId");
+
+                    b.ToTable("ForumTopicCommands");
+                });
+
             modelBuilder.Entity("App.Api.Features.Gatherings.Gathering", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
+
+                    b.Property<int?>("Capacity")
+                        .HasColumnType("integer");
 
                     b.Property<Guid>("CommunityId")
                         .HasColumnType("uuid");
@@ -804,8 +908,45 @@ namespace App.Api.Infrastructure.Persistence.Migrations
 
                     b.ToTable("Gatherings", t =>
                         {
+                            t.HasCheckConstraint("CK_Gathering_Capacity", "\"Capacity\" IS NULL OR \"Capacity\" BETWEEN 1 AND 51");
+
                             t.HasCheckConstraint("CK_Gatherings_State", "\"Revision\" > 0 AND \"Version\" > 0 AND \"Status\" IN ('Scheduled','Cancelled','Completed')");
                         });
+                });
+
+            modelBuilder.Entity("App.Api.Features.Gatherings.GatheringChecklistItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("AssigneeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("Done")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("GatheringId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("Removed")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AssigneeId");
+
+                    b.HasIndex("GatheringId", "CreatedAt", "Id");
+
+                    b.ToTable("GatheringChecklistItems");
                 });
 
             modelBuilder.Entity("App.Api.Features.Gatherings.GatheringCommand", b =>
@@ -944,6 +1085,9 @@ namespace App.Api.Infrastructure.Persistence.Migrations
                     b.Property<bool>("Active")
                         .HasColumnType("boolean");
 
+                    b.Property<bool>("HasSeat")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("State")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -995,6 +1139,138 @@ namespace App.Api.Infrastructure.Persistence.Migrations
                     b.HasIndex("UserId", "CreatedAt");
 
                     b.ToTable("GatheringNotices");
+                });
+
+            modelBuilder.Entity("App.Api.Features.Gatherings.GatheringPoll", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("Closed")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("GatheringId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)");
+
+                    b.Property<int>("Revision")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid?>("SelectedOptionId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("GatheringId");
+
+                    b.ToTable("GatheringPolls", t =>
+                        {
+                            t.HasCheckConstraint("CK_GatheringPoll_Kind", "\"Kind\" IN ('Time','Game') AND \"Revision\" > 0");
+                        });
+                });
+
+            modelBuilder.Entity("App.Api.Features.Gatherings.GatheringPollOption", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Game")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<string>("LocalStart")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<Guid>("PollId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset?>("StartAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("TimeZoneId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PollId", "Position")
+                        .IsUnique();
+
+                    b.ToTable("GatheringPollOptions");
+                });
+
+            modelBuilder.Entity("App.Api.Features.Gatherings.GatheringPollVote", b =>
+                {
+                    b.Property<Guid>("PollId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.PrimitiveCollection<Guid[]>("Options")
+                        .IsRequired()
+                        .HasColumnType("uuid[]");
+
+                    b.Property<long>("Version")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("PollId", "UserId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("GatheringPollVotes");
+                });
+
+            modelBuilder.Entity("App.Api.Features.Gatherings.GatheringReminder", b =>
+                {
+                    b.Property<Guid>("GatheringId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("DeliveredAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("DueAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("Minutes")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid?>("NoticeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Revision")
+                        .HasColumnType("integer");
+
+                    b.Property<long>("Version")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("GatheringId", "UserId");
+
+                    b.HasIndex("DueAt")
+                        .HasFilter("\"DueAt\" IS NOT NULL");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("GatheringReminders", t =>
+                        {
+                            t.HasCheckConstraint("CK_GatheringReminder_Values", "\"Version\" > 0 AND \"Revision\" > 0 AND (\"Minutes\" IS NULL OR \"Minutes\" IN (5,15,60,1440))");
+                        });
                 });
 
             modelBuilder.Entity("App.Api.Features.Gatherings.GatheringRevision", b =>
@@ -1138,9 +1414,16 @@ namespace App.Api.Infrastructure.Persistence.Migrations
                     b.Property<bool>("Deleted")
                         .HasColumnType("boolean");
 
+                    b.PrimitiveCollection<Guid[]>("MentionUserIds")
+                        .IsRequired()
+                        .HasColumnType("uuid[]");
+
                     b.Property<string>("OriginalContentHash")
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
+
+                    b.Property<Guid?>("ReplyToId")
+                        .HasColumnType("uuid");
 
                     b.Property<NpgsqlTsVector>("SearchVector")
                         .IsRequired()
@@ -1207,6 +1490,12 @@ namespace App.Api.Infrastructure.Persistence.Migrations
                         .HasMaxLength(120)
                         .HasColumnType("character varying(120)");
 
+                    b.Property<Guid?>("PreviewId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int?>("PreviewSize")
+                        .HasColumnType("integer");
+
                     b.Property<bool>("Purged")
                         .HasColumnType("boolean");
 
@@ -1229,7 +1518,9 @@ namespace App.Api.Infrastructure.Persistence.Migrations
 
                     b.ToTable("MessageAttachments", t =>
                         {
-                            t.HasCheckConstraint("CK_MessageAttachments_Media", "(\"Kind\" = 'File' AND \"ContentType\" IS NULL AND \"DurationMs\" IS NULL) OR (\"Kind\" = 'Voice' AND \"ContentType\" IS NOT NULL AND \"ContentType\" = 'audio/webm;codecs=opus' AND \"DurationMs\" IS NOT NULL AND \"DurationMs\" BETWEEN 1 AND 60000 AND \"Size\" <= 2097152) OR (\"Kind\" = 'Sticker' AND \"ContentType\" IS NOT NULL AND \"ContentType\" IN ('image/png', 'image/gif') AND \"DurationMs\" IS NULL AND \"SourceStickerId\" IS NOT NULL AND \"StickerPackName\" IS NOT NULL AND \"Size\" <= 1048576)");
+                            t.HasCheckConstraint("CK_MessageAttachment_Preview", "(\"PreviewId\" IS NULL AND \"PreviewSize\" IS NULL) OR (\"PreviewId\" IS NOT NULL AND \"PreviewSize\" IS NOT NULL AND \"PreviewSize\" BETWEEN 1 AND 98304)");
+
+                            t.HasCheckConstraint("CK_MessageAttachments_Media", "(\"Kind\" = 'File' AND \"ContentType\" IS NULL AND \"DurationMs\" IS NULL) OR (\"Kind\" = 'Voice' AND \"ContentType\" IS NOT NULL AND \"ContentType\" = 'audio/webm;codecs=opus' AND \"DurationMs\" IS NOT NULL AND \"DurationMs\" BETWEEN 1 AND 60000 AND \"Size\" <= 2097152) OR (\"Kind\" = 'Sticker' AND \"ContentType\" IS NOT NULL AND \"ContentType\" IN ('image/png', 'image/gif') AND \"DurationMs\" IS NULL AND \"SourceStickerId\" IS NOT NULL AND \"StickerPackName\" IS NOT NULL AND ((\"ContentType\" = 'image/png' AND \"Size\" <= 1048576) OR (\"ContentType\" = 'image/gif' AND \"Size\" <= 3145728)))");
 
                             t.HasCheckConstraint("CK_MessageAttachments_Size", "\"Size\" BETWEEN 1 AND 5242880");
                         });
@@ -1308,6 +1599,135 @@ namespace App.Api.Infrastructure.Persistence.Migrations
                     b.ToTable("OutboxEntries");
                 });
 
+            modelBuilder.Entity("App.Api.Features.Navigation.ConversationPreference", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Kind")
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)");
+
+                    b.Property<Guid>("ContainerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Mode")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)");
+
+                    b.HasKey("UserId", "Kind", "ContainerId");
+
+                    b.ToTable("ConversationPreferences", t =>
+                        {
+                            t.HasCheckConstraint("CK_ConversationPreference_Kind", "\"Kind\" IN ('channel','direct')");
+
+                            t.HasCheckConstraint("CK_ConversationPreference_Mode", "\"Mode\" IN ('all','mentions','quiet')");
+                        });
+                });
+
+            modelBuilder.Entity("App.Api.Features.Navigation.MessageBookmark", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ContainerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)");
+
+                    b.Property<Guid>("MessageId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Note")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<bool>("Removed")
+                        .HasColumnType("boolean");
+
+                    b.PrimitiveCollection<string[]>("Tags")
+                        .IsRequired()
+                        .HasColumnType("text[]");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId", "CreatedAt", "Id");
+
+                    b.HasIndex("UserId", "Kind", "MessageId")
+                        .IsUnique();
+
+                    b.ToTable("MessageBookmarks");
+                });
+
+            modelBuilder.Entity("App.Api.Features.Navigation.MessageNotice", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ContainerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)");
+
+                    b.Property<bool>("Mention")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("MessageId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("Read")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId", "CreatedAt", "Id");
+
+                    b.HasIndex("UserId", "Kind", "MessageId")
+                        .IsUnique();
+
+                    b.ToTable("MessageNotices");
+                });
+
+            modelBuilder.Entity("App.Api.Features.Navigation.NavigationCommand", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ClientRequestId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Hash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.HasKey("UserId", "ClientRequestId");
+
+                    b.ToTable("NavigationCommands");
+                });
+
             modelBuilder.Entity("App.Api.Features.Stickers.SavedStickerPack", b =>
                 {
                     b.Property<Guid>("UserId")
@@ -1376,7 +1796,7 @@ namespace App.Api.Infrastructure.Persistence.Migrations
 
                     b.ToTable("StickerAssets", t =>
                         {
-                            t.HasCheckConstraint("CK_StickerAssets_Media", "\"Size\" BETWEEN 1 AND 1048576 AND \"ContentType\" IN ('image/png', 'image/gif')");
+                            t.HasCheckConstraint("CK_StickerAssets_Media", "(\"ContentType\" = 'image/png' AND \"Size\" BETWEEN 1 AND 1048576) OR (\"ContentType\" = 'image/gif' AND \"Size\" BETWEEN 1 AND 3145728)");
                         });
                 });
 
@@ -1428,6 +1848,34 @@ namespace App.Api.Infrastructure.Persistence.Migrations
                         {
                             t.HasCheckConstraint("CK_StickerPacks_Owner", "(\"BuiltIn\" AND \"OwnerId\" IS NULL) OR (NOT \"BuiltIn\" AND \"OwnerId\" IS NOT NULL)");
                         });
+                });
+
+            modelBuilder.Entity("App.Api.Features.Threads.ThreadCommand", b =>
+                {
+                    b.Property<Guid>("ParentChannelId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ActorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ClientRequestId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Hash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<Guid>("ThreadId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("ParentChannelId", "ActorId", "ClientRequestId");
+
+                    b.HasIndex("ActorId");
+
+                    b.HasIndex("ThreadId");
+
+                    b.ToTable("ThreadCommands");
                 });
 
             modelBuilder.Entity("App.Api.Features.Voice.RetiredVoiceRoom", b =>
@@ -1816,10 +2264,28 @@ namespace App.Api.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("App.Api.Features.Accounts.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("DiscussionCreatorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("FK_TextChannels_AspNetUsers_ThreadCreatorId");
+
                     b.HasOne("App.Api.Features.Communities.Category", null)
                         .WithMany()
                         .HasForeignKey("CommunityId", "CategoryId")
                         .HasPrincipalKey("CommunityId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("App.Api.Features.Communities.TextChannel", null)
+                        .WithMany()
+                        .HasForeignKey("CommunityId", "ParentChannelId")
+                        .HasPrincipalKey("CommunityId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("App.Api.Features.Messages.Message", null)
+                        .WithMany()
+                        .HasForeignKey("RootMessageId", "ParentChannelId")
+                        .HasPrincipalKey("Id", "ChannelId")
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Community");
@@ -1942,6 +2408,27 @@ namespace App.Api.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("App.Api.Features.Forums.ForumTopicCommand", b =>
+                {
+                    b.HasOne("App.Api.Features.Accounts.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("ActorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("App.Api.Features.Communities.TextChannel", null)
+                        .WithMany()
+                        .HasForeignKey("ForumId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("App.Api.Features.Communities.TextChannel", null)
+                        .WithMany()
+                        .HasForeignKey("TopicId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("App.Api.Features.Gatherings.Gathering", b =>
                 {
                     b.HasOne("App.Api.Features.Communities.Community", null)
@@ -1953,6 +2440,20 @@ namespace App.Api.Infrastructure.Persistence.Migrations
                     b.HasOne("App.Api.Features.Accounts.AppUser", null)
                         .WithMany()
                         .HasForeignKey("OrganizerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("App.Api.Features.Gatherings.GatheringChecklistItem", b =>
+                {
+                    b.HasOne("App.Api.Features.Accounts.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("AssigneeId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("App.Api.Features.Gatherings.Gathering", null)
+                        .WithMany()
+                        .HasForeignKey("GatheringId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
@@ -2025,6 +2526,54 @@ namespace App.Api.Infrastructure.Persistence.Migrations
                 });
 
             modelBuilder.Entity("App.Api.Features.Gatherings.GatheringNotice", b =>
+                {
+                    b.HasOne("App.Api.Features.Gatherings.Gathering", null)
+                        .WithMany()
+                        .HasForeignKey("GatheringId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("App.Api.Features.Accounts.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("App.Api.Features.Gatherings.GatheringPoll", b =>
+                {
+                    b.HasOne("App.Api.Features.Gatherings.Gathering", null)
+                        .WithMany()
+                        .HasForeignKey("GatheringId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("App.Api.Features.Gatherings.GatheringPollOption", b =>
+                {
+                    b.HasOne("App.Api.Features.Gatherings.GatheringPoll", null)
+                        .WithMany("Options")
+                        .HasForeignKey("PollId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("App.Api.Features.Gatherings.GatheringPollVote", b =>
+                {
+                    b.HasOne("App.Api.Features.Gatherings.GatheringPoll", null)
+                        .WithMany()
+                        .HasForeignKey("PollId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("App.Api.Features.Accounts.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("App.Api.Features.Gatherings.GatheringReminder", b =>
                 {
                     b.HasOne("App.Api.Features.Gatherings.Gathering", null)
                         .WithMany()
@@ -2163,6 +2712,42 @@ namespace App.Api.Infrastructure.Persistence.Migrations
                     b.Navigation("Event");
                 });
 
+            modelBuilder.Entity("App.Api.Features.Navigation.ConversationPreference", b =>
+                {
+                    b.HasOne("App.Api.Features.Accounts.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("App.Api.Features.Navigation.MessageBookmark", b =>
+                {
+                    b.HasOne("App.Api.Features.Accounts.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("App.Api.Features.Navigation.MessageNotice", b =>
+                {
+                    b.HasOne("App.Api.Features.Accounts.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("App.Api.Features.Navigation.NavigationCommand", b =>
+                {
+                    b.HasOne("App.Api.Features.Accounts.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("App.Api.Features.Stickers.SavedStickerPack", b =>
                 {
                     b.HasOne("App.Api.Features.Stickers.StickerPack", null)
@@ -2195,6 +2780,27 @@ namespace App.Api.Infrastructure.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("OwnerId")
                         .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("App.Api.Features.Threads.ThreadCommand", b =>
+                {
+                    b.HasOne("App.Api.Features.Accounts.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("ActorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("App.Api.Features.Communities.TextChannel", null)
+                        .WithMany()
+                        .HasForeignKey("ParentChannelId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("App.Api.Features.Communities.TextChannel", null)
+                        .WithMany()
+                        .HasForeignKey("ThreadId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("App.Api.Features.Voice.RetiredVoiceRoom", b =>
@@ -2289,6 +2895,11 @@ namespace App.Api.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("App.Api.Features.Gatherings.Gathering", b =>
                 {
                     b.Navigation("Invites");
+                });
+
+            modelBuilder.Entity("App.Api.Features.Gatherings.GatheringPoll", b =>
+                {
+                    b.Navigation("Options");
                 });
 
             modelBuilder.Entity("App.Api.Features.Messages.Message", b =>

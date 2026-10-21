@@ -10,7 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace App.IntegrationTests;
 
 [Trait("Category", "PostgreSQL")]
-public sealed class AccessTests(AccountsDatabase database) : IClassFixture<AccountsDatabase>
+public sealed partial class AccessTests(AccountsDatabase database) : IClassFixture<AccountsDatabase>
 {
     private FoundationFactory Factory() => new(connection: database.Connection, permitLimit: 120);
     private sealed record Person(HttpClient Client, UserProfile Profile, string Cookie) : IDisposable { public void Dispose() => Client.Dispose(); }

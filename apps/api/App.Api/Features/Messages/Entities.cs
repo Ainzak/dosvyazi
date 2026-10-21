@@ -5,6 +5,8 @@ namespace App.Api.Features.Messages;
 
 public sealed class Message
 {
+    public Guid? ReplyToId { get; set; }
+    public Guid[] MentionUserIds { get; set; } = [];
     public Guid Id { get; set; }
     public Guid ChannelId { get; set; }
     public TextChannel Channel { get; set; } = null!;
@@ -49,6 +51,8 @@ public sealed class CommunityEmoji
 
 public sealed class MessageAttachment
 {
+    public Guid? PreviewId { get; set; }
+    public int? PreviewSize { get; set; }
     public string Kind { get; set; } = "File";
     public string? ContentType { get; set; }
     public int? DurationMs { get; set; }

@@ -7,14 +7,14 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace App.IntegrationTests;
 
-public sealed class PostgresTests
+public sealed class PostgresTests(AccountsDatabase storage) : IClassFixture<AccountsDatabase>
 {
     [Fact]
     [Trait("Category", "PostgreSQL")]
     public async Task ActualPostgres18AcceptsEfConnectionAndRepeatedReadinessProbes()
     {
-        var connection = Environment.GetEnvironmentVariable("DOSVYAZI_TEST_CONNECTION");
-        Assert.False(string.IsNullOrWhiteSpace(connection), "Set DOSVYAZI_TEST_CONNECTION or run npm run test:database.");
+        // Readiness checks schema currency; never depend on or migrate the developer's default schema.
+        var connection = storage.Connection;
         await using var factory = new FoundationFactory(connection: connection);
         using var scope = factory.Services.CreateScope();
         var database = scope.ServiceProvider.GetRequiredService<AppDbContext>();

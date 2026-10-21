@@ -6,7 +6,7 @@ public sealed record CreateCommunityRequest(Guid ClientRequestId, [Required, Str
 public sealed record CreateInviteRequest(Guid ClientRequestId, [Range(1, 168)] int LifetimeHours, [Range(1, 100)] int MaxUses);
 public sealed record AcceptInviteRequest([Required, StringLength(64, MinimumLength = 64), RegularExpression("^[a-f0-9]{64}$")] string Code);
 public sealed record BanMemberRequest(bool Banned);
-public sealed record ChannelSummary(string Id, string Name, string? CategoryName = null, bool CanSend = true, string? SendDeniedBy = null, bool CanManageMessages = false);
+public sealed record ChannelSummary(string Id, string Name, string? CategoryName = null, bool CanSend = true, string? SendDeniedBy = null, bool CanManageMessages = false, string Kind = "Text");
 public sealed record CommunitySummary(string Id, string Name, string Role);
 public sealed record CommunityDetails(string Id, string Name, string OwnerId, string Role, int MemberCount, ChannelSummary[] Channels, int Permissions = 0, int Rank = 0, bool CanViewVoice = true);
 public sealed record MemberSummary(string UserId, string DisplayName, string Status, bool IsOwner, int Rank = 0);
