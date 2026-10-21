@@ -1,0 +1,93 @@
+services:
+  database:
+    image: ${DATABASE_IMAGE:?Verify the release images}
+    restart: unless-stopped
+    mem_limit: 192m
+    environment:
+      POSTGRES_DB: dosvyazi
+      POSTGRES_USER: dosvyazi
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Run setup}
+    command: ["postgres", "-c", "shared_buffers=32MB", "-c", "max_connections=30", "-c", "work_mem=2MB"]
+    volumes: ["database:/var/lib/postgresql"]
+    networks:
+      private: { ipv4_address: "${NETWORK_PREFIX}.3" }
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dosvyazi -d dosvyazi"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+  api:
+    image: ${API_IMAGE:?Verify the release images}
+    restart: unless-stopped
+    mem_limit: 256m
+    depends_on:
+      database: { condition: service_healthy }
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://0.0.0.0:8080
+      ASPNETCORE_HTTPS_PORT: ${HTTPS_PORT}
+      AllowedHosts: ${DOMAIN}
+      ReverseProxy__Enabled: "true"
+      ReverseProxy__KnownProxies__0: ${NETWORK_PREFIX}.2
+      DataProtection__KeyPath: /var/lib/dosvyazi/keys
+      Files__RootPath: /var/lib/dosvyazi/files
+      ConnectionStrings__Dosvyazi: Host=database;Database=dosvyazi;Username=dosvyazi;Password=${POSTGRES_PASSWORD};Maximum Pool Size=20;Timeout=5;GSS Encryption Mode=Disable
+      Voice__Enabled: "true"
+      Voice__ControlUrl: http://livekit:7880
+      Voice__BrowserUrl: wss://${DOMAIN}:${HTTPS_PORT}/livekit
+      Voice__ApiKey: ${LIVEKIT_API_KEY}
+      Voice__ApiSecret: ${LIVEKIT_API_SECRET}
+      DOTNET_GCHeapHardLimit: "0x08000000"
+      Logging__LogLevel__Default: Warning
+    volumes: ["files:/var/lib/dosvyazi/files", "keys:/var/lib/dosvyazi/keys"]
+    networks:
+      private: { ipv4_address: "${NETWORK_PREFIX}.4" }
+    read_only: true
+    tmpfs: ["/tmp:size=32m"]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+  livekit:
+    image: ${LIVEKIT_IMAGE:?Verify the release images}
+    restart: unless-stopped
+    mem_limit: 192m
+    command: ["--config", "/etc/dosvyazi-livekit/livekit.yaml"]
+    volumes: ["livekit-config:/etc/dosvyazi-livekit:ro"]
+    ports: ["${RTC_TCP}:${RTC_TCP}/tcp", "${RTC_UDP}:${RTC_UDP}/udp"]
+    networks:
+      private: { ipv4_address: "${NETWORK_PREFIX}.5" }
+    read_only: true
+    tmpfs: ["/tmp:size=16m"]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+  web:
+    image: ${WEB_IMAGE:?Verify the release images}
+    restart: unless-stopped
+    mem_limit: 96m
+    environment:
+      DOMAIN: ${DOMAIN}
+      HTTPS_PORT: ${HTTPS_PORT}
+      HTTP_PORT: ${HTTP_PORT}
+      TLS_ISSUER: ${TLS_ISSUER}
+    ports: ["${HTTP_PORT}:${HTTP_PORT}/tcp", "${HTTPS_PORT}:${HTTPS_PORT}/tcp"]
+    networks:
+      private: { ipv4_address: "${NETWORK_PREFIX}.2" }
+    volumes: ["caddy:/data", "caddy-config:/config"]
+    security_opt: ["no-new-privileges:true"]
+  tools:
+    image: ${API_IMAGE}
+    profiles: [tools]
+    user: "0:0"
+    entrypoint: ["/bin/sh"]
+    volumes: ["files:/managed/files", "keys:/managed/keys", "caddy:/managed/caddy", "caddy-config:/managed/caddy-config", "livekit-config:/managed/livekit"]
+    network_mode: none
+networks:
+  private:
+    ipam:
+      config: [{ subnet: "${NETWORK_PREFIX}.0/24" }]
+volumes:
+  database:
+  files:
+  keys:
+  caddy:
+  caddy-config:
+  livekit-config:

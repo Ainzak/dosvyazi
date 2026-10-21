@@ -1,0 +1,33 @@
+{
+    http_port {$HTTP_PORT}
+    https_port {$HTTPS_PORT}
+    servers {
+        protocols h1 h2
+    }
+}
+https://{$DOMAIN}:{$HTTPS_PORT} {
+    tls {
+        issuer {$TLS_ISSUER}
+    }
+    encode zstd gzip
+    header {
+        X-Content-Type-Options nosniff
+        Referrer-Policy same-origin
+    }
+    @api path /api/* /health/* /hubs/*
+    handle @api {
+        reverse_proxy api:8080
+    }
+    handle_path /livekit/* {
+        reverse_proxy livekit:7880
+    }
+    handle {
+        root * /srv/web
+        route {
+            try_files {path} /index.html
+            @delivery path / /index.html /sw.js /manifest.webmanifest
+            header @delivery Cache-Control "no-store"
+            file_server
+        }
+    }
+}
