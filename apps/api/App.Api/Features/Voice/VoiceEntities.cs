@@ -2,6 +2,12 @@ namespace App.Api.Features.Voice;
 
 public sealed class VoiceRoomBinding
 {
+    public Guid ChannelId { get; set; }
+    public string Name { get; set; } = "Voice room";
+    public Guid? CategoryId { get; set; }
+    public bool AdmissionProtected { get; set; }
+    public Guid? AdmissionAttempt { get; set; }
+    public DateTimeOffset? AdmissionDeadline { get; set; }
     public Guid CommunityId { get; set; }
     public Guid Id { get; set; }
     public long Generation { get; set; } = 1;
@@ -14,6 +20,7 @@ public sealed class VoiceRoomBinding
 
 public sealed class VoiceLease
 {
+    public Guid ChannelId { get; set; }
     public bool DisconnectedByModerator { get; set; }
     public bool CanSpeak { get; set; } = true;
     public bool CanShareScreen { get; set; }
@@ -55,6 +62,7 @@ public sealed record VoiceStateDto(string Status, string Generation, string? Ope
 
 public sealed class VoiceOptions
 {
+    public bool AdmissionRequired { get; set; }
     public bool Enabled { get; set; }
     public bool WorkerEnabled { get; set; } = true;
     public string ControlUrl { get; set; } = "http://127.0.0.1:7880";

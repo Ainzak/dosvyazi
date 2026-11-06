@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { writeFile } from 'node:fs/promises';
 import type { Page } from '@playwright/test';
-import { audioSettings, changeLanguage, communityOverview, joinVoice } from './workspace-navigation';
+import { createInvitation, startScreenShare, audioSettings, changeLanguage, communityOverview, joinVoice } from './workspace-navigation';
 
 // Chromium's second default fake device uses Y16 depth frames. Device0 and3
 // use I420, so use those two independent color sources for camera and screen.
@@ -76,6 +76,7 @@ const audio = (p: Page) => p.getByRole('checkbox', { name: 'Reduce audio quality
 const camera = (p: Page) => p.getByRole('checkbox', { name: 'Reduce camera quality', exact: true });
 const screen = (p: Page) => p.getByLabel('Screen-sharing quality', { exact: true });
 async function select(page: Page, a: boolean, c: boolean, s: string) {
+  await audioSettings(page);
   if (await audio(page).isChecked() !== a) await audio(page).click();
   await expect(audio(page)).toHaveJSProperty('checked', a); await expect(audio(page)).toBeEnabled();
   if (await camera(page).isChecked() !== c) await camera(page).click();
@@ -87,7 +88,7 @@ const sources = (page: Page) => page.evaluate(() => {
   return Object.fromEntries((['mic', 'camera', 'screen'] as const).map(source => {
     const track = f[source].at(-1);
     const tx = f.pcs.flatMap(pc => pc.getTransceivers()).find(t => ['sendonly', 'sendrecv'].includes(t.direction) && t.sender.track === track);
-    return [source, { id: track?.id, state: track?.readyState, enabled: track?.enabled, settings: track?.getSettings(), contentHint: track?.contentHint, encoding: tx?.sender.getParameters().encodings?.[0] }];
+    return [source, { id: track?.id, state: track?.readyState, enabled: track?.enabled, settings: track?.getSettings(), contentHint: track?.contentHint, encoding: tx?.sender.getParameters().encodings?.[0], degradationPreference: tx?.sender.getParameters().degradationPreference }];
   }));
 });
 
@@ -101,6 +102,7 @@ test('independent quality preferences cover all combinations without starting in
   await page.getByRole('button', { name: 'Leave voice', exact: true }).click();
   await page.reload(); await join(page); await expect(audio(page)).toBeChecked(); await expect(camera(page)).toBeChecked(); await expect(screen(page)).toHaveValue('ultra');
   await changeLanguage(page, 'ru');
+  await page.getByRole('button', { name: 'Настройки звука и трансляции', exact: true }).click();
   await expect(page.getByRole('checkbox', { name: 'Снизить качество звука', exact: true })).toBeChecked();
   await expect(page.getByRole('checkbox', { name: 'Снизить качество камеры', exact: true })).toBeChecked();
   await page.getByLabel('Качество демонстрации экрана', { exact: true }).scrollIntoViewIfNeeded();
@@ -111,23 +113,27 @@ test('independent quality preferences cover all combinations without starting in
 
 test('live sixteen-profile matrix changes only its source and high screen sends more detail to a peer', async ({ page, browser, context }, info) => {
   test.setTimeout(180_000); await context.grantPermissions(['microphone', 'camera']);
-  await setup(page); await communityOverview(page); await page.getByRole('button', { name: 'Create invitation', exact: true }).click();
-  const code = await page.getByLabel('Share this invitation code').inputValue();
+  await setup(page); await communityOverview(page); const code = await createInvitation(page);
   const peerContext = await browser.newContext({ baseURL: 'http://127.0.0.1:5174', viewport: page.viewportSize()!, permissions: ['microphone', 'camera'] });
   const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
   try {
     const peer = await peerContext.newPage(); await register(peer, 'Quality receiver'); await peer.goto('/communities');
     await peer.getByLabel('Invitation code', { exact: true }).fill(code); await peer.getByRole('button', { name: 'Join community', exact: true }).click();
     await join(page); await join(peer);
+    // The delivery assertion below measures spatial detail. Motion priority is
+    // allowed to downscale under load and is covered separately in screen-motion.
+    await audioSettings(page); await page.getByLabel('Screen content priority', { exact: true }).selectOption('detail');
+    await expect(page.getByLabel('Screen content priority', { exact: true })).toBeEnabled();
     let joins = 0; page.on('request', request => { if (request.method() === 'POST' && request.url().endsWith('/voice/join')) joins++; });
     await page.getByRole('button', { name: 'Enable microphone', exact: true }).click();
     await page.getByRole('button', { name: 'Enable camera', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Stop camera', exact: true })).toBeEnabled();
-    await page.getByRole('button', { name: 'Share screen', exact: true }).click();
+    await startScreenShare(page);
     await expect(page.getByRole('button', { name: 'Stop sharing', exact: true })).toBeEnabled();
     await peer.getByRole('button', { name: 'Enable microphone', exact: true }).click();
     await expect(peer.getByRole('button', { name: 'Mute microphone', exact: true })).toBeEnabled();
     const peerMic = (await sources(peer)).mic!.id;
+    await audioSettings(peer);
     await peer.getByRole('button', { name: 'Close settings', exact: true }).click();
     await peer.getByRole('button', { name: 'View shared video (2)', exact: true }).click();
     await peer.bringToFront();
@@ -147,7 +153,7 @@ test('live sixteen-profile matrix changes only its source and high screen sends 
       expect(observed.screen!.settings!.width).toBe(s === 'ultra' ? 2560 : s === 'high' ? 1920 : s === 'economy' ? 854 : 1280);
       expect(observed.screen!.encoding!.maxFramerate).toBe(s === 'ultra' ? 60 : s === 'high' ? 30 : s === 'economy' ? 10 : 15);
       expect(observed.screen!.settings!.frameRate).toBe(s === 'ultra' ? 60 : s === 'high' ? 30 : s === 'economy' ? 10 : 15);
-      expect(observed.screen!.contentHint).toBe(s === 'ultra' ? 'motion' : 'detail');
+      expect(observed.screen!.contentHint).toBe('detail'); expect(observed.screen!.degradationPreference).toBe('maintain-resolution');
       expect((await sources(peer)).mic!.id).toBe(peerMic);
       await expect(peer.getByRole('button', { name: 'Mute microphone', exact: true })).toBeEnabled();
     }
@@ -173,13 +179,14 @@ test('1440p60 starts from a saved preference and a rejected screen change restor
   await page.getByRole('button', { name: 'Leave voice', exact: true }).click();
   await page.reload(); await join(page);
   await expect(screen(page)).toHaveValue('ultra');
-  await page.getByRole('button', { name: 'Share screen', exact: true }).click();
+  await startScreenShare(page);
   await expect(page.getByRole('button', { name: 'Stop sharing', exact: true })).toBeEnabled();
   const before = (await sources(page)).screen!;
   expect(before.settings).toMatchObject({ width: 2560, height: 1440, frameRate: 60 });
   expect(before.encoding).toMatchObject({ maxBitrate: 12_000_000, maxFramerate: 60 });
   expect(before.contentHint).toBe('motion');
   await page.evaluate(() => { window.qualityFixture.failConstraints = 1; });
+  await audioSettings(page);
   await screen(page).selectOption('high');
   await expect(page.getByText('Quality could not be changed. The previous setting is kept. Try again.', { exact: true })).toBeVisible();
   await expect(screen(page)).toHaveValue('ultra');
@@ -193,9 +200,10 @@ test('constraint rollback and explicit publication recovery preserve the unrelat
   test.setTimeout(60_000); await context.grantPermissions(['microphone', 'camera']); await setup(page); await join(page);
   await page.getByRole('button', { name: 'Enable camera', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Stop camera', exact: true })).toBeEnabled();
-  await page.getByRole('button', { name: 'Share screen', exact: true }).click();
+  await startScreenShare(page);
   await expect(page.getByRole('button', { name: 'Stop sharing', exact: true })).toBeEnabled();
   const before = await sources(page);
+  await audioSettings(page);
   await page.evaluate(() => { window.qualityFixture.failConstraints = 1; }); await camera(page).click();
   await expect(page.getByText('Quality could not be changed. The previous setting is kept. Try again.', { exact: true })).toBeVisible();
   await expect(camera(page)).not.toBeChecked(); await expect(camera(page)).toBeEnabled();
@@ -207,6 +215,7 @@ test('constraint rollback and explicit publication recovery preserve the unrelat
   expect((await sources(page)).screen!.id).toBe(before.screen!.id); expect((await sources(page)).screen!.state).toBe('live');
   await page.getByRole('button', { name: 'Enable camera', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Stop camera', exact: true })).toBeEnabled();
+  await audioSettings(page);
   await camera(page).click(); await expect(camera(page)).toBeChecked(); await expect(camera(page)).toBeEnabled();
   expect((await sources(page)).camera!.encoding!.maxBitrate).toBe(150_000);
   await page.getByRole('button', { name: 'Leave voice', exact: true }).click();
@@ -214,9 +223,10 @@ test('constraint rollback and explicit publication recovery preserve the unrelat
 
 test('leaving while a quality change is pending stops capture and discards the late result', async ({ page, context }) => {
   await context.grantPermissions(['microphone', 'camera']); await setup(page); await join(page);
-  await page.getByRole('button', { name: 'Share screen', exact: true }).click();
+  await startScreenShare(page);
   await expect(page.getByRole('button', { name: 'Stop sharing', exact: true })).toBeEnabled();
   await page.evaluate(() => { window.qualityFixture.hold = true; });
+  await audioSettings(page);
   await screen(page).selectOption('ultra');
   await expect(page.getByText('Applying media quality…', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Leave voice', exact: true }).click();
@@ -229,6 +239,7 @@ test('leaving while a quality change is pending stops capture and discards the l
 for (const action of ['mute', 'deafen'] as const) test(`${action} stays immediate during an in-flight microphone quality change`, async ({ page }) => {
   await setup(page); await join(page);
   await page.getByRole('button', { name: 'Enable microphone', exact: true }).click();
+  await audioSettings(page);
   await expect(audio(page)).toBeEnabled();
   await page.evaluate(() => { window.qualityFixture.holdOffer = true; });
   await audio(page).click();
@@ -236,6 +247,7 @@ for (const action of ['mute', 'deafen'] as const) test(`${action} stays immediat
   await page.getByRole('button', { name: action === 'mute' ? 'Mute microphone' : 'Deafen', exact: true }).click();
   expect(await page.evaluate(() => window.qualityFixture.mic.at(-1)!.enabled)).toBe(false);
   await page.evaluate(() => { window.qualityFixture.holdOffer = false; window.qualityFixture.release!(); });
+  await audioSettings(page);
   await expect(audio(page)).toBeEnabled(); await expect(audio(page)).toBeChecked();
   expect(await page.evaluate(() => window.qualityFixture.mic.at(-1)!.enabled)).toBe(false);
   expect(await page.evaluate(() => window.qualityFixture.mic.length)).toBe(1);

@@ -33,6 +33,7 @@ services:
       Files__RootPath: /var/lib/dosvyazi/files
       ConnectionStrings__Dosvyazi: Host=database;Database=dosvyazi;Username=dosvyazi;Password=${POSTGRES_PASSWORD};Maximum Pool Size=20;Timeout=5;GSS Encryption Mode=Disable
       Voice__Enabled: "true"
+      Voice__AdmissionRequired: "true"
       Voice__ControlUrl: http://livekit:7880
       Voice__BrowserUrl: wss://${DOMAIN}:${HTTPS_PORT}/livekit
       Voice__ApiKey: ${LIVEKIT_API_KEY}

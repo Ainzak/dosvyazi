@@ -45,6 +45,36 @@ public sealed class CommunityTests(AccountsDatabase database) : IClassFixture<Ac
     private static Task<HttpResponseMessage> Join(Person user, CreatedInvite invite) => Send(user.Client, "/api/v1/communities/join", new { invite.Code });
 
     [Fact]
+    public async Task TimeOnlyInvitationsAreUnlimitedIdempotentAndStillRevocable()
+    {
+        await using var factory = Factory(); using var owner = await User(factory); using var member = await User(factory);
+        var community = await Create(owner);
+        var request = new { ClientRequestId = Guid.NewGuid(), LifetimeHours = 24 };
+        var path = $"/api/v1/communities/{community.Id}/invites";
+        using var first = await Send(owner.Client, path, request);
+        Assert.Equal(HttpStatusCode.Created, first.StatusCode);
+        var invite = (await first.Content.ReadFromJsonAsync<CreatedInvite>())!;
+        Assert.Null(invite.Invite.MaxUses);
+        using var repeated = await Send(owner.Client, path, request);
+        Assert.Equal(invite, await repeated.Content.ReadFromJsonAsync<CreatedInvite>());
+        using var changed = await Send(owner.Client, path, new { request.ClientRequestId, LifetimeHours = 24, MaxUses = 10 });
+        Assert.Equal(HttpStatusCode.Conflict, changed.StatusCode);
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            await db.CommunityInvites.Where(i => i.Id == Guid.Parse(invite.Invite.Id)).ExecuteUpdateAsync(i => i.SetProperty(x => x.Uses, 101));
+        }
+        using var joined = await Join(member, invite); Assert.Equal(HttpStatusCode.OK, joined.StatusCode);
+        using var joinedAgain = await Join(member, invite); Assert.Equal(HttpStatusCode.OK, joinedAgain.StatusCode);
+        var row = Assert.Single((await owner.Client.GetFromJsonAsync<InviteSummary[]>(path))!, i => i.Id == invite.Invite.Id);
+        Assert.Equal(102, row.Uses); Assert.Null(row.MaxUses);
+        using var unauthorized = await Send(member.Client, path, new { ClientRequestId = Guid.NewGuid(), LifetimeHours = 24 });
+        Assert.Equal(HttpStatusCode.Forbidden, unauthorized.StatusCode);
+        using var revoked = await Send(owner.Client, $"{path}/{invite.Invite.Id}/revoke"); Assert.Equal(HttpStatusCode.OK, revoked.StatusCode);
+        using var rejected = await Join(member, invite); Assert.Equal(HttpStatusCode.NotFound, rejected.StatusCode);
+    }
+
+    [Fact]
     public async Task ConcurrentCreationIsAtomicIdempotentAndPayloadBound()
     {
         await using var factory = Factory();

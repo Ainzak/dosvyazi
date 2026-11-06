@@ -7,6 +7,6 @@ export const explainRights = async (id: string, kind: string, channel: string, u
 export const exportConfiguration = async (id: string) => readJson<CommunityConfiguration>(await callApi(`${root}/${id}/configuration`));
 export const previewConfiguration = async (configuration: unknown) => {
   try { return await mutateApi<CommunityConfiguration>(`${root}/configuration/preview`, 'POST', { configuration }); }
-  catch (error) { if (error instanceof ApiError && error.status === 400) throw new ApiError(400, 'Invalid configuration file. Use an unmodified version 1 export.'); throw error; }
+  catch (error) { if (error instanceof ApiError && error.status === 400) throw new ApiError(400, 'Invalid configuration file. Use a supported configuration export.'); throw error; }
 };
 export const restoreConfiguration = (clientRequestId: string, name: string, configuration: CommunityConfiguration) => mutateApi<components['schemas']['ConfigurationRestored']>(`${root}/configuration/restore`, 'POST', { clientRequestId, name, configuration });

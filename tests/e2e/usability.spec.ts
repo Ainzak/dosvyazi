@@ -1,4 +1,4 @@
-import { changeLanguage, communityOverview, composerTools, messageAction, workspaceLink } from './workspace-navigation';
+import { createInvitation, changeLanguage, communityOverview, composerTools, messageAction, workspaceLink } from './workspace-navigation';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 
@@ -119,8 +119,7 @@ test('forged raster bytes never render active content and denied viewing keeps d
 test('PNG previews lose their local URL when actual community access is revoked', async ({ page, browser }, info) => {
   await register(page, 'PNG owner'); await community(page);
   const channelUrl = page.url();
-  await communityOverview(page); await page.getByRole('button', { name: 'Create invitation', exact: true }).click();
-  const code = await page.getByLabel('Share this invitation code').inputValue();
+  await communityOverview(page); const code = await createInvitation(page);
   await workspaceLink(page, 'general');
   const context = await browser.newContext({ baseURL: 'http://127.0.0.1:5174', viewport: page.viewportSize()! });
   try {

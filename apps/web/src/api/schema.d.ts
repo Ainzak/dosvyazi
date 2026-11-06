@@ -19,6 +19,49 @@ export interface paths {
                 header?: never;
                 path: {
                     id: string;
+                    channelId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["VoiceStateDto"];
+                        "application/json": components["schemas"]["VoiceStateDto"];
+                        "text/json": components["schemas"]["VoiceStateDto"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/communities/{id}/voice/channels/{channelId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    leaseId?: string;
+                };
+                header?: never;
+                path: {
+                    id: string;
+                    channelId: string;
                 };
                 cookie?: never;
             };
@@ -60,6 +103,53 @@ export interface paths {
                 header?: never;
                 path: {
                     id: string;
+                    channelId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JoinVoiceRequest"];
+                    "text/json": components["schemas"]["JoinVoiceRequest"];
+                    "application/*+json": components["schemas"]["JoinVoiceRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["VoiceJoinDto"];
+                        "application/json": components["schemas"]["VoiceJoinDto"];
+                        "text/json": components["schemas"]["VoiceJoinDto"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/communities/{id}/voice/channels/{channelId}/join": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                    channelId: string;
                 };
                 cookie?: never;
             };
@@ -105,6 +195,53 @@ export interface paths {
                 header?: never;
                 path: {
                     id: string;
+                    channelId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["VoiceLeaseRequest"];
+                    "text/json": components["schemas"]["VoiceLeaseRequest"];
+                    "application/*+json": components["schemas"]["VoiceLeaseRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["VoiceStateDto"];
+                        "application/json": components["schemas"]["VoiceStateDto"];
+                        "text/json": components["schemas"]["VoiceStateDto"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/communities/{id}/voice/channels/{channelId}/leave": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                    channelId: string;
                 };
                 cookie?: never;
             };
@@ -150,6 +287,53 @@ export interface paths {
                 header?: never;
                 path: {
                     id: string;
+                    channelId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["VoiceLeaseRequest"];
+                    "text/json": components["schemas"]["VoiceLeaseRequest"];
+                    "application/*+json": components["schemas"]["VoiceLeaseRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": boolean;
+                        "application/json": boolean;
+                        "text/json": boolean;
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/communities/{id}/voice/channels/{channelId}/heartbeat": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                    channelId: string;
                 };
                 cookie?: never;
             };
@@ -195,6 +379,7 @@ export interface paths {
                 header?: never;
                 path: {
                     id: string;
+                    channelId: string;
                 };
                 cookie?: never;
             };
@@ -219,6 +404,87 @@ export interface paths {
                 };
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/communities/{id}/voice/channels/{channelId}/disconnect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                    channelId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["VoiceLeaseRequest"];
+                    "text/json": components["schemas"]["VoiceLeaseRequest"];
+                    "application/*+json": components["schemas"]["VoiceLeaseRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": boolean;
+                        "application/json": boolean;
+                        "text/json": boolean;
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/livekit/{path}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    path: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -3103,6 +3369,334 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/direct-calls": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["DirectCallDto"][];
+                        "application/json": components["schemas"]["DirectCallDto"][];
+                        "text/json": components["schemas"]["DirectCallDto"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/direct-calls/conversation/{conversation}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    conversation: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["StartCallRequest"];
+                    "text/json": components["schemas"]["StartCallRequest"];
+                    "application/*+json": components["schemas"]["StartCallRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["DirectCallDto"];
+                        "application/json": components["schemas"]["DirectCallDto"];
+                        "text/json": components["schemas"]["DirectCallDto"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/direct-calls/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["DirectCallDto"];
+                        "application/json": components["schemas"]["DirectCallDto"];
+                        "text/json": components["schemas"]["DirectCallDto"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/direct-calls/{id}/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["DirectCallDto"];
+                        "application/json": components["schemas"]["DirectCallDto"];
+                        "text/json": components["schemas"]["DirectCallDto"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/direct-calls/{id}/end": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["DirectCallDto"];
+                        "application/json": components["schemas"]["DirectCallDto"];
+                        "text/json": components["schemas"]["DirectCallDto"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/direct-calls/{id}/join": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JoinVoiceRequest"];
+                    "text/json": components["schemas"]["JoinVoiceRequest"];
+                    "application/*+json": components["schemas"]["JoinVoiceRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["VoiceJoinDto"];
+                        "application/json": components["schemas"]["VoiceJoinDto"];
+                        "text/json": components["schemas"]["VoiceJoinDto"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/direct-calls/{id}/heartbeat": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["VoiceLeaseRequest"];
+                    "text/json": components["schemas"]["VoiceLeaseRequest"];
+                    "application/*+json": components["schemas"]["VoiceLeaseRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": boolean;
+                        "application/json": boolean;
+                        "text/json": boolean;
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/direct-calls/{id}/state": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["VoiceStateDto"];
+                        "application/json": components["schemas"]["VoiceStateDto"];
+                        "text/json": components["schemas"]["VoiceStateDto"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/direct-messages": {
         parameters: {
             query?: never;
@@ -4855,6 +5449,7 @@ export interface components {
             /** Format: uuid */
             voiceCategoryId?: null | string;
             voiceRules?: null | components["schemas"]["ResourceRule"][];
+            voiceChannels?: null | components["schemas"]["VoiceChannelPolicy"][];
         };
         AccessSaved: {
             version: string;
@@ -5005,6 +5600,7 @@ export interface components {
             /** Format: uuid */
             voiceCategoryId: null | string;
             voiceRules: components["schemas"]["ResourceRule"][];
+            voiceChannels?: null | components["schemas"]["VoiceChannelPolicy"][];
         };
         CommunityDetails: {
             id: string;
@@ -5026,6 +5622,7 @@ export interface components {
             rank: number | string;
             /** @default true */
             canViewVoice: boolean;
+            voiceChannels?: null | components["schemas"]["VoiceChannelSummary"][];
         };
         CommunitySummary: {
             id: string;
@@ -5065,7 +5662,7 @@ export interface components {
             /** Format: int32 */
             lifetimeHours: number | string;
             /** Format: int32 */
-            maxUses: number | string;
+            maxUses?: null | number | string;
         };
         CreatePackRequest: {
             /** Format: uuid */
@@ -5092,6 +5689,17 @@ export interface components {
             /** Format: uuid */
             clientRequestId: string;
             expectedVersion: string;
+        };
+        DirectCallDto: {
+            id: string;
+            conversationId: string;
+            callerId: string;
+            otherName: string;
+            status: string;
+            /** Format: date-time */
+            ringUntil: string;
+            endReason: string;
+            canJoin: boolean;
         };
         DirectCatchUp: {
             events: components["schemas"]["DirectEventDto"][];
@@ -5331,7 +5939,7 @@ export interface components {
         InviteSummary: {
             id: string;
             /** Format: int32 */
-            maxUses: number | string;
+            maxUses: null | number | string;
             /** Format: int32 */
             uses: number | string;
             /** Format: date-time */
@@ -5648,6 +6256,10 @@ export interface components {
             mentionUserIds: string[];
             attachment?: null | components["schemas"]["AttachmentDto"];
         };
+        StartCallRequest: {
+            /** Format: uuid */
+            clientRequestId: string;
+        };
         StartDirectRequest: {
             /** Format: uuid */
             clientRequestId: string;
@@ -5707,6 +6319,21 @@ export interface components {
             id: string;
             email: string;
             displayName: string;
+        };
+        VoiceChannelPolicy: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            /** Format: uuid */
+            categoryId: null | string;
+        };
+        VoiceChannelSummary: {
+            id: string;
+            name: string;
+            categoryName: null | string;
+            canConnect: boolean;
+            /** Format: int32 */
+            participants: number | string;
         };
         VoiceJoinDto: {
             leaseId: string;

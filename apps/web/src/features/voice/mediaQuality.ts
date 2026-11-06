@@ -1,9 +1,27 @@
 import { AudioPresets } from 'livekit-client';
-import type { TrackPublishOptions } from 'livekit-client';
+import type { AudioCaptureOptions, TrackPublishOptions } from 'livekit-client';
+
+// Shared program/game sound is not microphone speech. Keep its capture and encoder
+// independent of microphone suppression, PTT and economy settings. Constraints are
+// preferences: unsupported browsers may ignore them or return no screen audio.
+export const screenAudioCaptureOptions: AudioCaptureOptions = {
+  echoCancellation: false, noiseSuppression: false, autoGainControl: false, voiceIsolation: false,
+};
+export const screenAudioPublishOptions: TrackPublishOptions = {
+  audioPreset: AudioPresets.music, dtx: false, red: true,
+};
 
 export type QualitySource = 'audio' | 'camera' | 'screen';
 export type BasicQuality = 'standard' | 'economy';
 export type ScreenQuality = BasicQuality | 'high' | 'ultra';
+export type ScreenContent = 'auto' | 'detail' | 'motion';
+export function savedScreenContent(): ScreenContent {
+  try { const value = localStorage.getItem('dosvyazi-screen-content'); return value === 'motion' || value === 'detail' ? value : 'auto'; } catch { return 'auto'; }
+}
+export function screenIntent(content: ScreenContent, quality: ScreenQuality): { hint: 'motion' | 'detail'; degradationPreference: RTCDegradationPreference } {
+  const motion = content === 'motion' || (content === 'auto' && quality === 'ultra');
+  return { hint: motion ? 'motion' : 'detail', degradationPreference: motion ? 'maintain-framerate' : 'maintain-resolution' };
+}
 export type MediaQuality = { audio: BasicQuality; camera: BasicQuality; screen: ScreenQuality };
 
 // Encoder ceilings are choices, not guaranteed delivered rates or measured savings.
@@ -32,9 +50,9 @@ export function videoConstraints(source: 'camera' | 'screen', quality: MediaQual
   const profile = source === 'camera' ? cameraProfiles[quality.camera] : screenProfiles[quality.screen];
   return { width: { ideal: profile.width, max: profile.width }, height: { ideal: profile.height, max: profile.height }, frameRate: { ideal: profile.frameRate, max: profile.frameRate } };
 }
-export function qualityPublishOptions(source: QualitySource, quality: MediaQuality): TrackPublishOptions {
+export function qualityPublishOptions(source: QualitySource, quality: MediaQuality, content: ScreenContent = 'auto'): TrackPublishOptions {
   if (source === 'audio') return { audioPreset: quality.audio === 'economy' ? AudioPresets.speech : AudioPresets.music, dtx: true, red: true };
   const profile = source === 'camera' ? cameraProfiles[quality.camera] : screenProfiles[quality.screen];
   const encoding = { maxBitrate: profile.maxBitrate, maxFramerate: profile.frameRate };
-  return { videoCodec: 'vp8', simulcast: false, ...(source === 'screen' ? { screenShareEncoding: encoding } : { videoEncoding: encoding }) };
+  return { videoCodec: 'vp8', simulcast: false, ...(source === 'screen' ? { screenShareEncoding: encoding, degradationPreference: screenIntent(content, quality.screen).degradationPreference } : { videoEncoding: encoding }) };
 }

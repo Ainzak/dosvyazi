@@ -1,10 +1,10 @@
-import type { VoiceSnapshot } from './VoiceClient';
-import type { QualitySource, ScreenQuality } from './mediaQuality';
+import type { VoiceClient, VoiceSnapshot } from './VoiceClient';
+import type { QualitySource, ScreenContent, ScreenQuality } from './mediaQuality';
 import { useI18n } from '../../i18n/LocaleContext';
 
-export function MediaQualitySettings({ state, change }: { state: VoiceSnapshot; change: (source: QualitySource, value: ScreenQuality) => void }) {
+export function MediaQualitySettings({ state, change, client }: { state: VoiceSnapshot; change: (source: QualitySource, value: ScreenQuality) => void; client: VoiceClient }) {
   const { t } = useI18n();
-  const busy = state.status !== 'Connected' || !!state.changingQuality || state.changingMedia || state.changingAudio || state.changingNoiseSuppression;
+  const busy = state.status !== 'Connected' || !!state.changingQuality || state.changingMedia || state.changingAudio || state.changingNoiseSuppression || state.changingScreenContent;
   return <fieldset className="voice-quality-settings"><legend>{t('Media quality')}</legend>
     <p className="field-hint">{t('Saved on this device. Each setting changes only your outgoing source.')}</p>
     <label><input type="checkbox" checked={state.quality.audio === 'economy'} disabled={busy || !state.canSpeak} onChange={event => change('audio', event.target.checked ? 'economy' : 'standard')} />{t('Reduce audio quality')}</label>
@@ -19,6 +19,13 @@ export function MediaQualitySettings({ state, change }: { state: VoiceSnapshot; 
     </select></label>
     <p className="field-hint">{t('High improves screen detail and motion but needs more bandwidth and processing. Actual quality depends on your source, browser and connection.')}</p>
     <p className="field-hint">{t('1440p / 60 fps uses a video bitrate ceiling of 12 Mbps. A lower-resolution or slower source will not gain detail or frames.')}</p>
+    <label>{t('Screen content priority')}<select aria-label={t('Screen content priority')} value={state.screenContent} disabled={busy || !state.canShareScreen} onChange={event => void client.screenContent(event.target.value as ScreenContent)}>
+      <option value="auto">{t('Automatic for quality profile')}</option><option value="detail">{t('Text and detail')}</option><option value="motion">{t('Motion and games')}</option>
+    </select></label>
+    <p className="field-hint">{t('Motion favors frame rate and may reduce resolution under load. Detail favors sharpness and may reduce frame rate. This does not raise the selected FPS or bitrate ceiling.')}</p>
+    <p className="field-hint">{t('Automatic favors detail except at 1440p / 60 fps. Changing priority keeps the same screen capture and does not reconnect voice.')}</p>
+    {state.changingScreenContent && <p role="status">{t('Applying screen priority…')}</p>}
+    {state.screenContentError && <p role="alert">{t(state.screenContentError)}</p>}
     <p className="field-hint">{t('An active source may pause briefly while its quality changes. Other sources stay on.')}</p>
     {state.changingQuality && <p role="status">{t('Applying media quality…')}</p>}
     {state.qualityError && <p role="alert">{t(state.qualityError)}</p>}

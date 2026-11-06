@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Options;
 using System.Data;
 using System.Globalization;
 using System.Security.Cryptography;
@@ -8,7 +9,7 @@ using App.Api.Features.Voice;
 
 namespace App.Api.Features.Communities;
 
-public sealed class AccessService(AppDbContext db)
+public sealed class AccessService(AppDbContext db, IOptions<VoiceOptions> voiceOptions)
 {
     private async Task<Community> ManagerAsync(Guid id, Guid user, CancellationToken ct)
     {
@@ -32,10 +33,18 @@ public sealed class AccessService(AppDbContext db)
         var members = assignments.GroupBy(m => m.UserId).OrderBy(g => g.Key).Select(g => new MemberRolePolicy(g.Key, g.Select(m => m.RoleId).Order().ToArray())).ToArray();
         var categoryRules = await db.CategoryRoleRules.AsNoTracking().Where(r => r.CommunityId == id).OrderBy(r => r.CategoryId).ThenBy(r => r.RoleId).Select(r => new ResourceRule(r.CategoryId, r.RoleId, r.Allow, r.Deny)).ToArrayAsync(ct);
         var channelRules = await db.ChannelRoleRules.AsNoTracking().Where(r => r.CommunityId == id).OrderBy(r => r.ChannelId).ThenBy(r => r.RoleId).Select(r => new ResourceRule(r.ChannelId, r.RoleId, r.Allow, r.Deny)).ToArrayAsync(ct);
-        var voiceRules = await db.VoiceRoleRules.AsNoTracking().Where(r => r.CommunityId == id).OrderBy(r => r.RoleId).Select(r => new ResourceRule(id, r.RoleId, r.Allow, r.Deny)).ToArrayAsync(ct);
-        var result = new AccessPolicy(community.PolicyVersion.ToString(CultureInfo.InvariantCulture), roles, categories, channels, members, categoryRules, channelRules, community.VoiceCategoryId, voiceRules);
+        var voiceRules = await db.VoiceRoleRules.AsNoTracking().Where(r => r.CommunityId == id).OrderBy(r => r.RoleId).Select(r => new ResourceRule(r.ChannelId, r.RoleId, r.Allow, r.Deny)).ToArrayAsync(ct);
+        var result = new AccessPolicy(community.PolicyVersion.ToString(CultureInfo.InvariantCulture), roles, categories, channels, members, categoryRules, channelRules, community.VoiceCategoryId, voiceRules, await db.VoiceRooms.AsNoTracking().Where(r => r.CommunityId == id).OrderBy(r => r.ChannelId != id).ThenBy(r => r.Name).Select(r => new VoiceChannelPolicy(r.ChannelId, r.Name, r.CategoryId)).ToArrayAsync(ct));
         await tx.CommitAsync(ct);
         return result;
+    }
+
+    internal static VoiceChannelPolicy[] VoiceChannels(Guid id, AccessPolicy policy)
+    {
+        var channels = policy.VoiceChannels ?? [new(id, "Voice room", policy.VoiceCategoryId)];
+        if (channels.Any(c => c is null)) throw new CommunityFailure(400, "Policy entries cannot be null.");
+        // The legacy field remains canonical for the default channel.
+        return channels.Select(c => c.Id == id ? c with { CategoryId = policy.VoiceCategoryId } : c).ToArray();
     }
 
     internal static void Validate(Guid id, SaveAccessRequest request)
@@ -50,6 +59,12 @@ public sealed class AccessService(AppDbContext db)
         var roles = p.Roles.Select(r => r.Id).ToHashSet();
         var categories = p.Categories.Select(c => c.Id).ToHashSet();
         var channels = p.Channels.Select(c => c.Id).ToHashSet();
+        var voiceChannels = VoiceChannels(id, p);
+        if (voiceChannels.Length is < 1 or > 50 || voiceChannels.Any(c => c is null || c.Id == Guid.Empty || !Name(c.Name) || (c.CategoryId is Guid cat && !categories.Contains(cat))) ||
+            voiceChannels.Select(c => c.Id).Distinct().Count() != voiceChannels.Length || voiceChannels.Select(c => c.Name).Distinct().Count() != voiceChannels.Length ||
+            !voiceChannels.Any(c => c.Id == id && c.CategoryId == p.VoiceCategoryId))
+            throw new CommunityFailure(400, "Use 1–50 named voice channels, retaining the default channel and its category.");
+        var voiceIds = voiceChannels.Select(c => c.Id).ToHashSet();
         if (!roles.Contains(id) || roles.Contains(Guid.Empty) || categories.Contains(Guid.Empty) || channels.Contains(Guid.Empty) ||
             roles.Count != p.Roles.Length || categories.Count != p.Categories.Length || channels.Count != p.Channels.Length ||
             p.Roles.Select(r => r.Name).Distinct().Count() != p.Roles.Length || p.Categories.Select(c => c.Name).Distinct().Count() != p.Categories.Length ||
@@ -61,7 +76,7 @@ public sealed class AccessService(AppDbContext db)
         static bool Rules(ResourceRule[] rules, HashSet<Guid> resources, HashSet<Guid> roles) => !rules.Any(r => r is null) && rules.Select(r => (r.ResourceId, r.RoleId)).Distinct().Count() == rules.Length &&
             rules.All(r => resources.Contains(r.ResourceId) && roles.Contains(r.RoleId) && ChannelAccess.Valid(r.Allow) && ChannelAccess.Valid(r.Deny));
         if (!Rules(p.CategoryRules, categories, roles) || !Rules(p.ChannelRules, channels, roles) || (p.VoiceCategoryId is Guid voiceCategory && !categories.Contains(voiceCategory)) ||
-            (p.VoiceRules is not null && (p.VoiceRules.Length > 20 || !Rules(p.VoiceRules, [id], roles)))) throw new CommunityFailure(400, "Invalid or duplicate resource rules.");
+            (p.VoiceRules is not null && (p.VoiceRules.Length > 1000 || !Rules(p.VoiceRules, voiceIds, roles)))) throw new CommunityFailure(400, "Invalid or duplicate resource rules.");
         const int textBits = ChannelAccess.All | ChannelAccess.ManageMessages | ChannelAccess.ManageChannels;
         const int voiceBits = ChannelAccess.View | ChannelAccess.ManageChannels | ChannelAccess.ConnectVoice | ChannelAccess.SpeakVoice | ChannelAccess.ModerateVoice | ChannelAccess.ShareScreen | ChannelAccess.UseCamera;
         if (p.ChannelRules.Any(r => ((r.Allow | r.Deny) & ~textBits) != 0) || p.CategoryRules.Any(r => ((r.Allow | r.Deny) & ~(textBits | voiceBits)) != 0) || (p.VoiceRules ?? []).Any(r => ((r.Allow | r.Deny) & ~voiceBits) != 0))
@@ -89,7 +104,18 @@ public sealed class AccessService(AppDbContext db)
         var proposedChannels = p.Channels.Select(c => c.Id).ToArray();
         if (await db.TextChannels.AnyAsync(c => proposedChannels.Contains(c.Id) && c.ParentChannelId != null, ct))
             throw new CommunityFailure(400, "Threads inherit their parent channel permissions and cannot be configured as ordinary channels.");
+        var voiceChannels = await db.VoiceRooms.Where(r => r.CommunityId == id).ToDictionaryAsync(r => r.ChannelId, ct);
+        var proposedVoice = VoiceChannels(id, p);
+        if (voiceChannels.Keys.Except(proposedVoice.Select(c => c.Id)).Any()) throw new CommunityFailure(409, "Retain existing voice channels. Reload access before saving.");
+        var voiceIds = proposedVoice.Select(c => c.Id).ToArray();
+        if (await db.VoiceRooms.AnyAsync(r => r.CommunityId != id && voiceIds.Contains(r.ChannelId), ct)) throw new CommunityFailure(400, "Resource IDs must belong to this community.");
+        if (proposedVoice.Any(c => voiceChannels.TryGetValue(c.Id, out var priorVoice) && priorVoice.Name != c.Name)) throw new CommunityFailure(400, "Existing voice channel names cannot be changed in this slice.");
         await CheckDelegationAsync(community, user, p, roles, categories, channels, ct);
+        if (community.OwnerId != user)
+            foreach (var currentVoice in voiceChannels.Values)
+                if (proposedVoice.Any(c => c.Id == currentVoice.ChannelId && c.CategoryId != currentVoice.CategoryId) &&
+                    !(await ChannelAccess.VoiceAsync(db, id, currentVoice.ChannelId, user, ct)).Has(ChannelAccess.ManageChannels))
+                    throw new CommunityFailure(403, "ManageChannels is denied for an affected voice channel.");
         if (roles.Keys.Except(p.Roles.Select(r => r.Id)).Any() || categories.Keys.Except(p.Categories.Select(c => c.Id)).Any() || channels.Keys.Except(p.Channels.Select(c => c.Id)).Any())
             throw new CommunityFailure(400, "Existing resources must be retained. Resource deletion is not available.");
         var memberIds = p.Members.Select(m => m.UserId).ToArray();
@@ -117,6 +143,11 @@ public sealed class AccessService(AppDbContext db)
             if (!channels.TryGetValue(c.Id, out var entity)) { entity = new TextChannel { Id = c.Id, CommunityId = id, Name = c.Name, Kind = c.Kind }; db.TextChannels.Add(entity); }
             entity.CategoryId = c.CategoryId;
         }
+        foreach (var c in proposedVoice)
+        {
+            if (!voiceChannels.TryGetValue(c.Id, out var entity)) { entity = new VoiceRoomBinding { CommunityId = id, ChannelId = c.Id, Id = Guid.NewGuid(), Name = c.Name, AdmissionProtected = voiceOptions.Value.AdmissionRequired }; db.VoiceRooms.Add(entity); }
+            entity.CategoryId = c.CategoryId;
+        }
         await db.SaveChangesAsync(ct);
         await db.MemberRoles.Where(m => m.CommunityId == id).ExecuteDeleteAsync(ct);
         await db.CategoryRoleRules.Where(r => r.CommunityId == id).ExecuteDeleteAsync(ct);
@@ -125,7 +156,7 @@ public sealed class AccessService(AppDbContext db)
         db.MemberRoles.AddRange(p.Members.SelectMany(m => m.RoleIds.Select(r => new MemberRole { CommunityId = id, UserId = m.UserId, RoleId = r })));
         db.CategoryRoleRules.AddRange(p.CategoryRules.Select(r => new CategoryRoleRule { CommunityId = id, CategoryId = r.ResourceId, RoleId = r.RoleId, Allow = r.Allow, Deny = r.Deny }));
         db.ChannelRoleRules.AddRange(p.ChannelRules.Select(r => new ChannelRoleRule { CommunityId = id, ChannelId = r.ResourceId, RoleId = r.RoleId, Allow = r.Allow, Deny = r.Deny }));
-        db.VoiceRoleRules.AddRange((p.VoiceRules ?? []).Select(r => new VoiceRoleRule { CommunityId = id, RoleId = r.RoleId, Allow = r.Allow, Deny = r.Deny }));
+        db.VoiceRoleRules.AddRange((p.VoiceRules ?? []).Select(r => new VoiceRoleRule { CommunityId = id, ChannelId = r.ResourceId, RoleId = r.RoleId, Allow = r.Allow, Deny = r.Deny }));
         community.VoiceCategoryId = p.VoiceCategoryId;
         community.PolicyVersion = checked(community.PolicyVersion + 1);
         db.AccessChanges.Add(new AccessChange { CommunityId = id, ClientRequestId = request.ClientRequestId, ActorId = user, Hash = hash, ResultVersion = community.PolicyVersion, CreatedAt = DateTimeOffset.UtcNow });
@@ -133,8 +164,8 @@ public sealed class AccessService(AppDbContext db)
         await db.SaveChangesAsync(ct);
         foreach (var lease in await db.VoiceLeases.Where(l => l.CommunityId == id && l.Active).ToArrayAsync(ct))
         {
-            var access = await ChannelAccess.VoiceAsync(db, id, lease.UserId, ct);
-            if (!access.Connect || access.Speak != lease.CanSpeak || access.ShareScreen != lease.CanShareScreen || access.UseCamera != lease.CanUseCamera) await VoiceTransitions.RevokeMemberAsync(db, id, lease.UserId, ct);
+            var access = await ChannelAccess.VoiceAsync(db, id, lease.ChannelId, lease.UserId, ct);
+            if (!access.Connect || access.Speak != lease.CanSpeak || access.ShareScreen != lease.CanShareScreen || access.UseCamera != lease.CanUseCamera) await VoiceTransitions.RevokeMemberAsync(db, id, lease.UserId, ct, voiceOptions.Value.AdmissionRequired);
         }
         await db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
@@ -164,7 +195,7 @@ public sealed class AccessService(AppDbContext db)
         }
         var beforeCategory = await db.CategoryRoleRules.AsNoTracking().Where(r => r.CommunityId == community.Id).Select(r => new ResourceRule(r.CategoryId, r.RoleId, r.Allow, r.Deny)).ToArrayAsync(ct);
         var beforeChannel = await db.ChannelRoleRules.AsNoTracking().Where(r => r.CommunityId == community.Id).Select(r => new ResourceRule(r.ChannelId, r.RoleId, r.Allow, r.Deny)).ToArrayAsync(ct);
-        var beforeVoice = await db.VoiceRoleRules.AsNoTracking().Where(r => r.CommunityId == community.Id).Select(r => new ResourceRule(community.Id, r.RoleId, r.Allow, r.Deny)).ToArrayAsync(ct);
+        var beforeVoice = await db.VoiceRoleRules.AsNoTracking().Where(r => r.CommunityId == community.Id).Select(r => new ResourceRule(r.ChannelId, r.RoleId, r.Allow, r.Deny)).ToArrayAsync(ct);
         static IEnumerable<ResourceRule> Changed(ResourceRule[] before, ResourceRule[] after) => before.Except(after).Concat(after.Except(before));
         foreach (var rule in Changed(beforeCategory, policy.CategoryRules).Concat(Changed(beforeChannel, policy.ChannelRules)).Concat(Changed(beforeVoice, policy.VoiceRules ?? [])))
             if ((roles.TryGetValue(rule.RoleId, out var role) && role.Rank >= actor.Rank) || (rule.Allow & ~actor.Permissions) != 0) throw forbidden;
@@ -174,7 +205,9 @@ public sealed class AccessService(AppDbContext db)
             if (policy.Channels.Any(c => c.Id == channel.Id && (c.CategoryId != channel.CategoryId || c.Name != channel.Name)) ||
                 Changed(beforeChannel, policy.ChannelRules).Any(r => r.ResourceId == channel.Id) || (channel.CategoryId is Guid category && changedCategories.Contains(category)))
                 if (!(await ChannelAccess.ResolveAsync(db, community.Id, channel, user, ct)).Has(ChannelAccess.ManageChannels)) throw new CommunityFailure(403, "ManageChannels is denied for an affected channel.");
-        if (community.VoiceCategoryId != policy.VoiceCategoryId || Changed(beforeVoice, policy.VoiceRules ?? []).Any() || (community.VoiceCategoryId is Guid voiceCategory && changedCategories.Contains(voiceCategory)))
-            if (!(await ChannelAccess.VoiceAsync(db, community.Id, user, ct)).Has(ChannelAccess.ManageChannels)) throw new CommunityFailure(403, "ManageChannels is denied for voice.");
+        foreach (var room in await db.VoiceRooms.Where(r => r.CommunityId == community.Id).ToArrayAsync(ct))
+            if (VoiceChannels(community.Id, policy).Any(c => c.Id == room.ChannelId && c.CategoryId != room.CategoryId) ||
+                Changed(beforeVoice, policy.VoiceRules ?? []).Any(r => r.ResourceId == room.ChannelId) || (room.CategoryId is Guid cat && changedCategories.Contains(cat)))
+                if (!(await ChannelAccess.VoiceAsync(db, community.Id, room.ChannelId, user, ct)).Has(ChannelAccess.ManageChannels)) throw new CommunityFailure(403, "ManageChannels is denied for an affected voice channel.");
     }
 }

@@ -39,12 +39,17 @@ public sealed class MediaMigrationTests
         var direct = Guid.NewGuid(); db.CommunityRoles.Add(new CommunityRole { Id = direct, CommunityId = community, Name = "direct speaker", Rank = 1 });
         db.MemberRoles.Add(new MemberRole { CommunityId = community, UserId = speaker, RoleId = direct });
         db.MemberRoles.Remove(db.MemberRoles.Local.Single(item => item.UserId == speaker && item.RoleId == role));
-        db.VoiceRoleRules.Add(new VoiceRoleRule { CommunityId = community, RoleId = direct, Allow = 4096 });
+        // Seed the historical schema with SQL, not today's CLR model.
+        await db.SaveChangesAsync();
+        await db.Database.ExecuteSqlInterpolatedAsync($"INSERT INTO \"VoiceRoleRules\" (\"CommunityId\", \"RoleId\", \"Allow\", \"Deny\") VALUES ({community}, {direct}, 4096, 0)");
         await db.SaveChangesAsync();
         (await db.Communities.SingleAsync()).VoiceCategoryId = category;
         var session = Guid.NewGuid(); var lease = Guid.NewGuid();
         db.Sessions.Add(new UserSession { Id = session, UserId = speaker, CreatedAt = DateTimeOffset.UtcNow, ExpiresAt = DateTimeOffset.UtcNow.AddHours(1) });
-        db.VoiceRooms.Add(new App.Api.Features.Voice.VoiceRoomBinding { CommunityId = community, Id = Guid.NewGuid() });
+        await db.Database.ExecuteSqlInterpolatedAsync($"""
+            INSERT INTO "VoiceRooms" ("CommunityId", "Id", "Generation", "Status", "ControlUnavailable", "NextCheckAt")
+            VALUES ({community}, {Guid.NewGuid()}, 1, 'Ready', false, {DateTimeOffset.UtcNow})
+            """);
         await db.SaveChangesAsync();
         await db.Database.ExecuteSqlInterpolatedAsync($"""
             INSERT INTO "VoiceLeases" ("Id", "UserId", "CommunityId", "AuthSessionId", "SecurityStamp", "Generation", "Active", "ExpiresAt", "CanSpeak", "DisconnectedByModerator")

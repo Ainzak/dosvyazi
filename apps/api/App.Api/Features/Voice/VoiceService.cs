@@ -29,17 +29,17 @@ public sealed class VoiceService(AppDbContext database, IVoiceGateway gateway, I
         return (user, session, stamp);
     }
 
-    private async Task<EffectiveChannelAccess> AuthorizeAsync(Guid community, Guid user, CancellationToken ct, bool connect = false)
+    private async Task<EffectiveChannelAccess> AuthorizeAsync(Guid community, Guid user, CancellationToken ct, bool connect = false, Guid? channelId = null)
     {
         if (!await database.Communities.FromSqlInterpolated($"SELECT * FROM \"Communities\" WHERE \"Id\" = {community} FOR UPDATE").AnyAsync(ct) ||
             !await database.Memberships.AnyAsync(item => item.CommunityId == community && item.UserId == user && item.Status == "Active", ct)) throw Missing();
-        var access = await ChannelAccess.VoiceAsync(database, community, user, ct);
+        var access = await ChannelAccess.VoiceAsync(database, community, channelId ?? community, user, ct);
         if (!access.View) throw Missing();
         if (connect && !access.Connect) throw new CommunityFailure(403, "ConnectVoice is denied.");
         return access;
     }
 
-    public async Task<VoiceJoinDto> JoinAsync(Guid community, JoinVoiceRequest request, ClaimsPrincipal principal, CancellationToken ct)
+    public async Task<VoiceJoinDto> JoinAsync(Guid community, JoinVoiceRequest request, ClaimsPrincipal principal, CancellationToken ct, Guid? channelId = null)
     {
         if (request.ClientRequestId == Guid.Empty) throw new CommunityFailure(400, "Use a voice request ID.");
         var userId = Guid.Parse(principal.FindFirstValue(ClaimTypes.NameIdentifier)!);
@@ -47,20 +47,27 @@ public sealed class VoiceService(AppDbContext database, IVoiceGateway gateway, I
         // Serialize account writers without blocking membership's foreign-key KEY SHARE.
         // FOR UPDATE would deadlock with an invitation writer holding the community row.
         await database.Users.FromSqlInterpolated($"SELECT * FROM \"AspNetUsers\" WHERE \"Id\" = {userId} FOR NO KEY UPDATE").AnyAsync(ct);
-        var access = await AuthorizeAsync(community, userId, ct, true);
+        var access = await AuthorizeAsync(community, userId, ct, true, channelId);
         var session = await SessionAsync(principal, ct);
-        var room = await database.VoiceRooms.SingleOrDefaultAsync(item => item.CommunityId == community, ct);
+        if (await database.Set<App.Api.Features.DirectMessages.DirectCall>().AnyAsync(c =>
+            c.CallerId == userId && c.Status != "Ended" || c.RecipientId == userId && c.Status == "Active", ct))
+            throw new CommunityFailure(409, "End your personal call before joining a voice channel.");
+        var room = await database.VoiceRooms.SingleOrDefaultAsync(item => item.CommunityId == community && item.ChannelId == (channelId ?? community), ct);
         if (room is null)
         {
-            room = new VoiceRoomBinding { Id = Guid.NewGuid(), CommunityId = community };
-            database.VoiceRooms.Add(room);
+            throw Missing();
+        }
+        if (options.Value.AdmissionRequired && !room.AdmissionProtected)
+        {
+            VoiceTransitions.Request(room); await database.SaveChangesAsync(ct); await transaction.CommitAsync(ct);
+            throw new CommunityFailure(409, "Voice access is updating. Wait for the transition to complete.");
         }
         if (room.Status != "Ready") throw new CommunityFailure(409, "Voice access is updating. Wait for the transition to complete.");
         var existing = await database.VoiceGrantRequests.Include(item => item.Lease)
             .SingleOrDefaultAsync(item => item.UserId == userId && item.ClientRequestId == request.ClientRequestId, ct);
         if (existing is not null)
         {
-            if (!existing.Lease.Active || existing.Lease.CommunityId != community || existing.Lease.AuthSessionId != session.Session ||
+            if (!existing.Lease.Active || existing.Lease.CommunityId != community || existing.Lease.ChannelId != (channelId ?? community) || existing.Lease.AuthSessionId != session.Session ||
                 existing.Lease.Generation != room.Generation || existing.Lease.CanSpeak != access.Speak || existing.Lease.CanShareScreen != access.ShareScreen || existing.Lease.CanUseCamera != access.UseCamera || existing.ExpiresAt <= DateTimeOffset.UtcNow || existing.Lease.ExpiresAt <= DateTimeOffset.UtcNow)
                 throw new CommunityFailure(409, "This voice request expired or changed. Start a new join.", "voice_join_stale");
             var retry = Dto(existing, room);
@@ -68,15 +75,15 @@ public sealed class VoiceService(AppDbContext database, IVoiceGateway gateway, I
             return retry;
         }
         var lease = await database.VoiceLeases.SingleOrDefaultAsync(item => item.UserId == userId && item.Active, ct);
-        if (lease is not null && (lease.CommunityId != community || lease.AuthSessionId != session.Session || lease.Generation != room.Generation))
+        if (lease is not null && (lease.CommunityId != community || lease.ChannelId != (channelId ?? community) || lease.AuthSessionId != session.Session || lease.Generation != room.Generation))
             throw new CommunityFailure(409, "Leave your other voice session first.");
         if (lease is not null && lease.ExpiresAt <= DateTimeOffset.UtcNow)
             throw new CommunityFailure(409, "The previous voice session is closing. Try again shortly.");
         if (lease is null)
         {
-            if (await database.VoiceLeases.CountAsync(item => item.CommunityId == community && item.Active, ct) >= 16)
+            if (await database.VoiceLeases.CountAsync(item => item.CommunityId == community && item.ChannelId == (channelId ?? community) && item.Active, ct) >= 16)
                 throw new CommunityFailure(409, "This voice room is full.");
-            lease = new VoiceLease { Id = Guid.NewGuid(), UserId = userId, CommunityId = community,
+            lease = new VoiceLease { Id = Guid.NewGuid(), UserId = userId, CommunityId = community, ChannelId = channelId ?? community,
                 AuthSessionId = session.Session, SecurityStamp = session.Stamp, Generation = room.Generation };
             database.VoiceLeases.Add(lease);
         }
@@ -95,15 +102,15 @@ public sealed class VoiceService(AppDbContext database, IVoiceGateway gateway, I
     private VoiceJoinDto Dto(VoiceGrantRequest request, VoiceRoomBinding room) => new(request.Lease.Id.ToString(), request.Lease.Id.ToString("N"),
         room.Generation.ToString(System.Globalization.CultureInfo.InvariantCulture), options.Value.BrowserUrl, tokens.Unprotect(request.ProtectedToken), request.ExpiresAt, request.Lease.CanSpeak, request.Lease.CanShareScreen, request.Lease.CanUseCamera);
 
-    public async Task<bool> HeartbeatAsync(Guid community, VoiceLeaseRequest request, ClaimsPrincipal principal, CancellationToken ct)
+    public async Task<bool> HeartbeatAsync(Guid community, VoiceLeaseRequest request, ClaimsPrincipal principal, CancellationToken ct, Guid? channelId = null)
     {
         await using var transaction = await database.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, ct);
         var session = await SessionAsync(principal, ct);
-        await AuthorizeAsync(community, session.User, ct, true);
+        await AuthorizeAsync(community, session.User, ct, true, channelId);
         session = await SessionAsync(principal, ct);
-        var lease = await database.VoiceLeases.SingleOrDefaultAsync(item => item.Id == request.LeaseId && item.CommunityId == community &&
+        var lease = await database.VoiceLeases.SingleOrDefaultAsync(item => item.Id == request.LeaseId && item.CommunityId == community && item.ChannelId == (channelId ?? community) &&
             item.UserId == session.User && item.AuthSessionId == session.Session && item.Active, ct) ?? throw new CommunityFailure(409, "Voice session ended. Rejoin the room.");
-        var room = await database.VoiceRooms.SingleAsync(item => item.CommunityId == community, ct);
+        var room = await database.VoiceRooms.SingleAsync(item => item.CommunityId == community && item.ChannelId == (channelId ?? community), ct);
         if (room.Status != "Ready" || lease.Generation != room.Generation || lease.ExpiresAt <= DateTimeOffset.UtcNow)
             throw new CommunityFailure(409, "Voice access is updating. Rejoin after the transition.");
         lease.ExpiresAt = DateTimeOffset.UtcNow.AddSeconds(90);
@@ -112,42 +119,42 @@ public sealed class VoiceService(AppDbContext database, IVoiceGateway gateway, I
         return true;
     }
 
-    public async Task<VoiceStateDto> LeaveAsync(Guid community, VoiceLeaseRequest request, ClaimsPrincipal principal, CancellationToken ct)
+    public async Task<VoiceStateDto> LeaveAsync(Guid community, VoiceLeaseRequest request, ClaimsPrincipal principal, CancellationToken ct, Guid? channelId = null)
     {
         await using var transaction = await database.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, ct);
         var session = await SessionAsync(principal, ct);
-        await AuthorizeAsync(community, session.User, ct);
+        await AuthorizeAsync(community, session.User, ct, channelId: channelId);
         session = await SessionAsync(principal, ct);
-        var lease = await database.VoiceLeases.SingleOrDefaultAsync(item => item.Id == request.LeaseId && item.CommunityId == community &&
+        var lease = await database.VoiceLeases.SingleOrDefaultAsync(item => item.Id == request.LeaseId && item.CommunityId == community && item.ChannelId == (channelId ?? community) &&
             item.UserId == session.User && item.AuthSessionId == session.Session, ct) ?? throw Missing();
         if (lease.Active)
         {
             lease.Active = false;
             // A voluntary departure does not revoke community access. Keep peers
             // in their room; reconciliation removes only this closed identity.
-            var room = await database.VoiceRooms.SingleAsync(item => item.CommunityId == community, ct);
+            var room = await database.VoiceRooms.SingleAsync(item => item.CommunityId == community && item.ChannelId == (channelId ?? community), ct);
             room.NextCheckAt = DateTimeOffset.UtcNow;
             await database.SaveChangesAsync(ct);
         }
         await transaction.CommitAsync(ct);
-        return await StateAsync(community, principal, ct);
+        return await StateAsync(community, principal, ct, channelId: channelId);
     }
 
-    public async Task<VoiceStateDto> StateAsync(Guid community, ClaimsPrincipal principal, CancellationToken ct, Guid? leaseId = null)
+    public async Task<VoiceStateDto> StateAsync(Guid community, ClaimsPrincipal principal, CancellationToken ct, Guid? leaseId = null, Guid? channelId = null)
     {
         await using var transaction = await database.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, ct);
         var session = await SessionAsync(principal, ct);
-        var access = await AuthorizeAsync(community, session.User, ct);
+        var access = await AuthorizeAsync(community, session.User, ct, channelId: channelId);
         session = await SessionAsync(principal, ct);
         // A client can inspect only its own session's exact lease. This distinguishes
         // moderation from a room transition without exposing another member's history.
         var disconnected = leaseId.HasValue && await database.VoiceLeases.AsNoTracking().AnyAsync(item =>
-            item.Id == leaseId.Value && item.CommunityId == community && item.UserId == session.User &&
+            item.Id == leaseId.Value && item.CommunityId == community && item.ChannelId == (channelId ?? community) && item.UserId == session.User &&
             item.AuthSessionId == session.Session && !item.Active && item.DisconnectedByModerator, ct);
-        var room = await database.VoiceRooms.SingleOrDefaultAsync(item => item.CommunityId == community, ct);
+        var room = await database.VoiceRooms.SingleOrDefaultAsync(item => item.CommunityId == community && item.ChannelId == (channelId ?? community), ct);
         if (room is null) return new("Ready", "1", null, null, false, null, [], access.Connect, access.Speak, access.Has(ChannelAccess.ModerateVoice), access.VoiceDeniedBy, CanShareScreen: access.ShareScreen, CanUseCamera: access.UseCamera);
         var mine = await database.VoiceLeases.Where(item => item.UserId == session.User && item.AuthSessionId == session.Session &&
-            item.CommunityId == community && item.Active && item.Generation == room.Generation && item.ExpiresAt > DateTimeOffset.UtcNow).Select(item => (Guid?)item.Id).SingleOrDefaultAsync(ct);
+            item.CommunityId == community && item.ChannelId == (channelId ?? community) && item.Active && item.Generation == room.Generation && item.ExpiresAt > DateTimeOffset.UtcNow).Select(item => (Guid?)item.Id).SingleOrDefaultAsync(ct);
         var participants = Array.Empty<VoiceMemberDto>();
         var unavailable = room.ControlUnavailable;
         if (room.Status == "Ready")
@@ -155,7 +162,7 @@ public sealed class VoiceService(AppDbContext database, IVoiceGateway gateway, I
             try
             {
                 var actual = await gateway.ParticipantsAsync(new VoiceRoom(room.Id, room.Generation), ct);
-                var leases = await database.VoiceLeases.Where(item => item.CommunityId == community && item.Generation == room.Generation && item.Active && item.ExpiresAt > DateTimeOffset.UtcNow)
+                var leases = await database.VoiceLeases.Where(item => item.CommunityId == community && item.ChannelId == (channelId ?? community) && item.Generation == room.Generation && item.Active && item.ExpiresAt > DateTimeOffset.UtcNow)
                     .Join(database.Users, lease => lease.UserId, user => user.Id, (lease, user) => new { lease.Id, user.DisplayName, lease.CanSpeak }).ToArrayAsync(ct);
                 participants = actual.Join(leases, member => member.Identity, lease => lease.Id.ToString("N"),
                     (member, lease) => new VoiceMemberDto(member.Identity, lease.DisplayName, lease.CanSpeak && member.CanPublish, member.AudioTracks)).ToArray();
@@ -167,20 +174,20 @@ public sealed class VoiceService(AppDbContext database, IVoiceGateway gateway, I
             unavailable, mine?.ToString(), participants, access.Connect, access.Speak, access.Has(ChannelAccess.ModerateVoice), access.VoiceDeniedBy, disconnected, access.ShareScreen, access.UseCamera);
     }
 
-    public async Task<bool> DisconnectAsync(Guid community, VoiceLeaseRequest request, ClaimsPrincipal principal, CancellationToken ct)
+    public async Task<bool> DisconnectAsync(Guid community, VoiceLeaseRequest request, ClaimsPrincipal principal, CancellationToken ct, Guid? channelId = null)
     {
         await using var tx = await database.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, ct);
         var session = await SessionAsync(principal, ct);
-        var access = await AuthorizeAsync(community, session.User, ct);
+        var access = await AuthorizeAsync(community, session.User, ct, channelId: channelId);
         if (!access.Has(ChannelAccess.ModerateVoice)) throw new CommunityFailure(403, "ModerateVoice is required.");
-        var lease = await database.VoiceLeases.SingleOrDefaultAsync(l => l.Id == request.LeaseId && l.CommunityId == community, ct) ?? throw Missing();
+        var lease = await database.VoiceLeases.SingleOrDefaultAsync(l => l.Id == request.LeaseId && l.CommunityId == community && l.ChannelId == (channelId ?? community), ct) ?? throw Missing();
         var actor = await ChannelAccess.BaseAsync(database, community, session.User, ct);
         var target = await ChannelAccess.BaseAsync(database, community, lease.UserId, ct);
         if (lease.UserId != session.User && target.Rank >= actor.Rank) throw new CommunityFailure(403, "You cannot disconnect an equal/higher-ranked member.");
         if (lease.Active)
         {
             lease.DisconnectedByModerator = true;
-            await VoiceTransitions.RevokeMemberAsync(database, community, lease.UserId, ct);
+            await VoiceTransitions.RevokeMemberAsync(database, community, lease.UserId, ct, options.Value.AdmissionRequired);
             CommunityAudit.Add(database, community, session.User, "voice.disconnected", lease.UserId);
             await database.SaveChangesAsync(ct);
         }

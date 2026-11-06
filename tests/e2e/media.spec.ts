@@ -1,4 +1,4 @@
-import { audioSettings, communityOverview, joinVoice, workspaceLink } from './workspace-navigation';
+import { createInvitation, startScreenShare, audioSettings, changeLanguage, communityOverview, joinVoice, workspaceLink } from './workspace-navigation';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import type { components } from '../../apps/web/src/api/schema';
@@ -20,9 +20,12 @@ async function register(page: Page, name: string) {
 // Actual getUserMedia/encoding/SFU/subscription/decoding still run; physical acceptance is separate.
 async function syntheticScreen(page: Page) {
   await page.addInitScript(() => {
-    const fixtures = { tracks: [] as MediaStreamTrack[], mode: 'normal', resolve: null as (() => void) | null };
+    const fixtures = { tracks: [] as MediaStreamTrack[], mode: 'normal', requests: [] as boolean[], microphoneRequests: 0, resolve: null as (() => void) | null };
     (window as unknown as { mediaFixture: typeof fixtures }).mediaFixture = fixtures;
+    const getUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+    navigator.mediaDevices.getUserMedia = options => { if (options?.audio) fixtures.microphoneRequests++; return getUserMedia(options); };
     navigator.mediaDevices.getDisplayMedia = async options => {
+      fixtures.requests.push(!!options?.audio);
       if (fixtures.mode === 'cancel') throw new DOMException('Synthetic cancellation', 'NotAllowedError');
       if (fixtures.mode === 'delay') await new Promise<void>(resolve => { fixtures.resolve = resolve; });
       const canvas = document.createElement('canvas'); canvas.width = 640; canvas.height = 360;
@@ -31,16 +34,146 @@ async function syntheticScreen(page: Page) {
       function draw() { if (stream.getVideoTracks()[0]!.readyState === 'ended') return; context.fillRect(0, 0, 640, 360); requestAnimationFrame(draw); }
       requestAnimationFrame(draw);
       if (options?.audio && fixtures.mode !== 'no-audio') {
-        const audio = new AudioContext(); const oscillator = audio.createOscillator();
-        const destination = audio.createMediaStreamDestination(); oscillator.connect(destination); oscillator.start();
+        const audio = new AudioContext(); const oscillator = audio.createOscillator(), gain = audio.createGain(); gain.gain.value = .08;
+        const destination = audio.createMediaStreamDestination(); oscillator.connect(gain); gain.connect(destination); oscillator.start(); await audio.resume();
         const track = destination.stream.getAudioTracks()[0]!;
-        track.addEventListener('ended', () => { oscillator.stop(); void audio.close(); }, { once: true });
+        const stop = track.stop.bind(track); let stopped = false;
+        track.stop = () => { if (stopped) return; stopped = true; stop(); oscillator.stop(); void audio.close(); };
         fixtures.tracks.push(track); stream.addTrack(track);
       }
       return stream;
     };
   });
 }
+
+async function screenSignal(page: Page) {
+  return page.evaluate(async () => {
+    const element = [...document.querySelectorAll('audio')].find(audio => audio.srcObject instanceof MediaStream);
+    if (!element) return 0;
+    const context = new AudioContext(), analyser = context.createAnalyser(); analyser.fftSize = 512;
+    context.createMediaStreamSource(element.srcObject as MediaStream).connect(analyser); await context.resume();
+    const buffer = new Float32Array(512); let peak = 0;
+    for (let i = 0; i < 5; i++) { await new Promise(resolve => setTimeout(resolve, 50)); analyser.getFloatTimeDomainData(buffer); peak = Math.max(peak, Math.sqrt(buffer.reduce((sum, value) => sum + value * value, 0) / buffer.length)); }
+    await context.close(); return peak;
+  });
+}
+
+test('screen video ending during a pending publication retires paired audio without ending voice', async ({ page }) => {
+  await syntheticScreen(page); await register(page, 'Pending screen owner'); await page.goto('/communities');
+  await page.getByLabel('Community name', { exact: true }).fill('Pending screen'); await page.getByRole('button', { name: 'Create community', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Pending screen', exact: true })).toBeVisible(); await joinVoice(page);
+  await expect(page.getByRole('region', { name: 'Voice controls' })).toContainText('Connected', { timeout: 20_000 });
+  await page.evaluate(() => {
+    const fixture = window as unknown as { screenOfferReleases: (() => void)[] }; fixture.screenOfferReleases = [];
+    const original = RTCPeerConnection.prototype.createOffer as (this: RTCPeerConnection, options?: RTCOfferOptions) => Promise<RTCSessionDescriptionInit>;
+    RTCPeerConnection.prototype.createOffer = async function (this: RTCPeerConnection, options?: RTCOfferOptions) {
+      await new Promise<void>(resolve => fixture.screenOfferReleases.push(resolve)); return original.call(this, options);
+    } as typeof RTCPeerConnection.prototype.createOffer;
+  });
+  await startScreenShare(page, true);
+  await expect.poll(() => page.evaluate(() => (window as unknown as { screenOfferReleases: (() => void)[] }).screenOfferReleases.length)).toBeGreaterThan(0);
+  expect(await page.evaluate(() => {
+    const tracks = (window as unknown as { mediaFixture: { tracks: MediaStreamTrack[] } }).mediaFixture.tracks;
+    const video = tracks.find(t => t.kind === 'video')!; video.stop(); video.dispatchEvent(new Event('ended'));
+    return tracks.length === 2 && tracks.every(t => t.readyState === 'ended');
+  })).toBe(true);
+  await page.evaluate(() => { (window as unknown as { screenOfferReleases: (() => void)[] }).screenOfferReleases.splice(0).forEach(resolve => resolve()); });
+  await expect(page.getByRole('button', { name: 'Share screen', exact: true })).toBeEnabled();
+  await expect(page.getByRole('region', { name: 'Voice controls' })).toContainText('Connected · Muted');
+  await page.getByRole('button', { name: 'Leave voice', exact: true }).click();
+});
+
+test('screen audio ending alone keeps video visible and reports the missing audio', async ({ page }) => {
+  await syntheticScreen(page); await register(page, 'Ended audio owner'); await page.goto('/communities');
+  await page.getByLabel('Community name', { exact: true }).fill('Ended audio'); await page.getByRole('button', { name: 'Create community', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Ended audio', exact: true })).toBeVisible(); await joinVoice(page);
+  const dock = page.getByRole('region', { name: 'Voice controls' }); await expect(dock).toContainText('Connected', { timeout: 20_000 });
+  await startScreenShare(page, true); await expect(dock.getByText('Screen audio is shared', { exact: true })).toBeVisible();
+  await page.evaluate(() => { const audio = (window as unknown as { mediaFixture: { tracks: MediaStreamTrack[] } }).mediaFixture.tracks.find(t => t.kind === 'audio')!; audio.stop(); audio.dispatchEvent(new Event('ended')); });
+  await expect(dock.getByText('No screen audio is shared', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Stop sharing', exact: true })).toBeEnabled();
+  expect(await page.evaluate(() => (window as unknown as { mediaFixture: { tracks: MediaStreamTrack[] } }).mediaFixture.tracks.find(t => t.kind === 'video')!.readyState)).toBe('live');
+  await page.getByRole('button', { name: 'Stop sharing', exact: true }).click(); await page.getByRole('button', { name: 'Leave voice', exact: true }).click();
+});
+
+test('screen sound is deliberate, received without microphone and stops with its video source', async ({ page, browser }, info) => {
+  test.setTimeout(100_000);
+  await syntheticScreen(page); await register(page, 'Screen sound sender'); await page.goto('/communities');
+  await page.getByLabel('Community name', { exact: true }).fill('Screen sound crew'); await page.getByRole('button', { name: 'Create community', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Screen sound crew', exact: true })).toBeVisible();
+  const invitation = await createInvitation(page);
+  const other = await browser.newContext({ baseURL: 'http://127.0.0.1:5174', viewport: page.viewportSize()!, permissions: ['microphone', 'camera'] });
+  try {
+    const peer = await other.newPage(); await register(peer, 'Screen sound receiver'); await peer.goto('/communities');
+    await peer.getByLabel('Invitation code', { exact: true }).fill(invitation); await peer.getByRole('button', { name: 'Join community', exact: true }).click();
+    await joinVoice(peer); await expect(peer.getByRole('region', { name: 'Voice controls' })).toContainText('Connected', { timeout: 20_000 });
+    await joinVoice(page); const dock = page.getByRole('region', { name: /^(Voice controls|Управление голосом)$/ });
+    await expect(dock).toContainText('Connected · Muted', { timeout: 20_000 });
+    let joins = 0; page.on('response', r => { if (r.status() === 200 && r.request().method() === 'POST' && r.url().endsWith('/voice/join')) joins++; });
+    await page.getByRole('button', { name: 'Share screen', exact: true }).click();
+    const dialog = page.getByRole('dialog', { name: 'Share your screen', exact: true });
+    await expect(dialog.getByRole('checkbox')).not.toBeChecked();
+    await dialog.getByRole('checkbox').check(); await dialog.getByRole('checkbox').press('Escape'); await expect(dialog).toHaveCount(0);
+    expect(await page.evaluate(() => (window as unknown as { mediaFixture: { requests: boolean[] } }).mediaFixture.requests.length)).toBe(0);
+    await page.getByRole('button', { name: 'Share screen', exact: true }).click(); await expect(dialog.getByRole('checkbox')).toBeChecked();
+    await dialog.getByRole('button', { name: 'Choose source', exact: true }).click();
+    await expect(dock.getByText('Screen audio is shared', { exact: true })).toBeVisible();
+    await expect.poll(() => screenSignal(peer)).toBeGreaterThan(.001);
+    await expect(dock.getByRole('button', { name: 'Enable microphone', exact: true })).toBeEnabled();
+    expect(await page.evaluate(() => (window as unknown as { mediaFixture: { microphoneRequests: number } }).mediaFixture.microphoneRequests)).toBe(0);
+    await peer.getByRole('button', { name: 'View shared video (1)', exact: true }).click();
+    await expect(peer.locator('.voice-video-tile').getByText('Screen audio is shared', { exact: true })).toBeVisible();
+    await expectVideosDecoded(peer);
+    await audioSettings(peer);
+    const volume = peer.getByRole('slider', { name: 'Output volume', exact: true });
+    await volume.fill('50');
+    await expect.poll(() => peer.locator('audio').evaluateAll(elements => elements.map(e => (e as HTMLAudioElement).volume))).toEqual([.5]);
+    const personal = peer.getByRole('slider', { name: 'Screen sound sender playback volume', exact: true }); await personal.fill('40');
+    await expect.poll(() => peer.locator('audio').evaluateAll(elements => elements.map(e => (e as HTMLAudioElement).volume))).toEqual([.2]);
+    const personalMute = peer.getByRole('checkbox', { name: 'Mute Screen sound sender for me', exact: true });
+    await personalMute.check(); await expect.poll(() => peer.locator('audio').evaluateAll(elements => elements.every(e => (e as HTMLAudioElement).muted))).toBe(true);
+    await personalMute.uncheck(); await peer.getByRole('button', { name: 'Close settings', exact: true }).click();
+    await peer.getByRole('button', { name: 'Deafen', exact: true }).click();
+    await expect.poll(() => peer.locator('audio').evaluateAll(elements => elements.every(e => (e as HTMLAudioElement).muted))).toBe(true);
+    await peer.getByRole('button', { name: 'Undeafen', exact: true }).click();
+    await expect.poll(() => peer.locator('audio').evaluateAll(elements => elements.every(e => !(e as HTMLAudioElement).muted))).toBe(true);
+    await page.getByRole('button', { name: 'Deafen', exact: true }).click();
+    await expect(dock.getByText('Screen audio is paused', { exact: true })).toBeVisible();
+    await expect.poll(() => screenSignal(peer)).toBeLessThan(.0001);
+    await page.getByRole('button', { name: 'Undeafen', exact: true }).click();
+    await expect.poll(() => screenSignal(peer)).toBeGreaterThan(.001);
+    // End only the video, as some browser source-stop paths do. Audio must stop too.
+    await page.evaluate(() => { const video = (window as unknown as { mediaFixture: { tracks: MediaStreamTrack[] } }).mediaFixture.tracks.find(t => t.kind === 'video')!; video.stop(); video.dispatchEvent(new Event('ended')); });
+    await expect(page.getByRole('button', { name: 'Share screen', exact: true })).toBeEnabled();
+    await expect.poll(() => screenSignal(peer)).toBeLessThan(.0001);
+    await expect.poll(() => page.evaluate(() => (window as unknown as { mediaFixture: { tracks: MediaStreamTrack[] } }).mediaFixture.tracks.every(t => t.readyState === 'ended'))).toBe(true);
+    await expect(peer.locator('audio')).toHaveCount(0);
+    await startScreenShare(page, false); await expect(dock.getByText('No screen audio is shared', { exact: true })).toBeVisible();
+    await expect(peer.locator('audio')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Stop sharing', exact: true }).click();
+    // A selected source may refuse audio even when the requested preference is on.
+    await page.evaluate(() => { (window as unknown as { mediaFixture: { mode: string } }).mediaFixture.mode = 'no-audio'; });
+    await startScreenShare(page, true);
+    await expect(dock.getByText('No screen audio is shared', { exact: true })).toBeVisible();
+    await expect(page.getByRole('alert')).toContainText('did not provide screen audio');
+    expect(joins).toBe(0);
+    await page.getByRole('button', { name: 'Stop sharing', exact: true }).click();
+    await changeLanguage(page, 'ru');
+    await dock.getByRole('button', { name: 'Поделиться экраном', exact: true }).click();
+    const russian = page.getByRole('dialog', { name: 'Демонстрация экрана', exact: true });
+    await expect(russian.getByRole('checkbox')).toBeChecked();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({ path: info.outputPath('screen-audio-choice-ru.png'), fullPage: true });
+    await russian.getByRole('button', { name: 'Отмена', exact: true }).click();
+    await dock.getByRole('button', { name: 'Выйти из голосового канала', exact: true }).click();
+    await page.reload(); await changeLanguage(page, 'en'); await joinVoice(page);
+    await expect(dock).toContainText('Connected · Muted', { timeout: 20_000 });
+    await page.getByRole('button', { name: 'Share screen', exact: true }).click(); await expect(dialog.getByRole('checkbox')).toBeChecked();
+    await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+    expect(await page.evaluate(() => (window as unknown as { mediaFixture: { requests: boolean[] } }).mediaFixture.requests.length)).toBe(0);
+    await page.getByRole('button', { name: 'Leave voice', exact: true }).click(); await peer.getByRole('button', { name: 'Leave voice', exact: true }).click();
+  } finally { await other.close(); }
+});
 
 async function expectVideosDecoded(page: Page) {
   await page.bringToFront();
@@ -60,8 +193,7 @@ test('camera and screen video coexist with microphone, focus, deafen and access 
   await page.getByRole('button', { name: 'Create community', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Media crew', exact: true })).toBeVisible();
   const root = `/api/v1${new URL(page.url()).pathname}`;
-  await communityOverview(page); await page.getByRole('button', { name: 'Create invitation', exact: true }).click();
-  const code = await page.getByLabel('Share this invitation code').inputValue();
+  await communityOverview(page); const code = await createInvitation(page);
   const context = await browser.newContext({ baseURL: 'http://127.0.0.1:5174', viewport: page.viewportSize()!, permissions: ['microphone', 'camera'] });
   try {
     const member = await context.newPage(); member.on('pageerror', error => errors.push(error.message));
@@ -80,7 +212,7 @@ test('camera and screen video coexist with microphone, focus, deafen and access 
     await expectVideosDecoded(page);
     await audioSettings(member);
   await member.getByLabel('Include screen audio when available', { exact: true }).check();
-    await member.getByRole('button', { name: 'Share screen', exact: true }).click();
+    await startScreenShare(member);
     await expect(member.getByRole('button', { name: 'Stop sharing', exact: true })).toBeEnabled();
     await expect(page.locator('.voice-videos video')).toHaveCount(2, { timeout: 15000 });
     await expectVideosDecoded(page);
@@ -104,7 +236,7 @@ test('camera and screen video coexist with microphone, focus, deafen and access 
     await expect(page.locator('.voice-video-tile.is-focused')).toHaveCount(0);
     await expect(page.locator('main')).toBeVisible();
     await expect(page.locator('.voice-videos video')).toHaveCount(1);
-    await member.getByRole('button', { name: 'Share screen', exact: true }).click();
+    await startScreenShare(member);
     await expect(page.locator('.voice-videos video')).toHaveCount(2);
     const csrf = await (await page.request.get('/api/v1/account/csrf')).json() as { requestToken: string };
     const policy = await (await page.request.get(root + '/access')).json() as components['schemas']['AccessPolicy'];
@@ -135,8 +267,7 @@ test('third participant leaving preserves peer sessions, camera and screen publi
   await page.getByRole('button', { name: 'Create community', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Continuous media', exact: true })).toBeVisible();
   const community = new URL(page.url()).pathname.split('/')[2]!;
-  await communityOverview(page); await page.getByRole('button', { name: 'Create invitation', exact: true }).click();
-  const code = await page.getByLabel('Share this invitation code').inputValue();
+  await communityOverview(page); const code = await createInvitation(page);
   const contexts = await Promise.all([0, 1].map(() => browser.newContext({ baseURL: 'http://127.0.0.1:5174', viewport: page.viewportSize()!, permissions: ['microphone', 'camera'] })));
   try {
     const receiver = await contexts[0]!.newPage(); const departing = await contexts[1]!.newPage();
@@ -151,7 +282,7 @@ test('third participant leaving preserves peer sessions, camera and screen publi
     await expect(page.getByRole('region', { name: 'Voice controls' })).toContainText('Connected', { timeout: 20_000 });
     await page.getByRole('button', { name: 'Enable microphone', exact: true }).click();
     await page.getByRole('button', { name: 'Enable camera', exact: true }).click();
-    await page.getByRole('button', { name: 'Share screen', exact: true }).click();
+    await startScreenShare(page);
     await receiver.getByRole('button', { name: 'View shared video (2)', exact: true }).click();
     await expectVideosDecoded(receiver);
     const tracks = () => receiver.locator('.voice-videos video').evaluateAll(videos => videos.map(video => ((video as HTMLVideoElement).srcObject as MediaStream).getVideoTracks().map(track => track.id)).flat().sort());
@@ -187,11 +318,11 @@ test('screen cancellation and late picker result keep capture off after leaving'
   await joinVoice(page);
   await expect(page.getByRole('region', { name: 'Voice controls' })).toContainText('Connected');
   await page.evaluate(() => { (window as unknown as { mediaFixture: { mode: string } }).mediaFixture.mode = 'cancel'; });
-  await page.getByRole('button', { name: 'Share screen', exact: true }).click();
+  await startScreenShare(page);
   await expect(page.getByRole('button', { name: 'Share screen', exact: true })).toBeEnabled();
   await expect(page.getByRole('region', { name: 'Voice controls' })).toContainText('Connected');
   await page.evaluate(() => { (window as unknown as { mediaFixture: { mode: string } }).mediaFixture.mode = 'delay'; });
-  await page.getByRole('button', { name: 'Share screen', exact: true }).click();
+  await startScreenShare(page, true);
   await expect(page.getByRole('button', { name: 'Share screen', exact: true })).toBeDisabled();
   await page.getByRole('button', { name: 'Leave voice', exact: true }).click();
   await expect(page.getByRole('region', { name: 'Voice controls' })).toHaveCount(0);
@@ -229,7 +360,7 @@ test('camera denial is recoverable and offline recovery never recaptures media',
   await page.evaluate(() => { (window as unknown as { mediaFixture: { mode: string } }).mediaFixture.mode = 'no-audio'; });
   await audioSettings(page);
   await page.getByLabel('Include screen audio when available', { exact: true }).check();
-  await page.getByRole('button', { name: 'Share screen', exact: true }).click();
+  await startScreenShare(page);
   await expect(page.getByRole('button', { name: 'Stop sharing', exact: true })).toBeEnabled();
   await expect(page.getByText('This source or browser did not provide screen audio. Your screen is still shared.', { exact: true })).toBeVisible();
   // Emulate the browser's Stop sharing, which ends capture and emits an ended event.
@@ -239,7 +370,7 @@ test('camera denial is recoverable and offline recovery never recaptures media',
   });
   await expect(page.getByRole('button', { name: 'Share screen', exact: true })).toBeEnabled();
   await expect(page.getByText('This source or browser did not provide screen audio. Your screen is still shared.', { exact: true })).toHaveCount(0);
-  await page.getByRole('button', { name: 'Share screen', exact: true }).click();
+  await startScreenShare(page);
   await expect(page.getByRole('button', { name: 'Stop sharing', exact: true })).toBeEnabled();
   await context.setOffline(true);
   await expect(page.getByRole('region', { name: 'Voice controls' })).toContainText('Offline');
@@ -261,7 +392,7 @@ test('SFU rejects camera and screen publication even if a client bypasses its ow
   await page.getByLabel('Community name', { exact: true }).fill('Source denial crew'); await page.getByRole('button', { name: 'Create community', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Source denial crew' })).toBeVisible();
   const root = `/api/v1${new URL(page.url()).pathname}`;
-  await communityOverview(page); await page.getByRole('button', { name: 'Create invitation', exact: true }).click(); const code = await page.getByLabel('Share this invitation code').inputValue();
+  await communityOverview(page); const code = await createInvitation(page);
   const csrf = await (await page.request.get('/api/v1/account/csrf')).json() as { requestToken: string };
   const policy = await (await page.request.get(root + '/access')).json() as components['schemas']['AccessPolicy'];
   const everyone = policy.roles.find(role => role.name === 'everyone')!.id;

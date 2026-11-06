@@ -105,7 +105,7 @@ public sealed class LiveKitGateway : IVoiceGateway
             using var response = await http.SendAsync(request, timeout.Token);
             if (!response.IsSuccessStatusCode)
             {
-                if (response.StatusCode == System.Net.HttpStatusCode.NotFound && method is "DeleteRoom" or "ListParticipants")
+                if (response.StatusCode == System.Net.HttpStatusCode.NotFound && method is "DeleteRoom" or "ListParticipants" or "RemoveParticipant")
                 {
                     using var error = JsonDocument.Parse(await response.Content.ReadAsStringAsync(timeout.Token));
                     if (error.RootElement.TryGetProperty("code", out var code) && code.GetString() == "not_found")

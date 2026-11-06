@@ -1,4 +1,14 @@
 {
+    log default {
+        format filter {
+            wrap json
+            fields {
+                request>uri query {
+                    replace access_token REDACTED
+                }
+            }
+        }
+    }
 	auto_https disable_redirects
 	servers {
 		protocols h1 h2
@@ -20,8 +30,8 @@
 	handle @api {
 		reverse_proxy 127.0.0.1:5080
 	}
-	handle_path /livekit/* {
-		reverse_proxy 127.0.0.1:7880
+	handle /livekit/* {
+		reverse_proxy 127.0.0.1:5080
 	}
 	handle {
 		root * /srv/web

@@ -1,4 +1,5 @@
 import { russianForums } from './forums';
+import { russianUsability } from './usability';
 import { russianStickers } from './stickers';
 import { russianGatherings } from './gatherings';
 import { russianMedia } from './media';
@@ -10,6 +11,7 @@ import { russianThreads } from './threads';
 // English source text is the catalog key. User content is never translated.
 export type Locale = 'en' | 'ru';
 export const russian: Readonly<Record<string, string>> = {
+  ...russianUsability,
   ...russianAdministration,
   ...russianThreads, ...russianForums,
   'Loaded history window': 'Окно загруженной истории',
@@ -40,7 +42,7 @@ export const russian: Readonly<Record<string, string>> = {
   'Create or join a community': 'Создать сообщество или присоединиться',
   'Open {value}': 'Открыть {value}',
   'Could not load communities.': 'Не удалось загрузить сообщества.',
-  'Community voice': 'Голосовой канал',
+  'Community voice': 'Голосовые каналы',
   'Workspace settings': 'Настройки приложения',
   'Workspace navigation': 'Навигация',
   'Open navigation': 'Открыть навигацию',

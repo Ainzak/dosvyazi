@@ -1,38 +1,46 @@
+import { callState, endCall, heartbeatCall, joinCall } from '../../api/directCalls';
 import { DisconnectReason, LocalVideoTrack, ParticipantEvent, Room, RoomEvent, Track } from 'livekit-client';
 import type { LocalAudioTrack, LocalTrack, Participant, RemoteAudioTrack, RemoteVideoTrack } from 'livekit-client';
 import { AudioActivity } from './AudioActivity';
 import { microphoneFailure } from './microphoneFailure';
-import { qualityPublishOptions, savedMediaQuality, screenProfiles, validQuality, videoConstraints } from './mediaQuality';
-import type { MediaQuality, QualitySource, ScreenQuality } from './mediaQuality';
+import { qualityPublishOptions, savedMediaQuality, savedScreenContent, screenAudioPublishOptions, screenIntent, screenProfiles, validQuality, videoConstraints } from './mediaQuality';
+import { captureScreen } from './screenCapture';
+import type { MediaQuality, QualitySource, ScreenContent, ScreenQuality } from './mediaQuality';
 import { ConnectionCounter, emptyConnectionStats } from './connectionStats';
 import type { ConnectionStats } from './connectionStats';
-import { PttMicrophone } from './PttMicrophone';
+import { GatedMicrophone, PttMicrophone } from './PttMicrophone';
+import { enhancedNoiseSupported } from './enhancedNoise';
+import { defaultShortcuts, matchesShortcut, plainShortcut, sameShortcut, savedShortcuts, saveShortcuts, shortcutEditing, validShortcut } from './voiceShortcuts';
+import type { VoiceShortcut, VoiceShortcuts } from './voiceShortcuts';
 import { endVoice, getVoice, heartbeatVoice, joinVoice } from '../../api/voice';
 import type { VoiceState } from '../../api/voice';
 import { ApiError } from '../../api/http';
 
 export type VoiceSnapshot = {
-  community: string | null; identity: string | null; name: string; status: string; error: string | null;
+  call: string | null; conversation: string | null; community: string | null; channel: string | null; identity: string | null; name: string; status: string; error: string | null;
   muted: boolean; deafened: boolean; input: string; output: string; canSpeak: boolean;
   devices: MediaDeviceInfo[]; participants: VoiceState['participants']; speakers: string[]; changingAudio: boolean;
+  microphones: Record<string, 'enabled' | 'muted'>;
   playbackBlocked: boolean; startingPlayback: boolean; volume: number;
   noiseSuppression: boolean; noiseSuppressionSupported: boolean; noiseSuppressionApplied: boolean | null;
   changingNoiseSuppression: boolean; noiseSuppressionError: string | null;
+  enhancedNoise: boolean; enhancedNoiseSupported: boolean; enhancedNoiseApplied: boolean; enhancedStarting: boolean; enhancedNoiseError: string | null;
   canShareScreen: boolean; canUseCamera: boolean; camera: boolean; sharing: boolean; changingMedia: boolean;
   cameraDevice: string; mediaError: string | null; videos: VoiceVideo[];
   quality: MediaQuality; changingQuality: QualitySource | null; qualityError: string | null;
+  screenContent: ScreenContent; changingScreenContent: boolean; screenContentError: string | null;
   receiving: 'all' | 'screen' | 'none'; connection: ConnectionStats; receivingError: string | null;
   participantAudio: Record<string, { volume: number; muted: boolean }>;
-  pushToTalk: boolean; pttHeld: boolean; pttKey: 'KeyV' | 'KeyB' | 'ControlRight';
+  pushToTalk: boolean; pttHeld: boolean; shortcuts: VoiceShortcuts;
 };
-export type VoiceVideo = { id: string; identity: string; local: boolean; source: 'camera' | 'screen'; track: LocalVideoTrack | RemoteVideoTrack | undefined; receiving: boolean };
+export type VoiceVideo = { id: string; identity: string; local: boolean; source: 'camera' | 'screen'; track: LocalVideoTrack | RemoteVideoTrack | undefined; receiving: boolean; audio: 'shared' | 'paused' | 'none' };
 function savedReceiving(): VoiceSnapshot['receiving'] {
   try { const value = localStorage.getItem('dosvyazi-receive-video'); return value === 'screen' || value === 'none' ? value : 'all'; }
   catch { return 'all'; }
 }
 function savedPtt() {
-  try { const key = localStorage.getItem('dosvyazi-ptt-key'); return { pushToTalk: localStorage.getItem('dosvyazi-push-to-talk') === 'true', pttKey: key === 'KeyB' || key === 'ControlRight' ? key : 'KeyV' } as Pick<VoiceSnapshot, 'pushToTalk' | 'pttKey'>; }
-  catch { return { pushToTalk: false, pttKey: 'KeyV' } as const; }
+  try { return { pushToTalk: localStorage.getItem('dosvyazi-push-to-talk') === 'true' }; }
+  catch { return { pushToTalk: false }; }
 }
 function savedVolume() {
   try { const stored = localStorage.getItem('dosvyazi-output-volume'); const n = stored === null ? 100 : Number(stored); return Number.isFinite(n) && n >= 0 && n <= 100 ? n : 100; }
@@ -42,14 +50,21 @@ function savedNoiseSuppression() {
   try { return localStorage.getItem('dosvyazi-noise-suppression') !== 'false'; }
   catch { return true; }
 }
+function savedEnhancedNoise() { try { return localStorage.getItem('dosvyazi-enhanced-noise') === 'true'; } catch { return false; } }
+function enhancedFailure(error: unknown) {
+  return error instanceof DOMException && ['NotAllowedError', 'NotFoundError', 'NotReadableError', 'OverconstrainedError', 'SecurityError'].includes(error.name)
+    ? microphoneFailure(error) : 'Enhanced noise processing failed. Your microphone is muted. Enable it to retry or turn enhanced processing off.';
+}
 const microphoneIsLive = (track: LocalAudioTrack) => track.mediaStreamTrack.readyState === 'live';
-const initial = (): VoiceSnapshot => ({ community: null, identity: null, name: '', status: 'Disconnected', error: null,
-  muted: true, deafened: false, input: 'default', output: 'default', canSpeak: true, devices: [], participants: [], speakers: [], changingAudio: false, playbackBlocked: false, startingPlayback: false, volume: savedVolume(),
+const initial = (): VoiceSnapshot => ({ call: null, conversation: null, community: null, channel: null, identity: null, name: '', status: 'Disconnected', error: null,
+  muted: true, deafened: false, input: 'default', output: 'default', canSpeak: true, devices: [], participants: [], speakers: [], microphones: {}, changingAudio: false, playbackBlocked: false, startingPlayback: false, volume: savedVolume(),
   noiseSuppression: savedNoiseSuppression(), noiseSuppressionSupported: navigator.mediaDevices?.getSupportedConstraints?.().noiseSuppression === true,
   noiseSuppressionApplied: null, changingNoiseSuppression: false, noiseSuppressionError: null,
+  enhancedNoise: savedEnhancedNoise(), enhancedNoiseSupported: enhancedNoiseSupported(), enhancedNoiseApplied: false, enhancedStarting: false, enhancedNoiseError: null,
   canShareScreen: false, canUseCamera: false, camera: false, sharing: false, changingMedia: false, cameraDevice: 'default', mediaError: null, videos: [],
   quality: savedMediaQuality(), changingQuality: null, qualityError: null,
-  receiving: savedReceiving(), connection: emptyConnectionStats(), receivingError: null, participantAudio: {}, ...savedPtt(), pttHeld: false });
+  screenContent: savedScreenContent(), changingScreenContent: false, screenContentError: null,
+  receiving: savedReceiving(), connection: emptyConnectionStats(), receivingError: null, participantAudio: {}, ...savedPtt(), pttHeld: false, shortcuts: savedShortcuts() });
 
 export class VoiceClient {
   private value = initial();
@@ -68,6 +83,8 @@ export class VoiceClient {
   private audio = new Map<RemoteAudioTrack, HTMLMediaElement>();
   private audioOwners = new Map<RemoteAudioTrack, string>();
   private ptt: PttMicrophone | undefined;
+  private enhanced: GatedMicrophone | undefined;
+  private enhancedIntent = 0;
   private pttIntent = 0;
   private pttOpening = false;
   private pttKeyboardHeld = false;
@@ -95,23 +112,28 @@ export class VoiceClient {
     window.addEventListener('offline', this.offline);
     window.addEventListener('online', this.online);
     navigator.mediaDevices?.addEventListener('devicechange', this.deviceChange);
-    window.addEventListener('keydown', this.pttDown); window.addEventListener('keyup', this.pttUp);
+    window.addEventListener('keydown', this.pttDown); window.addEventListener('keyup', this.pttUp, true);
     window.addEventListener('blur', this.releasePtt); document.addEventListener('visibilitychange', this.pttVisibility);
+    document.addEventListener('focusin', this.shortcutFocus);
+    document.addEventListener('compositionstart', this.releasePtt);
   }
   detach() {
     clearInterval(this.timer); this.timer = undefined;
     window.removeEventListener('offline', this.offline); window.removeEventListener('online', this.online);
     navigator.mediaDevices?.removeEventListener('devicechange', this.deviceChange);
-    window.removeEventListener('keydown', this.pttDown); window.removeEventListener('keyup', this.pttUp);
+    window.removeEventListener('keydown', this.pttDown); window.removeEventListener('keyup', this.pttUp, true);
     window.removeEventListener('blur', this.releasePtt); document.removeEventListener('visibilitychange', this.pttVisibility);
+    document.removeEventListener('focusin', this.shortcutFocus);
+    document.removeEventListener('compositionstart', this.releasePtt);
     this.epoch++; this.disconnect();
   }
-  private offline = () => { if (this.value.community) { this.disconnect(); this.update({ status: 'Offline', speakers: [] }); } };
-  private online = () => { if (this.value.community) { this.update({ status: 'Reconnecting' }); void this.poll(); } };
+  private offline = () => { if (this.value.community || this.value.call) { this.disconnect(); this.update({ status: 'Offline', speakers: [] }); } };
+  private online = () => { if (this.value.community || this.value.call) { this.update({ status: 'Reconnecting' }); void this.poll(); } };
   private deviceChange = () => { void this.devices(); };
   private disconnect() {
     const old = this.room; this.room = undefined;
     this.pttIntent++; this.ptt?.dispose(); this.ptt = undefined; this.pttOpening = false; this.pttKeyboardHeld = false;
+    this.enhancedIntent++; this.enhanced?.dispose(); this.enhanced = undefined;
     clearInterval(this.statsTimer); this.statsTimer = undefined; this.blockedVideo.clear();
     this.update({ connection: emptyConnectionStats(), receivingError: null, participantAudio: {}, pttHeld: false });
     for (const track of this.qualityCapture) track.stop(); this.qualityCapture.clear();
@@ -119,8 +141,9 @@ export class VoiceClient {
     for (const track of this.noiseCapture) track.stop(); this.noiseCapture.clear();
     this.stopMedia(old);
     this.activity?.dispose(); this.activity = undefined;
-    this.update({ changingAudio: false, speakers: [], playbackBlocked: false, startingPlayback: false,
-      changingNoiseSuppression: false, noiseSuppressionApplied: null, noiseSuppressionError: null, changingQuality: null, qualityError: null });
+    this.update({ changingAudio: false, speakers: [], microphones: {}, playbackBlocked: false, startingPlayback: false,
+      changingNoiseSuppression: false, noiseSuppressionApplied: null, noiseSuppressionError: null, changingQuality: null, qualityError: null,
+      enhancedNoiseApplied: false, enhancedStarting: false, enhancedNoiseError: null, changingScreenContent: false, screenContentError: null });
     for (const [participant, listener] of this.speakerSubscriptions) participant.off(ParticipantEvent.IsSpeakingChanged, listener);
     this.speakerSubscriptions.clear();
     for (const element of this.audio.values()) element.remove(); this.audio.clear(); this.audioOwners.clear();
@@ -140,33 +163,46 @@ export class VoiceClient {
   private syncSpeakers(room: Room) {
     if (this.room !== room) return;
     const participants = [room.localParticipant, ...room.remoteParticipants.values()];
+    const microphones: VoiceSnapshot['microphones'] = Object.fromEntries(participants.map(p => [p.identity,
+      p.isMicrophoneEnabled && (p !== room.localParticipant || (!this.value.muted && !this.value.deafened)) ? 'enabled' : 'muted']));
     const active = (p: Participant) => {
       const track = p.getTrackPublication(Track.Source.Microphone)?.audioTrack;
       return (track ? this.activity?.speaking(track) : undefined) ?? p.isSpeaking;
     };
     const speakers = participants.filter(p => active(p) && p.isMicrophoneEnabled &&
       (p !== room.localParticipant || (!this.value.muted && !this.value.deafened))).map(p => p.identity);
-    if (speakers.length !== this.value.speakers.length || speakers.some(id => !this.value.speakers.includes(id))) this.update({ speakers });
+    if (speakers.length !== this.value.speakers.length || speakers.some(id => !this.value.speakers.includes(id)) ||
+      Object.keys(microphones).length !== Object.keys(this.value.microphones).length || Object.entries(microphones).some(([id, value]) => this.value.microphones[id] !== value)) this.update({ speakers, microphones });
   }
   private denied(error: unknown) { return error instanceof ApiError && [401, 403, 404].includes(error.status); }
   private fail(error: unknown) {
     if (this.denied(error)) {
       this.epoch++; this.disconnect(); this.lease = undefined;
       this.generation = undefined; this.request = crypto.randomUUID();
-      this.update({ ...initial(), error: 'Voice access ended. Sign in or check your community membership.' });
+      this.update({ ...initial(), error: this.value.call ? 'Call ended.' : 'Voice access ended. Sign in or check your community membership.' });
     } else this.update({ error: error instanceof ApiError ? error.message : 'Voice connection failed. Check your network and try again.', status: 'Connection interrupted' });
   }
 
-  async join(community: string, name: string, fresh = false) {
+  async join(community: string, name: string, fresh = false, channel = community) {
+    return this.connect(community, name, fresh, channel, null);
+  }
+  async joinDirect(call: string, conversation: string, name: string) {
+    return this.connect(call, name, true, call, conversation);
+  }
+  async reconnect() {
+    if (this.value.call && this.value.conversation) return this.connect(this.value.call, this.value.name, true, this.value.call, this.value.conversation);
+    if (this.value.community) return this.join(this.value.community, this.value.name, true, this.value.channel ?? this.value.community);
+  }
+  private async connect(community: string, name: string, fresh: boolean, channel: string, conversation: string | null) {
     if (this.busy || !this.user) return;
-    if (this.value.community && this.value.community !== community) { this.update({ error: 'Leave the current voice room before joining another.' }); return; }
+    if ((this.value.community || this.value.call) && ((this.value.community ?? this.value.call) !== community || this.value.channel !== channel || !!this.value.call !== !!conversation)) { this.update({ error: 'Leave the current voice room before joining another.' }); return; }
     this.busy = true;
     const epoch = this.epoch;
     this.lastAttempt = Date.now();
     if (fresh) this.request = crypto.randomUUID();
-    this.update({ community, name, status: 'Joining', error: null });
+    this.update({ community: conversation ? null : community, call: conversation ? community : null, conversation, channel, name, status: 'Joining', error: null });
     try {
-      const grant = await joinVoice(community, this.request);
+      const grant = await (conversation ? joinCall(community, this.request) : joinVoice(community, this.request, channel));
       if (epoch !== this.epoch) return;
       this.lease = grant.leaseId; this.generation = grant.generation;
       this.update({ identity: grant.identity, canSpeak: grant.canSpeak, canShareScreen: grant.canShareScreen, canUseCamera: grant.canUseCamera, ...(grant.canSpeak ? {} : { muted: true }) });
@@ -196,10 +232,10 @@ export class VoiceClient {
         if (publication.source === Track.Source.Microphone) this.activity?.observe(audioTrack);
       });
       room.on(RoomEvent.TrackUnsubscribed, track => { const audioTrack = track as RemoteAudioTrack; const element = this.audio.get(audioTrack); element?.remove(); this.audio.delete(audioTrack); this.audioOwners.delete(audioTrack); this.activity?.remove(audioTrack); this.syncSpeakers(room); this.syncMedia(room); });
-      room.on(RoomEvent.TrackPublished, () => { this.applyReceiving(room); this.syncMedia(room); });
-      room.on(RoomEvent.TrackUnpublished, () => this.syncMedia(room));
+      room.on(RoomEvent.TrackPublished, () => { this.applyReceiving(room); this.syncSpeakers(room); this.syncMedia(room); });
+      room.on(RoomEvent.TrackUnpublished, () => { this.syncSpeakers(room); this.syncMedia(room); });
       room.on(RoomEvent.TrackSubscriptionFailed, () => { if (this.room === room) this.update({ receivingError: 'A media subscription failed. Retry receiving or reconnect if it persists.' }); });
-      room.on(RoomEvent.LocalTrackPublished, publication => { if (this.room === room && publication.source === Track.Source.Microphone && publication.track?.kind === Track.Kind.Audio) this.activity?.observe(publication.track as LocalAudioTrack); this.syncMedia(room); });
+      room.on(RoomEvent.LocalTrackPublished, publication => { if (this.room === room && publication.source === Track.Source.Microphone && publication.track?.kind === Track.Kind.Audio) this.activity?.observe(publication.track as LocalAudioTrack); this.syncSpeakers(room); this.syncMedia(room); });
       room.on(RoomEvent.LocalTrackUnpublished, publication => { if (publication.track?.kind === Track.Kind.Audio) this.activity?.remove(publication.track as LocalAudioTrack); this.syncSpeakers(room); this.syncMedia(room); });
       const interrupt = () => { if (this.room === room) { this.releasePtt(); this.stopMedia(room); this.update({ status: 'Reconnecting', speakers: [] }); } };
       room.on(RoomEvent.Reconnecting, interrupt);
@@ -207,7 +243,11 @@ export class VoiceClient {
       room.on(RoomEvent.Reconnected, () => { if (this.room === room) { this.update({ status: 'Connected' }); this.applyReceiving(room); this.syncMedia(room); this.syncSpeakers(room); void this.poll(); } });
       room.on(RoomEvent.Disconnected, reason => {
         if (this.room !== room) return;
-        if (reason === DisconnectReason.PARTICIPANT_REMOVED) this.moderated();
+        if (reason === DisconnectReason.PARTICIPANT_REMOVED) {
+          // The SFU uses this reason for both moderation and permission/session
+          // revocation. Only the authenticated lease state identifies moderation.
+          this.disconnect(); this.update({ status: 'Reconnecting', muted: true, speakers: [] }); void this.poll();
+        }
         else if (reason === DisconnectReason.DUPLICATE_IDENTITY) {
           this.moderated(); this.update({ error: 'This voice session was opened on another device. Select Join voice to return here.' });
         }
@@ -221,6 +261,7 @@ export class VoiceClient {
       if (epoch !== this.epoch || this.room !== room) { await room.disconnect(); return; }
       this.update({ status: 'Connected' });
       this.applyReceiving(room);
+      this.syncSpeakers(room);
       this.counter = new ConnectionCounter();
       this.statsStarted = Date.now();
       this.statsTimer = setInterval(() => { void this.sampleConnection(room); }, 2000);
@@ -247,11 +288,11 @@ export class VoiceClient {
   }
 
   async leave() {
-    if (this.busy || !this.value.community) return;
-    const community = this.value.community; const lease = this.lease;
+    if (this.busy || !(this.value.community || this.value.call)) return;
+    const community = (this.value.community ?? this.value.call)!; const call = this.value.call; const channel = this.value.channel ?? community; const lease = this.lease;
     this.busy = true; const epoch = ++this.epoch; this.disconnect(); this.update({ status: 'Leaving', participants: [], speakers: [] });
     try {
-      if (lease) await endVoice(community, lease);
+      if (call) await endCall(call); else if (lease) await endVoice(community, lease, channel);
       if (epoch !== this.epoch) return;
       this.lease = undefined; this.generation = undefined; this.request = crypto.randomUUID(); this.update(initial());
     } catch (error) {
@@ -262,15 +303,15 @@ export class VoiceClient {
   }
 
   private async poll() {
-    const community = this.value.community;
+    const community = this.value.community ?? this.value.call; const call = this.value.call;
     if (!community || this.polling || this.busy || !navigator.onLine || ['Leave not confirmed', 'Join failed'].includes(this.value.status)) return;
     this.polling = true; const epoch = this.epoch;
     try {
-      const state = await getVoice(community, undefined, this.lease);
+      const state = await (call ? callState(call) : getVoice(community, undefined, this.lease, this.value.channel ?? community));
       if (epoch !== this.epoch) return;
       if (state.disconnectedByModerator) { this.moderated(); return; }
       this.update({ participants: state.participants });
-      if (!state.canConnect) { this.disconnect(); this.update({ ...initial(), error: 'Voice access was revoked.' }); this.lease = undefined; return; }
+      if (!state.canConnect) { this.disconnect(); this.update({ ...initial(), error: call ? 'Call ended.' : 'Voice access was revoked.' }); this.lease = undefined; return; }
       if (!state.canSpeak && !this.value.muted) await this.microphone(true);
       if (epoch !== this.epoch) return;
       if ((!state.canShareScreen && this.value.sharing) || (!state.canUseCamera && this.value.camera)) this.stopMedia(this.room);
@@ -282,9 +323,9 @@ export class VoiceClient {
       } else if (state.generation !== this.generation || state.myLeaseId !== this.lease || ['Reconnecting', 'Access updating', 'Connection interrupted'].includes(this.value.status)) {
         const changed = (this.generation !== undefined && state.generation !== this.generation) ||
           (this.lease !== undefined && state.myLeaseId !== this.lease);
-        if (Date.now() - this.lastAttempt >= 10000) await this.join(community, this.value.name, changed);
+        if (Date.now() - this.lastAttempt >= 10000) await this.connect(community, this.value.name, changed, this.value.channel ?? community, this.value.conversation);
       } else if (this.lease && Date.now() - this.lastHeartbeat >= 10000) {
-        await heartbeatVoice(community, this.lease); this.lastHeartbeat = Date.now();
+        await (call ? heartbeatCall(call, this.lease) : heartbeatVoice(community, this.lease, this.value.channel ?? community)); this.lastHeartbeat = Date.now();
       }
       if (this.value.error === 'Voice access check interrupted. Retrying…' || this.value.error === 'Voice service check is unavailable. Try again shortly.') this.update({ error: null });
     } catch (error) {
@@ -320,33 +361,54 @@ export class VoiceClient {
     }
   }
   private pttDown = (event: KeyboardEvent) => {
-    if (!this.room || this.value.status !== 'Connected' || !this.value.pushToTalk || this.value.pttHeld || event.repeat || event.code !== this.value.pttKey || document.hidden ||
-      (event.code !== 'ControlRight' && (event.ctrlKey || event.altKey || event.metaKey)) ||
-      (event.target instanceof Element && event.target.closest('input, textarea, select, [role="textbox"], [contenteditable]:not([contenteditable="false"])'))) return;
-    this.pttKeyboardHeld = true; event.preventDefault(); void this.holdToTalk(true);
+    const binding = this.value.shortcuts.talk;
+    if (this.pttKeyboardHeld && binding && (event.ctrlKey !== binding.ctrl || event.altKey !== binding.alt || event.shiftKey !== binding.shift || event.metaKey)) this.releasePtt();
+    if (!this.room || this.value.status !== 'Connected' || event.defaultPrevented || event.isComposing || event.repeat || document.hidden || shortcutEditing(event.target)) return;
+    if (this.value.pushToTalk) {
+      if (this.value.pttHeld || !matchesShortcut(event, binding)) return;
+      this.pttKeyboardHeld = true; event.preventDefault(); void this.holdToTalk(true);
+    } else if (matchesShortcut(event, this.value.shortcuts.mute) && !this.value.deafened && this.value.canSpeak && !this.value.changingAudio && !this.value.changingQuality && !this.value.changingNoiseSuppression) {
+      event.preventDefault(); void this.microphone(!this.value.muted);
+    }
   };
-  private pttUp = (event: KeyboardEvent) => { if (event.code === this.value.pttKey && this.pttKeyboardHeld) this.releasePtt(); };
+  private pttUp = (event: KeyboardEvent) => {
+    const binding = this.value.shortcuts.talk;
+    if (this.pttKeyboardHeld && (!binding || event.code === binding.code || event.ctrlKey !== binding.ctrl || event.altKey !== binding.alt || event.shiftKey !== binding.shift || event.metaKey)) this.releasePtt();
+  };
+  private shortcutFocus = (event: FocusEvent) => { if (shortcutEditing(event.target)) this.releasePtt(); };
   private pttVisibility = () => { if (document.hidden) this.releasePtt(); };
   private releasePtt = () => {
     this.pttKeyboardHeld = false;
     if (!this.room && !this.ptt && !this.value.pttHeld) return;
     if (!this.value.pushToTalk && !this.ptt) return;
     this.pttIntent++; this.ptt?.close();
+    if (this.pttOpening && this.value.enhancedNoise) { this.ptt?.dispose(); this.ptt = undefined; }
     const track = this.room?.localParticipant.getTrackPublication(Track.Source.Microphone)?.audioTrack;
     if (track) { track.mediaStreamTrack.enabled = false; void track.mute().catch(() => {}); }
     for (const pending of this.qualityCapture) if (pending.source === Track.Source.Microphone) { pending.mediaStreamTrack.enabled = false; void (pending as LocalAudioTrack).mute().catch(() => {}); }
     this.update({ pttHeld: false, muted: true });
     if (this.room) this.syncSpeakers(this.room);
   };
-  pttKey(value: VoiceSnapshot['pttKey']) {
-    if (!['KeyV', 'KeyB', 'ControlRight'].includes(value)) return;
-    this.releasePtt(); this.update({ pttKey: value });
-    try { localStorage.setItem('dosvyazi-ptt-key', value); } catch { /* Session setting remains usable. */ }
+  pttKey(value: 'KeyV' | 'KeyB' | 'ControlRight') {
+    if (!['KeyV', 'KeyB', 'ControlRight'].includes(value)) return null;
+    return this.shortcut('talk', plainShortcut(value));
+  }
+  shortcut(action: keyof VoiceShortcuts, binding: VoiceShortcut | null): string | null {
+    if (binding !== null && !validShortcut(binding)) return 'This shortcut is reserved or unsupported. Choose another combination.';
+    if (sameShortcut(binding, this.value.shortcuts[action === 'talk' ? 'mute' : 'talk'])) return 'This shortcut is already assigned to the other microphone action.';
+    this.releasePtt();
+    const shortcuts = { ...this.value.shortcuts, [action]: binding === null ? null : { ...binding } };
+    this.update({ shortcuts }); saveShortcuts(shortcuts); return null;
+  }
+  resetShortcuts() {
+    this.releasePtt(); const shortcuts = defaultShortcuts(); this.update({ shortcuts }); saveShortcuts(shortcuts);
   }
   async pushToTalk(enabled: boolean) {
     if (!this.room || this.value.changingAudio || this.value.changingQuality || this.value.changingNoiseSuppression || enabled === this.value.pushToTalk) return;
     if (enabled && typeof AudioContext === 'undefined') return;
     const room = this.room;
+    this.enhancedIntent++; this.enhanced?.dispose(); this.enhanced = undefined;
+    this.update({ enhancedNoiseApplied: false, enhancedStarting: false });
     this.update({ pushToTalk: enabled, changingAudio: true, muted: true, pttHeld: false, noiseSuppressionApplied: null });
     this.pttIntent++; this.ptt?.dispose(); this.ptt = undefined;
     try {
@@ -362,7 +424,7 @@ export class VoiceClient {
     if (!this.value.pushToTalk || this.value.pttHeld || this.pttOpening || !room || room.state !== 'connected' || !this.value.canSpeak || this.value.deafened || this.value.changingAudio || this.value.changingQuality || this.value.changingNoiseSuppression || document.hidden) return;
     const intent = ++this.pttIntent;
     const current = () => this.room === room && room.state === 'connected' && this.value.pushToTalk && this.value.pttHeld && this.pttIntent === intent && this.value.canSpeak && !this.value.deafened;
-    this.update({ pttHeld: true, changingAudio: true, error: null }); this.pttOpening = true;
+    this.update({ pttHeld: true, changingAudio: true, error: null, enhancedNoiseError: null }); this.pttOpening = true;
     let gate = this.ptt;
     try {
       if (!gate?.live) {
@@ -374,7 +436,7 @@ export class VoiceClient {
         }); this.ptt = gate;
         await gate.capture({ echoCancellation: true, autoGainControl: true,
           ...(this.value.input === 'default' ? {} : { deviceId: { exact: this.value.input } }),
-          ...(this.value.noiseSuppressionSupported ? { noiseSuppression: this.value.noiseSuppression } : {}) });
+          ...(this.value.noiseSuppressionSupported ? { noiseSuppression: this.value.enhancedNoise ? false : this.value.noiseSuppression } : {}) }, this.value.enhancedNoise);
         if (!current()) { gate.dispose(); if (this.ptt === gate) this.ptt = undefined; return; }
         await gate.track.mute();
         if (!current()) { gate.dispose(); if (this.ptt === gate) this.ptt = undefined; return; }
@@ -382,7 +444,7 @@ export class VoiceClient {
       }
       if (!current()) {
         gate.close(); await gate.track.mute();
-        if (this.room !== room) { gate.dispose(); await room.localParticipant.unpublishTrack(gate.publicationTrack).catch(() => {}); }
+        if (this.room !== room || !gate.live) { gate.dispose(); await room.localParticipant.unpublishTrack(gate.publicationTrack).catch(() => {}); }
         return;
       }
       await gate.resume();
@@ -391,15 +453,16 @@ export class VoiceClient {
       if (!current()) { gate.close(); gate.track.mediaStreamTrack.enabled = false; await gate.track.mute(); return; }
       if (room.localParticipant.getTrackPublication(Track.Source.Microphone)?.audioTrack !== gate.track || !gate.open())
         throw new DOMException('Microphone publication is unavailable', 'NotReadableError');
-      this.update({ muted: false, noiseSuppressionApplied: gate.settings?.noiseSuppression ?? null }); this.syncSpeakers(room); void this.devices();
+      this.update({ muted: false, noiseSuppressionApplied: gate.settings?.noiseSuppression ?? null, enhancedNoiseApplied: this.value.enhancedNoise }); this.syncSpeakers(room); void this.devices();
     } catch (error) {
       gate?.dispose(); if (this.ptt === gate) this.ptt = undefined;
       if (gate) await room.localParticipant.unpublishTrack(gate.publicationTrack).catch(() => {});
-      if (this.room === room) this.update({ pttHeld: false, muted: true, error: microphoneFailure(error) });
+      if (this.room === room && this.pttIntent === intent) this.update({ pttHeld: false, muted: true, enhancedNoiseApplied: false,
+        ...(this.value.enhancedNoise ? { enhancedNoiseError: enhancedFailure(error) } : { error: microphoneFailure(error) }) });
     } finally { if (this.room === room) { this.pttOpening = false; this.update({ changingAudio: false }); } }
   }
   async quality(source: QualitySource, level: ScreenQuality) {
-    if (!validQuality(source, level) || this.value.changingQuality || this.value.changingMedia || this.value.changingAudio || this.value.changingNoiseSuppression) return;
+    if (!validQuality(source, level) || this.value.changingScreenContent || this.value.changingQuality || this.value.changingMedia || this.value.changingAudio || this.value.changingNoiseSuppression) return;
     if (this.value.quality[source] === level && !this.value.qualityError) return;
     const next: MediaQuality = { ...this.value.quality, [source]: level };
     const save = () => {
@@ -421,10 +484,10 @@ export class VoiceClient {
     this.qualityCapture.add(track);
     this.update({ changingQuality: source, qualityError: null, ...(source === 'audio' ? { changingAudio: true } : { changingMedia: true }) });
     let unpublished = false;
-    const discard = async () => { track.stop(); if (this.ptt?.track === track) { this.ptt.dispose(); this.ptt = undefined; this.releasePtt(); } this.capture.delete(track); await room.localParticipant.unpublishTrack(track).catch(() => {}); };
+    const discard = async () => { track.stop(); if (this.ptt?.track === track) { this.ptt.dispose(); this.ptt = undefined; this.releasePtt(); } if (this.enhanced?.track === track) { this.enhanced.dispose(); this.enhanced = undefined; this.update({ enhancedNoiseApplied: false }); } this.capture.delete(track); await room.localParticipant.unpublishTrack(track).catch(() => {}); };
     try {
       if (source !== 'audio') {
-        if (source === 'screen') track.mediaStreamTrack.contentHint = next.screen === 'ultra' ? 'motion' : 'detail';
+        if (source === 'screen') track.mediaStreamTrack.contentHint = screenIntent(this.value.screenContent, next.screen).hint;
         await track.mediaStreamTrack.applyConstraints({ ...constraints, ...videoConstraints(source, next) });
         if (!current()) { await discard(); return; }
         const applied = track.mediaStreamTrack.getSettings();
@@ -440,7 +503,8 @@ export class VoiceClient {
       if (!current()) { await discard(); return; }
       if (source === 'audio' && (this.value.muted || this.value.deafened)) await (track as LocalAudioTrack).mute();
       if (!current()) { await discard(); return; }
-      await room.localParticipant.publishTrack(track, { ...publication.options, ...qualityPublishOptions(source, next), source: trackSource });
+      await room.localParticipant.publishTrack(track, { ...publication.options, ...qualityPublishOptions(source, next, this.value.screenContent), source: trackSource });
+      if (source === 'screen' && track instanceof LocalVideoTrack) await this.confirmScreenPriority(room, track, next.screen);
       if (!current()) { await discard(); return; }
       save(); this.syncMedia(room); this.syncSpeakers(room);
     } catch {
@@ -465,8 +529,120 @@ export class VoiceClient {
       if (this.room === room && this.mediaEpoch === epoch) this.update({ changingQuality: null, ...(source === 'audio' ? { changingAudio: false } : { changingMedia: false }) });
     }
   }
+  private async confirmScreenPriority(room: Room, track: LocalVideoTrack, level: ScreenQuality) {
+    const epoch = this.mediaEpoch, next = screenIntent(this.value.screenContent, level);
+    const current = () => this.room === room && this.mediaEpoch === epoch && this.value.canShareScreen && track.mediaStreamTrack.readyState === 'live';
+    if (!current()) return;
+    try {
+      track.mediaStreamTrack.contentHint = next.hint;
+      await track.setDegradationPreference(next.degradationPreference);
+      if (!current()) return;
+      if (track.mediaStreamTrack.contentHint !== next.hint || track.sender?.getParameters().degradationPreference !== next.degradationPreference) throw new Error('Unconfirmed initial preference');
+      this.update({ screenContentError: null });
+    } catch { if (current()) this.update({ screenContentError: 'Your browser could not confirm the selected screen priority. The screen is shared; actual motion and detail may differ.' }); }
+  }
+  async screenContent(content: ScreenContent) {
+    if (!['auto', 'detail', 'motion'].includes(content) || !this.value.canShareScreen || this.value.changingScreenContent || this.value.changingMedia || this.value.changingQuality || this.value.changingAudio) return;
+    const room = this.room;
+    if (!room || room.state !== 'connected') return;
+    const track = room.localParticipant.getTrackPublication(Track.Source.ScreenShare)?.videoTrack;
+    const save = () => { this.update({ screenContent: content, screenContentError: null }); try { localStorage.setItem('dosvyazi-screen-content', content); } catch { /* Current-session preference still works. */ } };
+    if (!track || track.mediaStreamTrack.readyState !== 'live') { save(); return; }
+    const epoch = this.mediaEpoch, hint = track.mediaStreamTrack.contentHint;
+    const oldPreference = screenIntent(this.value.screenContent, this.value.quality.screen).degradationPreference;
+    const current = () => this.room === room && room.state === 'connected' && this.mediaEpoch === epoch && track.mediaStreamTrack.readyState === 'live' && room.localParticipant.getTrackPublication(Track.Source.ScreenShare)?.videoTrack === track;
+    this.update({ changingScreenContent: true, screenContentError: null });
+    try {
+      const next = screenIntent(content, this.value.quality.screen);
+      track.mediaStreamTrack.contentHint = next.hint;
+      await track.setDegradationPreference(next.degradationPreference);
+      if (!current()) return;
+      // SDK2.22 logs setParameters failures instead of throwing. Confirm readback.
+      if (track.mediaStreamTrack.contentHint !== next.hint || track.sender?.getParameters().degradationPreference !== next.degradationPreference) throw new Error('Unconfirmed screen preference');
+      save();
+    } catch {
+      if (!current()) return;
+      track.mediaStreamTrack.contentHint = hint;
+      await track.setDegradationPreference(oldPreference).catch(() => {});
+      if (current()) this.update({ screenContentError: 'Screen motion preference could not be confirmed. The previous choice is kept; your screen remains shared.' });
+    } finally { if (this.room === room && this.mediaEpoch === epoch) this.update({ changingScreenContent: false }); }
+  }
+  async enhancedNoise(enabled: boolean) {
+    const room = this.room;
+    if (!room || room.state !== 'connected' || !this.value.canSpeak || this.value.changingAudio || this.value.changingQuality || this.value.changingNoiseSuppression || this.value.pttHeld ||
+      (!this.value.enhancedNoiseSupported && enabled) || enabled === this.value.enhancedNoise) return;
+    this.releasePtt(); this.ptt?.dispose(); this.ptt = undefined;
+    this.enhancedIntent++; this.enhanced?.dispose(); this.enhanced = undefined;
+    const old = room.localParticipant.getTrackPublication(Track.Source.Microphone)?.track;
+    old?.stop();
+    this.update({ enhancedNoise: enabled, enhancedNoiseApplied: false, enhancedNoiseError: null, noiseSuppressionError: null,
+      noiseSuppressionApplied: null, muted: true, changingAudio: true });
+    try {
+      if (old) await room.localParticipant.unpublishTrack(old);
+      if (this.room === room) try { localStorage.setItem('dosvyazi-enhanced-noise', String(enabled)); } catch { /* Current-session preference is retained. */ }
+    } catch { if (this.room === room) this.update({ enhancedNoiseError: 'Microphone processing could not change. Leave voice and try again.' }); }
+    finally { if (this.room === room) { this.update({ changingAudio: false }); this.syncSpeakers(room); } }
+  }
+  private cancelEnhancedMicrophone() {
+    this.enhancedIntent++; this.enhanced?.dispose(); this.enhanced = undefined;
+    this.update({ muted: true, enhancedStarting: false, enhancedNoiseApplied: false });
+    if (this.room) this.syncSpeakers(this.room);
+  }
+  private async setEnhancedMicrophone(room: Room, muted: boolean) {
+    if (muted) {
+      this.enhanced?.close();
+      const track = room.localParticipant.getTrackPublication(Track.Source.Microphone)?.audioTrack;
+      if (track) { track.mediaStreamTrack.enabled = false; await track.mute(); }
+      if (this.room === room) { this.update({ muted: true }); this.syncSpeakers(room); }
+      return true;
+    }
+    if (!this.value.canSpeak || this.value.deafened || !this.value.enhancedNoiseSupported) return false;
+    const intent = ++this.enhancedIntent;
+    this.update({ enhancedStarting: true, enhancedNoiseError: null });
+    let graph = this.enhanced;
+    const current = () => this.room === room && room.state === 'connected' && this.enhancedIntent === intent && this.value.enhancedNoise && this.value.canSpeak && !this.value.deafened;
+    try {
+      if (!graph?.live) {
+        graph?.dispose();
+        const old = room.localParticipant.getTrackPublication(Track.Source.Microphone)?.track;
+        if (old) { old.stop(); await room.localParticipant.unpublishTrack(old); }
+        if (!current()) return false;
+        graph = new GatedMicrophone(() => {
+          if (this.room !== room || this.enhanced !== graph) return;
+          this.enhancedIntent++; graph?.dispose(); this.enhanced = undefined;
+          if (graph) void room.localParticipant.unpublishTrack(graph.publicationTrack).catch(() => {});
+          this.update({ muted: true, enhancedStarting: false, enhancedNoiseApplied: false, enhancedNoiseError: 'Enhanced noise processing stopped. Your microphone is muted. Enable it to retry or turn enhanced processing off.' });
+          this.syncSpeakers(room);
+        });
+        this.enhanced = graph;
+        await graph.capture({ echoCancellation: true, autoGainControl: true, noiseSuppression: false,
+          ...(this.value.input === 'default' ? {} : { deviceId: { exact: this.value.input } }) }, true);
+        if (!current()) return false;
+        await graph.track.mute();
+      }
+      if (!current() || !graph.live) return false;
+      if (room.localParticipant.getTrackPublication(Track.Source.Microphone)?.audioTrack !== graph.track)
+        await room.localParticipant.publishTrack(graph.publicationTrack, { ...qualityPublishOptions('audio', this.value.quality), source: Track.Source.Microphone });
+      if (!current()) return false;
+      await graph.resume();
+      if (!current()) return false;
+      await graph.track.unmute();
+      if (!current() || !graph.open()) return false;
+      this.update({ muted: false, error: null, enhancedNoiseApplied: true, noiseSuppressionApplied: null }); this.syncSpeakers(room); void this.devices();
+      return true;
+    } catch (error) {
+      if (current()) this.update({ muted: true, enhancedNoiseApplied: false, enhancedNoiseError: enhancedFailure(error) });
+      return false;
+    } finally {
+      if (!current() || !graph?.live || this.value.muted) {
+        graph?.dispose(); if (this.enhanced === graph) this.enhanced = undefined;
+        if (graph) await room.localParticipant.unpublishTrack(graph.publicationTrack).catch(() => {});
+      }
+      if (this.room === room) this.update({ enhancedStarting: false });
+    }
+  }
   async noiseSuppression(enabled: boolean) {
-    if (this.value.pushToTalk) return;
+    if (this.value.pushToTalk || this.value.enhancedNoise) return;
     const room = this.room;
     if (!room || room.state !== 'connected' || !this.value.canSpeak || !this.value.noiseSuppressionSupported || this.value.changingAudio || this.value.changingNoiseSuppression) return;
     this.update({ noiseSuppression: enabled, noiseSuppressionError: null });
@@ -474,7 +650,7 @@ export class VoiceClient {
     await this.applyNoiseSuppression(room);
   }
   private async applyNoiseSuppression(room: Room) {
-    if (this.room !== room) return;
+    if (this.room !== room || this.value.enhancedNoise) return;
     const track = room.localParticipant.getTrackPublication(Track.Source.Microphone)?.audioTrack;
     if (!this.value.noiseSuppressionSupported || !track || !microphoneIsLive(track)) {
       this.update({ noiseSuppressionApplied: null, noiseSuppressionError: null }); return;
@@ -537,6 +713,7 @@ export class VoiceClient {
     } finally { if (this.room === room && epoch === this.noiseEpoch) this.update({ changingNoiseSuppression: false }); }
   }
   async microphone(muted: boolean) {
+    if (muted && this.value.enhancedStarting) { this.cancelEnhancedMicrophone(); return; }
     if (this.value.pushToTalk) { if (muted) this.releasePtt(); else return; }
     const room = this.room;
     if (room && muted && this.value.changingQuality === 'audio') { await this.muteQualityCapture(room); return; }
@@ -547,6 +724,7 @@ export class VoiceClient {
     finally { if (this.room === room) this.update({ changingAudio: false }); }
   }
   private async muteQualityCapture(room: Room) {
+    this.enhanced?.close();
     this.update({ muted: true });
     for (const track of this.qualityCapture) if (track.source === Track.Source.Microphone) {
       track.mediaStreamTrack.enabled = false;
@@ -555,6 +733,7 @@ export class VoiceClient {
     if (this.room === room) this.syncSpeakers(room);
   }
   private async setMicrophone(room: Room, muted: boolean) {
+    if (this.value.enhancedNoise) return this.setEnhancedMicrophone(room, muted);
     try {
       const previous = room.localParticipant.getTrackPublication(Track.Source.Microphone)?.audioTrack;
       if (!muted && previous && !previous.isMuted && !microphoneIsLive(previous))
@@ -583,6 +762,10 @@ export class VoiceClient {
   async deafen(deafened: boolean) {
     if (deafened) this.releasePtt();
     const room = this.room;
+    if (room && deafened && this.value.enhancedStarting) {
+      this.cancelEnhancedMicrophone(); this.mutedBeforeDeafen = true; this.update({ deafened: true }); this.applyPlayback();
+      await room.localParticipant.getTrackPublication(Track.Source.ScreenShareAudio)?.audioTrack?.mute().catch(() => {}); return;
+    }
     if (room && deafened && this.value.pushToTalk && this.value.changingAudio) {
       this.mutedBeforeDeafen = true; this.update({ deafened: true }); this.applyPlayback();
       await room.localParticipant.getTrackPublication(Track.Source.ScreenShareAudio)?.audioTrack?.mute().catch(() => {});
@@ -616,6 +799,13 @@ export class VoiceClient {
     if (kind === 'audioinput' && this.value.pushToTalk) return;
     const room = this.room;
     if (!room || this.value.changingQuality) return;
+    if (kind === 'audioinput' && this.value.enhancedNoise) {
+      if (!this.value.muted || this.value.changingAudio) return;
+      this.enhancedIntent++; const graph = this.enhanced; this.enhanced = undefined; graph?.dispose();
+      if (graph) await room.localParticipant.unpublishTrack(graph.publicationTrack).catch(() => {});
+      if (this.room === room) this.update({ input: id, enhancedNoiseApplied: false, enhancedNoiseError: null });
+      return;
+    }
     try {
       if (!await room.switchActiveDevice(kind, id)) throw new Error();
       if (this.room === room) this.update(kind === 'audioinput' ? { input: id, error: null } : { output: id, error: null });
@@ -687,7 +877,7 @@ export class VoiceClient {
     } finally { if (this.statsPending === room) this.statsPending = undefined; }
   }
   connectionReport() {
-    return { version: 1, scope: 'This browser voice connection; RTP payload only', quality: { ...this.value.quality }, receiving: this.value.receiving,
+    return { version: 2, scope: 'This browser voice connection; RTP payload only', quality: { ...this.value.quality }, receiving: this.value.receiving, screenContent: this.value.screenContent, enhancedNoise: this.value.enhancedNoise,
       connection: { ...this.value.connection }, excludes: ['HTTP/signaling', 'transport overhead', 'other applications', 'host CPU/RAM/disk'],
       reset: 'Counters reset on a new voice connection. Export contains no names, room IDs, tokens, addresses or raw WebRTC reports.' };
   }
@@ -699,8 +889,11 @@ export class VoiceClient {
         const track = publication.videoTrack;
         const local = participant === room.localParticipant;
         if ((local && (!track || track.mediaStreamTrack.readyState === 'ended')) || publication.isMuted || ![Track.Source.Camera, Track.Source.ScreenShare].includes(publication.source)) continue;
+        const audio = participant.getTrackPublication(Track.Source.ScreenShareAudio);
+        const hasAudio = !!audio && (!local || audio.audioTrack?.mediaStreamTrack.readyState === 'live');
         videos.push({ id: publication.trackSid, identity: participant.identity, local: participant === room.localParticipant,
-          source: publication.source === Track.Source.Camera ? 'camera' : 'screen', track, receiving: local || this.wantsVideo(publication.source, participant.identity) });
+          source: publication.source === Track.Source.Camera ? 'camera' : 'screen', track, receiving: local || this.wantsVideo(publication.source, participant.identity),
+          audio: publication.source !== Track.Source.ScreenShare || !hasAudio ? 'none' : audio.isMuted ? 'paused' : 'shared' });
       }
     }
     const sharing = videos.some(video => video.local && video.source === 'screen');
@@ -717,31 +910,31 @@ export class VoiceClient {
       if (![Track.Source.Camera, Track.Source.ScreenShare, Track.Source.ScreenShareAudio].includes(publication.source) || !publication.track) continue;
       publication.track.stop(); void room.localParticipant.unpublishTrack(publication.track).catch(() => {});
     }
-    this.update({ camera: false, sharing: false, changingMedia: false, videos: [], mediaError: null, changingQuality: null });
+    this.update({ camera: false, sharing: false, changingMedia: false, videos: [], mediaError: null, changingQuality: null, changingScreenContent: false, screenContentError: null });
   }
 
   cameraDevice(id: string) { if (!this.value.camera && !this.value.changingMedia) this.update({ cameraDevice: id }); }
   clearMediaError() { this.update({ mediaError: null }); }
 
-  async media(source: 'camera' | 'screen', enabled: boolean, screenAudio = false) {
+  async media(source: 'camera' | 'screen', enabled: boolean, screenAudio = false, systemAudio = false) {
     const room = this.room;
-    if (!room || room.state !== 'connected' || this.value.changingMedia) return;
+    if (!room || room.state !== 'connected' || this.value.changingMedia || (enabled && this.value.changingScreenContent)) return;
     if (enabled && !(source === 'camera' ? this.value.canUseCamera : this.value.canShareScreen)) return;
     const epoch = this.mediaEpoch;
     this.update({ changingMedia: true, mediaError: null });
     const tracks: LocalTrack[] = [];
-    const current = () => this.room === room && epoch === this.mediaEpoch && room.state === 'connected';
+    let captureEnded = false;
+    const current = () => this.room === room && epoch === this.mediaEpoch && room.state === 'connected' && !captureEnded;
     try {
       if (!enabled) {
-        for (const publication of [...room.localParticipant.trackPublications.values()]) {
-          if (!publication.track || !(source === 'camera' ? publication.source === Track.Source.Camera : [Track.Source.ScreenShare, Track.Source.ScreenShareAudio].includes(publication.source))) continue;
-          publication.track.stop(); this.capture.delete(publication.track);
-          await room.localParticipant.unpublishTrack(publication.track);
-        }
+        const outgoing = [...room.localParticipant.trackPublications.values()].flatMap(publication => publication.track &&
+          (source === 'camera' ? publication.source === Track.Source.Camera : [Track.Source.ScreenShare, Track.Source.ScreenShareAudio].includes(publication.source)) ? [publication.track] : []);
+        // End all captured sources before awaiting any signaling/negotiation.
+        for (const track of outgoing) { track.stop(); this.capture.delete(track); }
+        for (const track of outgoing) await room.localParticipant.unpublishTrack(track);
       } else {
         // Capture starts before the first await, preserving getDisplayMedia's user gesture.
-        tracks.push(...await (source === 'screen' ? room.localParticipant.createScreenTracks({ audio: screenAudio,
-          resolution: screenProfiles[this.value.quality.screen], contentHint: this.value.quality.screen === 'ultra' ? 'motion' : 'detail', selfBrowserSurface: 'exclude', systemAudio: screenAudio ? 'include' : 'exclude' })
+        tracks.push(...await (source === 'screen' ? captureScreen(screenAudio, systemAudio, screenProfiles[this.value.quality.screen], screenIntent(this.value.screenContent, this.value.quality.screen).hint)
           : navigator.mediaDevices.getUserMedia({ audio: false, video: { ...videoConstraints('camera', this.value.quality),
             ...(this.value.cameraDevice === 'default' ? {} : { deviceId: { exact: this.value.cameraDevice } }) } }).then(stream => stream.getVideoTracks().map(track => {
               // User-provided tracks prevent SDK reconnect/background recovery from acquiring a camera silently.
@@ -751,13 +944,36 @@ export class VoiceClient {
         for (const track of tracks) this.capture.add(track);
         for (const track of tracks) {
           track.mediaStreamTrack.addEventListener('ended', () => {
-            this.capture.delete(track);
-            if (this.room === room) void room.localParticipant.unpublishTrack(track).then(() => this.syncMedia(room)).catch(() => {});
+            // The browser may end video without ending its paired audio track.
+            // Stop both synchronously, including not-yet-published capture results.
+            const ended = track.source === Track.Source.ScreenShare ? tracks : [track];
+            if (track.source === Track.Source.ScreenShare) captureEnded = true;
+            for (const acquired of ended) {
+              acquired.stop(); this.capture.delete(acquired);
+              if (this.room === room) void room.localParticipant.unpublishTrack(acquired).then(() => this.syncMedia(room)).catch(() => {});
+            }
+            this.syncMedia(room);
           }, { once: true });
-          if (track.source === Track.Source.ScreenShareAudio && this.value.deafened) await (track as LocalAudioTrack).mute();
+          if (track.source === Track.Source.ScreenShare) {
+            // Picker hints are not capture ceilings. Apply the selected limits after
+            // capture, with ended handlers already protecting paired screen audio.
+            const limits = videoConstraints('screen', this.value.quality);
+            await track.mediaStreamTrack.applyConstraints({ ...track.mediaStreamTrack.getConstraints(), ...limits });
+            if (!current()) { for (const acquired of tracks) acquired.stop(); return; }
+            const applied = track.mediaStreamTrack.getSettings();
+            for (const key of ['width', 'height', 'frameRate'] as const) {
+              const maximum = (limits[key] as ConstrainDoubleRange).max;
+              if (maximum !== undefined && applied[key] !== undefined && applied[key]! > maximum + .5) throw new Error('Unconfirmed initial capture ceiling');
+            }
+          }
+          if (track.source === Track.Source.ScreenShareAudio) {
+            track.mediaStreamTrack.contentHint = 'music';
+            if (this.value.deafened) await (track as LocalAudioTrack).mute();
+          }
           if (!current()) { for (const acquired of tracks) acquired.stop(); return; }
           await room.localParticipant.publishTrack(track, { source: track.source,
-            ...qualityPublishOptions(track.source === Track.Source.ScreenShareAudio ? 'audio' : source, track.source === Track.Source.ScreenShareAudio ? { ...this.value.quality, audio: 'standard' } : this.value.quality) });
+            ...(track.source === Track.Source.ScreenShareAudio ? screenAudioPublishOptions : qualityPublishOptions(source, this.value.quality, this.value.screenContent)) });
+          if (track.source === Track.Source.ScreenShare && track instanceof LocalVideoTrack) await this.confirmScreenPriority(room, track, this.value.quality.screen);
           if (!current()) { for (const acquired of tracks) { acquired.stop(); this.capture.delete(acquired); } await room.localParticipant.unpublishTrack(track); return; }
         }
         if (screenAudio && source === 'screen' && !tracks.some(track => track.source === Track.Source.ScreenShareAudio)) {
@@ -773,6 +989,6 @@ export class VoiceClient {
           this.update({ mediaError: source === 'screen' ? 'Screen sharing could not start. Choose a source and try again.' : 'Camera unavailable. Allow camera access and check the selected device, then try again.' });
         }
       }
-    } finally { if (current()) this.update({ changingMedia: false }); }
+    } finally { if (this.room === room && epoch === this.mediaEpoch) this.update({ changingMedia: false }); }
   }
 }

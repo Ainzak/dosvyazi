@@ -67,6 +67,9 @@ builder.Services.AddScoped<App.Api.Features.Forums.ForumService>();
 builder.Services.AddScoped<MessageService>();
 builder.Services.AddScoped<App.Api.Features.Navigation.NavigationService>();
 builder.Services.AddScoped<DirectService>();
+builder.Services.AddScoped<DirectCallService>();
+builder.Services.AddScoped<DirectCallAdmission>();
+builder.Services.AddHostedService<DirectCallWorker>();
 builder.Services.AddSingleton<DirectConnections>();
 builder.Services.AddScoped<DirectPublisher>();
 builder.Services.AddHostedService<DirectWorker>();
@@ -89,6 +92,7 @@ builder.Services.AddScoped<IVoiceGateway>(provider =>
     return voice.Enabled ? new LiveKitGateway(provider.GetRequiredService<IHttpClientFactory>().CreateClient("voice-control"),
         new Uri(voice.ControlUrl), voice.ApiKey, voice.ApiSecret) : new UnavailableVoiceGateway();
 });
+builder.Services.AddScoped<VoiceAdmission>();
 builder.Services.AddScoped<VoiceService>();
 builder.Services.AddScoped<VoiceReconciler>();
 builder.Services.AddHostedService<VoiceWorker>();
@@ -136,6 +140,9 @@ builder.Services.AddRateLimiter(options =>
         context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "anonymous", _ => new FixedWindowRateLimiterOptions
         { PermitLimit = 60, Window = TimeSpan.FromMinutes(1), QueueLimit = 0, AutoReplenishment = true }));
     options.AddPolicy("direct-reads", context => RateLimitPartition.GetFixedWindowLimiter(
+        context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "anonymous", _ => new FixedWindowRateLimiterOptions
+        { PermitLimit = 120, Window = TimeSpan.FromMinutes(1), QueueLimit = 0, AutoReplenishment = true }));
+    options.AddPolicy("call-reads", context => RateLimitPartition.GetFixedWindowLimiter(
         context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "anonymous", _ => new FixedWindowRateLimiterOptions
         { PermitLimit = 120, Window = TimeSpan.FromMinutes(1), QueueLimit = 0, AutoReplenishment = true }));
     options.AddPolicy("attachment-uploads", _ => RateLimitPartition.GetConcurrencyLimiter("uploads", _ => new ConcurrencyLimiterOptions
@@ -196,6 +203,7 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
     app.UseHttpsRedirection();
 }
+app.UseWebSockets(new WebSocketOptions { KeepAliveInterval = TimeSpan.FromSeconds(30) });
 app.UseRouting();
 app.UseMiddleware<SameOriginMiddleware>();
 app.UseAuthentication();

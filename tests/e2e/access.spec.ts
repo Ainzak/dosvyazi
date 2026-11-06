@@ -1,4 +1,4 @@
-import { closeWorkspaceNavigation, communityOverview, openWorkspaceNavigation, workspaceLink } from './workspace-navigation';
+import { createInvitation, closeWorkspaceNavigation, communityOverview, openWorkspaceNavigation, workspaceLink } from './workspace-navigation';
 import { test, expect } from '@playwright/test';
 import type { Page, Browser } from '@playwright/test';
 
@@ -17,8 +17,7 @@ async function create(page: Page) {
   await page.goto('/communities'); await page.getByLabel('Community name', { exact: true }).fill('Access crew');
   await page.getByRole('button', { name: 'Create community', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Access crew', exact: true })).toBeVisible();
-  await communityOverview(page); await page.getByRole('button', { name: 'Create invitation', exact: true }).click();
-  const code = await page.getByLabel('Share this invitation code').inputValue();
+  await communityOverview(page); const code = await createInvitation(page);
   await workspaceLink(page, 'general');
   return { code, url: page.url() };
 }

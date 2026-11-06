@@ -1,4 +1,4 @@
-import { communityOverview, messageAction, workspaceLink } from './workspace-navigation';
+import { createInvitation, communityOverview, messageAction, workspaceLink } from './workspace-navigation';
 import { test, expect } from '@playwright/test';
 import type { Page, Browser } from '@playwright/test';
 import type { components } from '../../apps/web/src/api/schema';
@@ -12,8 +12,7 @@ async function register(page: Page, name: string) {
 }
 async function create(page: Page) {
   await page.goto('/communities'); await page.getByLabel('Community name', { exact: true }).fill('Moderation crew'); await page.getByRole('button', { name: 'Create community', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Moderation crew', exact: true })).toBeVisible(); await communityOverview(page); await page.getByRole('button', { name: 'Create invitation', exact: true }).click();
-  const code = await page.getByLabel('Share this invitation code').inputValue(); await workspaceLink(page, 'general'); await expect(page.getByRole('heading', { name: '#general' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Moderation crew', exact: true })).toBeVisible(); await communityOverview(page); const code = await createInvitation(page); await workspaceLink(page, 'general'); await expect(page.getByRole('heading', { name: '#general' })).toBeVisible();
   return { code, url: page.url(), api: `/api/v1${new URL(page.url()).pathname}` };
 }
 async function join(browser: Browser, owner: Page, code: string) {

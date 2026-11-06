@@ -54,6 +54,7 @@ public sealed class AccessChange
 
 public sealed class VoiceRoleRule
 {
+    public Guid ChannelId { get; set; }
     public Guid CommunityId { get; set; }
     public Guid RoleId { get; set; }
     public int Allow { get; set; }

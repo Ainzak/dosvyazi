@@ -136,3 +136,24 @@ input, select, textarea { color: var(--dv-text); accent-color: var(--dv-accent);
 }
 .workspace-recovery { display: flex; flex-shrink: 0; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 12px 20px; background: var(--dv-ink); border-bottom: 1px solid var(--dv-line); }
 .workspace-recovery p { margin: 0; color: #ffb5b5; }
+
+.channel-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.channel-heading h2 { margin: 0; }
+.invite-dialog input { max-width: 100%; box-sizing: border-box; }
+.invite-dialog .management-list { max-height: 220px; overflow-y: auto; }
+
+.direct-call-notices:empty { display: none; }
+.direct-call-notices { flex-shrink: 0; max-height: 35dvh; overflow-y: auto; }
+.direct-call-notice { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; padding: 12px 20px; background: var(--dv-accent-surface); border-bottom: 1px solid var(--dv-line); }
+.direct-call-notice p { margin: 4px 0; }
+.direct-call-notice .settings-actions { align-self: center; }
+.direct-thread > header { flex-wrap: wrap; }
+.invite-dialog input, .voice-channel-dialog input, .screen-share-dialog select { display: block; width: 100%; min-width: 0; min-height: 44px; box-sizing: border-box; margin-block: 8px 16px; padding: 10px 12px; background: var(--dv-ink); color: var(--dv-text); border: 1px solid var(--dv-line); border-radius: 8px; font: inherit; }
+.workspace-links .management-dialog h2 { text-transform: none; letter-spacing: normal; font-size: 22px; line-height: 1.3; margin-bottom: 16px; }
+.invite-dialog .created-invite { margin-block: 20px; padding: 16px; }
+.invite-dialog .created-invite label { display: block; }
+.invite-dialog .created-invite p:empty { display: none; }
+.invite-dialog .management-list { padding-left: 0; }
+.direct-thread > header > button { display: inline-flex; align-items: center; gap: 8px; }
+.invite-dialog-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.invite-dialog-heading > button { flex-shrink: 0; }

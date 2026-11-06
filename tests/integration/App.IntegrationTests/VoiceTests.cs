@@ -14,10 +14,10 @@ using Npgsql;
 namespace App.IntegrationTests;
 
 [Trait("Category", "PostgreSQL")]
-public sealed class VoiceTests(AccountsDatabase storage) : IClassFixture<AccountsDatabase>
+public sealed partial class VoiceTests(AccountsDatabase storage) : IClassFixture<AccountsDatabase>
 {
     private const string Secret = "synthetic_test_secret_32_characters_minimum";
-    private FoundationFactory Factory(FakeVoice voice) => new(connection: storage.Connection, voice: voice);
+    private FoundationFactory Factory(FakeVoice voice, bool admission = false) => new(connection: storage.Connection, voice: voice, protectedVoice: admission);
     private static string Path(string community, string suffix = "") => $"/api/v1/communities/{community}/voice{suffix}";
     private static async Task<HttpResponseMessage> Send(HttpClient client, string path, object? body = null, string method = "POST")
     {
@@ -443,6 +443,7 @@ public sealed class VoiceTests(AccountsDatabase storage) : IClassFixture<Account
 
     private sealed class FakeVoice : IVoiceGateway
     {
+        public bool Signed { get; set; }
         public bool Fail { get; set; }
         public bool Unknown { get; set; }
         public bool LastCanSpeak { get; set; }
@@ -451,7 +452,7 @@ public sealed class VoiceTests(AccountsDatabase storage) : IClassFixture<Account
         public List<string> Deleted { get; } = [];
         public List<VoiceParticipant> Actual { get; } = [];
         public List<Guid> Removed { get; } = [];
-        public VoiceGrant CreateGrant(VoiceRoom room, Guid identity, bool canSpeak, bool canShareScreen = false, bool canUseCamera = false) { LastCanSpeak = canSpeak; LastCanShareScreen = canShareScreen; LastCanUseCamera = canUseCamera; return new($"synthetic-{room.Name}-{identity:N}", DateTimeOffset.FromUnixTimeSeconds(DateTimeOffset.UtcNow.ToUnixTimeSeconds() + 60)); }
+        public VoiceGrant CreateGrant(VoiceRoom room, Guid identity, bool canSpeak, bool canShareScreen = false, bool canUseCamera = false) { LastCanSpeak = canSpeak; LastCanShareScreen = canShareScreen; LastCanUseCamera = canUseCamera; if (Signed) { using var http = new HttpClient(); return new LiveKitGateway(http, new Uri("http://127.0.0.1:7880"), "test_key", Secret).CreateGrant(room, identity, canSpeak, canShareScreen, canUseCamera); } return new($"synthetic-{room.Name}-{identity:N}", DateTimeOffset.FromUnixTimeSeconds(DateTimeOffset.UtcNow.ToUnixTimeSeconds() + 60)); }
         private Task Check() => Fail ? Task.FromException(new VoiceGatewayException()) : Task.CompletedTask;
         public Task CreateRoomAsync(VoiceRoom room, CancellationToken ct) => Check();
         public async Task DeleteRoomAsync(VoiceRoom room, CancellationToken ct) { await Check(); Deleted.Add(room.Name); }

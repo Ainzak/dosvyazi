@@ -127,9 +127,10 @@ try {
       if (command === 'api' && process.env.Voice__Enabled !== 'false') {
         try {
           const credentials = await voiceEnvironment();
-          voice = { Voice__Enabled: process.env.Voice__Enabled ?? 'true', Voice__ApiKey: process.env.Voice__ApiKey ?? credentials.LIVEKIT_API_KEY,
+          const admission = process.env.Voice__AdmissionRequired ?? 'true';
+          voice = { Voice__AdmissionRequired: admission, Voice__Enabled: process.env.Voice__Enabled ?? 'true', Voice__ApiKey: process.env.Voice__ApiKey ?? credentials.LIVEKIT_API_KEY,
             Voice__ApiSecret: process.env.Voice__ApiSecret ?? credentials.LIVEKIT_API_SECRET,
-            Voice__ControlUrl: process.env.Voice__ControlUrl ?? credentials.LIVEKIT_URL, Voice__BrowserUrl: process.env.Voice__BrowserUrl ?? 'ws://127.0.0.1:7880' };
+            Voice__ControlUrl: process.env.Voice__ControlUrl ?? credentials.LIVEKIT_URL, Voice__BrowserUrl: process.env.Voice__BrowserUrl ?? (admission === 'true' ? 'ws://127.0.0.1:5173/livekit' : 'ws://127.0.0.1:7880') };
         } catch (error) { if (error.code !== 'ENOENT') throw error; }
       }
       exitCode = await run('dotnet', ['run', '--project', 'apps/api/App.Api', '--no-launch-profile', '--no-build', '--no-restore', ...(command === 'migrate' ? ['--', '--migrate'] : [])], {

@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { expectReadableText } from './readability';
-import { changeLanguage, workspaceLink } from './workspace-navigation';
+import { createInvitation, changeLanguage, workspaceLink } from './workspace-navigation';
 
 async function register(page: Page, name: string) {
   await page.goto('/register'); await page.getByLabel('Display name', { exact: true }).fill(name);
@@ -38,7 +38,7 @@ test('permission drafts survive dismissed close and reload, and moderation needs
   await register(page, 'Settings owner'); await workspaceLink(page, 'Communities');
   await page.getByLabel('Community name', { exact: true }).fill('Settings crew'); await page.getByRole('button', { name: 'Create community', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Settings crew', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Create invitation', exact: true }).click(); const code = await page.getByLabel('Share this invitation code').inputValue();
+  const code = await createInvitation(page);
   const context = await browser.newContext({ baseURL: 'http://127.0.0.1:5174', viewport: page.viewportSize()! });
   try {
     const peer = await context.newPage(); await register(peer, 'Settings guest'); await workspaceLink(peer, 'Communities');

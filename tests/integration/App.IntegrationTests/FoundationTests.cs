@@ -11,7 +11,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace App.IntegrationTests;
 
-public sealed class FoundationFactory(string environment = "Development", string? connection = null, int permitLimit = 30, IVoiceGateway? voice = null, bool reverseProxy = false, long fileQuota = AttachmentStore.DefaultQuotaBytes, string? fileRoot = null)
+public sealed class FoundationFactory(string environment = "Development", string? connection = null, int permitLimit = 30, IVoiceGateway? voice = null, bool reverseProxy = false, long fileQuota = AttachmentStore.DefaultQuotaBytes, string? fileRoot = null, bool protectedVoice = false)
     : WebApplicationFactory<Program>
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -30,6 +30,7 @@ public sealed class FoundationFactory(string environment = "Development", string
                 ["Files:RootPath"] = fileRoot ?? Path.Combine(Path.GetFullPath("../../..", _.HostingEnvironment.ContentRootPath), ".local", "artifacts", "test-files"),
                 ["Voice:Enabled"] = (voice is not null).ToString(),
                 ["Voice:WorkerEnabled"] = "false",
+                ["Voice:AdmissionRequired"] = protectedVoice.ToString(),
                 ["Voice:ApiKey"] = "test_key",
                 ["Voice:ApiSecret"] = "synthetic_test_secret_32_characters_minimum",
                 ["ReverseProxy:Enabled"] = reverseProxy.ToString(),

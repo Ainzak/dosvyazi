@@ -53,7 +53,7 @@ public sealed class CommunityInvite
     public string CodeHash { get; set; } = string.Empty;
     public string ProtectedCode { get; set; } = string.Empty;
     public int LifetimeHours { get; set; }
-    public int MaxUses { get; set; }
+    public int? MaxUses { get; set; }
     public int Uses { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset ExpiresAt { get; set; }

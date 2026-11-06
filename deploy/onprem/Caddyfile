@@ -1,4 +1,14 @@
 {
+    log default {
+        format filter {
+            wrap json
+            fields {
+                request>uri query {
+                    replace access_token REDACTED
+                }
+            }
+        }
+    }
     http_port {$HTTP_PORT}
     https_port {$HTTPS_PORT}
     servers {
@@ -18,8 +28,8 @@ https://{$DOMAIN}:{$HTTPS_PORT} {
     handle @api {
         reverse_proxy api:8080
     }
-    handle_path /livekit/* {
-        reverse_proxy livekit:7880
+    handle /livekit/* {
+        reverse_proxy api:8080
     }
     handle {
         root * /srv/web

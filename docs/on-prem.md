@@ -34,6 +34,8 @@ The default published ports are80/TCP,443/TCP,7881/TCP and7882/UDP. Optional set
 
 Preflight checks tooling, architecture, configuration, basic disk/RAM, existing project containers/volumes, listening host ports and overlapping Docker/host subnets. It does not take over conflicting resources. PostgreSQL and the API have no published ports. Forwarded headers are trusted only from loopback and the exact configured web-proxy IP, with one proxy hop. Docker publishes the selected web/RTC ports; the administrator remains responsible for ingress policy.
 
+The packaged `/livekit` route now goes through API admission with `Voice__AdmissionRequired=true`; the SFU control/signaling port remains private to the Docker network. Do not add a direct public signaling route. See `docs/voice-admission.md` in the source repository for the admission and channel-permission contract.
+
 The HTTPS readiness probe validates the configured hostname, certificate chain, proxy route and current database schema. For internal TLS it uses only this instance's CA file. Test voice/camera/screen from a separate device/network: local readiness cannot prove NAT/firewall reachability or microphone permission. LiveKit advertises the selected address and uses the selected TCP/UDP ports; TURN is not configured by this bundle. See [LiveKit self-hosting guidance](https://docs.livekit.io/transport/self-hosting/deployment/) for restricted networks.
 
 ## Back up and restore

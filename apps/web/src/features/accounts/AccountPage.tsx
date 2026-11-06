@@ -1,7 +1,7 @@
 import { useI18n } from '../../i18n/LocaleContext';
 import { LanguageSwitcher } from '../../i18n/LanguageProvider';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Link, useNavigate } from 'react-router';
+import { Link, useLocation, useNavigate } from 'react-router';
 import { ArrowRight, LogOut, ShieldCheck, UserRound } from 'lucide-react';
 import { login, logout, register, sessionKey, updateProfile } from '../../api/accounts';
 import type { UserProfile } from '../../api/accounts';
@@ -38,7 +38,9 @@ function Profile({ user }: { user: UserProfile }) {
 function SignInForm({ mode }: { mode: 'login' | 'register' }) {
   const { t } = useI18n();
   const queryClient = useQueryClient();
-  const navigate = useNavigate();
+  const navigate = useNavigate(); const location = useLocation();
+  const destination = (location.state as { returnTo?: unknown } | null)?.returnTo;
+  const returnTo = typeof destination === 'string' && /^\/invite\/[a-f0-9]{64}$/.test(destination) ? destination : '/account';
   const isRegister = mode === 'register';
   const submit = useMutation({ mutationFn: (data: FormData) => {
     const credentials = { email: String(data.get('email') ?? ''), password: String(data.get('password') ?? '') };
@@ -46,7 +48,7 @@ function SignInForm({ mode }: { mode: 'login' | 'register' }) {
   }, onSuccess: async profile => {
     await queryClient.cancelQueries({ queryKey: sessionKey });
     queryClient.setQueryData(sessionKey, profile);
-    navigate('/account');
+    navigate(returnTo);
   } });
   return <section className="account-card"><div className="account-avatar"><UserRound size={28} aria-hidden="true" /></div>
     <p className="eyebrow">{isRegister ? t("MAKE YOURSELF AT HOME") : t("GOOD TO SEE YOU")}</p>
@@ -60,7 +62,7 @@ function SignInForm({ mode }: { mode: 'login' | 'register' }) {
       {submit.isError && <p role="alert" className="form-error">{t(submit.error.message)}</p>}
       <button className="primary-button" disabled={submit.isPending}>{submit.isPending ? t("Please wait…") : isRegister ? t("Create account") : t("Sign in")}</button>
     </form>
-    <p className="account-switch">{isRegister ? t("Already have an account? ") : t("New to Dosvyazi? ")}<Link to={isRegister ? '/login' : '/register'}>{isRegister ? t("Sign in") : t("Create an account")}</Link></p>
+    <p className="account-switch">{isRegister ? t("Already have an account? ") : t("New to Dosvyazi? ")}<Link to={isRegister ? '/login' : '/register'} state={{ returnTo }}>{isRegister ? t("Sign in") : t("Create an account")}</Link></p>
     {!isRegister && <p className="account-switch"><Link to="/forgot-password">{t('Forgot your password?')}</Link></p>}
   </section>;
 }

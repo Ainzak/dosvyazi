@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
-import { audioSettings, communityOverview, joinVoice, workspaceLink, changeLanguage } from './workspace-navigation';
+import { createInvitation, audioSettings, communityOverview, joinVoice, workspaceLink, changeLanguage } from './workspace-navigation';
 
 test.use({ launchOptions: { args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream', '--autoplay-policy=no-user-gesture-required'] } });
 declare global { interface Window { usabilityFixture: { raw: MediaStreamTrack[]; outputs: MediaStreamTrack[]; gains: GainNode[]; holdCapture: boolean; holdOffer: boolean; fail: string; releases: (() => void)[]; pcs: RTCPeerConnection[] } } }
@@ -135,7 +135,8 @@ test('push-to-talk ignores editing, gates release/focus loss, persists mode and 
   await page.getByRole('button', { name: 'Close settings', exact: true }).click(); await hold(page).focus();
   await page.keyboard.down('KeyV'); await expect.poll(() => gateValue(page)).toBe(0); await page.keyboard.up('KeyV');
   await page.keyboard.down('KeyB'); await expect.poll(() => gateValue(page)).toBe(1); await page.keyboard.up('KeyB'); await expect.poll(() => gateValue(page)).toBe(0);
-  await audioSettings(page); await changeLanguage(page, 'ru');
+  await changeLanguage(page, 'ru');
+  await page.getByRole('button', { name: 'Настройки звука и трансляции', exact: true }).click();
   await page.getByLabel('Клавиша передачи голоса', { exact: true }).scrollIntoViewIfNeeded();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: info.outputPath('push-to-talk-ru.png'), fullPage: true });
@@ -176,8 +177,7 @@ test('hold button supports mouse/touch and denial recovery without enabling cont
 });
 
 test('individual level and mute combine with master volume and survive deafen and a new audio publication', async ({ page, browser }, info) => {
-  test.setTimeout(90_000); const speakerName = 'W'.repeat(40); await setup(page, speakerName); await communityOverview(page); await page.getByRole('button', { name: 'Create invitation', exact: true }).click();
-  const code = await page.getByLabel('Share this invitation code').inputValue();
+  test.setTimeout(90_000); const speakerName = 'W'.repeat(40); await setup(page, speakerName); await communityOverview(page); const code = await createInvitation(page);
   const otherContext = await browser.newContext({ baseURL: 'http://127.0.0.1:5174', viewport: page.viewportSize()!, permissions: ['microphone'] });
   try {
     const peer = await otherContext.newPage(); await register(peer, 'Level receiver'); await peer.goto('/communities'); await peer.getByLabel('Invitation code', { exact: true }).fill(code); await peer.getByRole('button', { name: 'Join community', exact: true }).click();
@@ -193,7 +193,7 @@ test('individual level and mute combine with master volume and survive deafen an
     await expect(page.getByRole('checkbox', { name: 'Reduce audio quality', exact: true })).toBeChecked();
     await expect(page.getByRole('checkbox', { name: 'Reduce audio quality', exact: true })).toBeEnabled();
     await expect.poll(() => peer.locator('audio').evaluateAll(elements => elements.length > 0 && elements.every(e => (e as HTMLAudioElement).muted && Math.abs((e as HTMLAudioElement).volume - .4) < .0001))).toBe(true);
-    await peer.getByRole('checkbox', { name: `Mute ${speakerName} for me`, exact: true }).uncheck();
+    await audioSettings(peer); await peer.getByRole('checkbox', { name: `Mute ${speakerName} for me`, exact: true }).uncheck();
     await slider.scrollIntoViewIfNeeded(); expect(await peer.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await peer.screenshot({ path: info.outputPath('participant-level-long-name.png'), fullPage: true });
     await expect.poll(() => peer.locator('audio').evaluateAll(elements => elements.every(e => !(e as HTMLAudioElement).muted))).toBe(true);
@@ -215,8 +215,7 @@ test('individual level and mute combine with master volume and survive deafen an
 
 test('Speak revocation closes a held PTT source and restored permission still needs a new hold', async ({ page, browser }) => {
   test.setTimeout(90_000); await setup(page); const root = '/api/v1' + new URL(page.url()).pathname;
-  await communityOverview(page); await page.getByRole('button', { name: 'Create invitation', exact: true }).click();
-  const code = await page.getByLabel('Share this invitation code').inputValue();
+  await communityOverview(page); const code = await createInvitation(page);
   const other = await browser.newContext({ baseURL: 'http://127.0.0.1:5174', viewport: page.viewportSize()!, permissions: ['microphone'] });
   try {
     const peer = await other.newPage(); await register(peer, 'PTT member'); await peer.goto('/communities');

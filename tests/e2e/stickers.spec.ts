@@ -1,4 +1,4 @@
-import { changeLanguage, communityOverview, composerTools, workspaceLink } from './workspace-navigation';
+import { createInvitation, changeLanguage, communityOverview, composerTools, workspaceLink } from './workspace-navigation';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 const gif = Buffer.from('R0lGODlhAgACAIEAAP8AAAAAAAAAAAAAACH/C05FVFNDQVBFMi4wAwEAAAAh+QQACgAAACwAAAAAAgACAAAIBgABCAQQEAAh+QQACgAAACwAAAAAAgACAIEAAP8AAAAAAAAAAAAIBgABCAQQEAA7', 'base64');
@@ -66,7 +66,7 @@ test('animated packs are shared from a sent sticker, saved without artwork downl
     await createPack(page, unique); expect(artworkRequests).toBe(0);
     await page.goto('/communities'); await page.getByLabel('Community name', { exact: true }).fill('Sticker crew'); await page.getByRole('button', { name: 'Create community', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Sticker crew', exact: true })).toBeVisible();
-    await communityOverview(page); await page.getByRole('button', { name: 'Create invitation', exact: true }).click(); const code = await page.getByLabel('Share this invitation code').inputValue();
+    await communityOverview(page); const code = await createInvitation(page);
     await peer.goto('/communities'); await peer.getByLabel('Invitation code', { exact: true }).fill(code); await peer.getByRole('button', { name: 'Join community', exact: true }).click();
     for (const p of [page, peer]) await workspaceLink(p, 'general');
     let messageRequests = 0; peer.on('request', request => { if (request.method() === 'GET' && /\/attachments\//.test(request.url())) messageRequests++; });

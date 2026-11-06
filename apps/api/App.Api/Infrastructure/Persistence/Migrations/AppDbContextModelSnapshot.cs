@@ -336,7 +336,7 @@ namespace App.Api.Infrastructure.Persistence.Migrations
                     b.Property<int>("LifetimeHours")
                         .HasColumnType("integer");
 
-                    b.Property<int>("MaxUses")
+                    b.Property<int?>("MaxUses")
                         .HasColumnType("integer");
 
                     b.Property<string>("ProtectedCode")
@@ -359,7 +359,7 @@ namespace App.Api.Infrastructure.Persistence.Migrations
 
                     b.ToTable("CommunityInvites", t =>
                         {
-                            t.HasCheckConstraint("CK_CommunityInvites_Limits", "\"Uses\" >= 0 AND \"Uses\" <= \"MaxUses\" AND \"MaxUses\" BETWEEN 1 AND 100 AND \"LifetimeHours\" BETWEEN 1 AND 168");
+                            t.HasCheckConstraint("CK_CommunityInvites_Limits", "\"Uses\" >= 0 AND (\"MaxUses\" IS NULL OR (\"Uses\" <= \"MaxUses\" AND \"MaxUses\" BETWEEN 1 AND 100)) AND \"LifetimeHours\" BETWEEN 1 AND 168");
                         });
                 });
 
@@ -528,6 +528,9 @@ namespace App.Api.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("CommunityId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid>("ChannelId")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid>("RoleId")
                         .HasColumnType("uuid");
 
@@ -537,7 +540,9 @@ namespace App.Api.Infrastructure.Persistence.Migrations
                     b.Property<int>("Deny")
                         .HasColumnType("integer");
 
-                    b.HasKey("CommunityId", "RoleId");
+                    b.HasKey("CommunityId", "ChannelId", "RoleId");
+
+                    b.HasIndex("CommunityId", "RoleId");
 
                     b.ToTable("VoiceRoleRules", t =>
                         {
@@ -610,6 +615,109 @@ namespace App.Api.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("CK_DirectAttachments_Size", "\"Size\" BETWEEN 1 AND 5242880");
                         });
+                });
+
+            modelBuilder.Entity("App.Api.Features.DirectMessages.DirectCall", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("AdmissionAttempt")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("AdmissionDeadline")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CallerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("Cleaned")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("ClientRequestId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ConversationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("EndReason")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<DateTimeOffset?>("EndedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("NextCheckAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("RecipientId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("RingUntil")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ConversationId");
+
+                    b.HasIndex("CallerId", "ClientRequestId")
+                        .IsUnique();
+
+                    b.HasIndex("CallerId", "Status");
+
+                    b.HasIndex("Cleaned", "NextCheckAt");
+
+                    b.HasIndex("RecipientId", "Status");
+
+                    b.ToTable("DirectCalls", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_DirectCalls_Status", "\"Status\" IN ('Ringing','Active','Ended') AND \"CallerId\" <> \"RecipientId\"");
+                        });
+                });
+
+            modelBuilder.Entity("App.Api.Features.DirectMessages.DirectCallMember", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CallId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("SecurityStamp")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<Guid>("SessionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SessionId");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("CallId", "UserId")
+                        .IsUnique();
+
+                    b.ToTable("DirectCallMembers", (string)null);
                 });
 
             modelBuilder.Entity("App.Api.Features.DirectMessages.DirectCommand", b =>
@@ -1945,6 +2053,9 @@ namespace App.Api.Infrastructure.Persistence.Migrations
                     b.Property<bool>("CanUseCamera")
                         .HasColumnType("boolean");
 
+                    b.Property<Guid>("ChannelId")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid>("CommunityId")
                         .HasColumnType("uuid");
 
@@ -1975,11 +2086,29 @@ namespace App.Api.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("CommunityId", "Active");
 
+                    b.HasIndex("CommunityId", "ChannelId");
+
                     b.ToTable("VoiceLeases");
                 });
 
             modelBuilder.Entity("App.Api.Features.Voice.VoiceRoomBinding", b =>
                 {
+                    b.Property<Guid>("ChannelId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("AdmissionAttempt")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("AdmissionDeadline")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("AdmissionProtected")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid?>("CategoryId")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid>("CommunityId")
                         .HasColumnType("uuid");
 
@@ -1995,6 +2124,11 @@ namespace App.Api.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("Id")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
                     b.Property<DateTimeOffset>("NextCheckAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -2006,12 +2140,17 @@ namespace App.Api.Infrastructure.Persistence.Migrations
                         .HasMaxLength(10)
                         .HasColumnType("character varying(10)");
 
-                    b.HasKey("CommunityId");
+                    b.HasKey("ChannelId");
 
                     b.HasIndex("Id")
                         .IsUnique();
 
                     b.HasIndex("NextCheckAt");
+
+                    b.HasIndex("CommunityId", "CategoryId");
+
+                    b.HasIndex("CommunityId", "Name")
+                        .IsUnique();
 
                     b.ToTable("VoiceRooms", t =>
                         {
@@ -2293,6 +2432,13 @@ namespace App.Api.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("App.Api.Features.Communities.VoiceRoleRule", b =>
                 {
+                    b.HasOne("App.Api.Features.Voice.VoiceRoomBinding", null)
+                        .WithMany()
+                        .HasForeignKey("CommunityId", "ChannelId")
+                        .HasPrincipalKey("CommunityId", "ChannelId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("App.Api.Features.Communities.CommunityRole", null)
                         .WithMany()
                         .HasForeignKey("CommunityId", "RoleId")
@@ -2315,6 +2461,48 @@ namespace App.Api.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Message");
+                });
+
+            modelBuilder.Entity("App.Api.Features.DirectMessages.DirectCall", b =>
+                {
+                    b.HasOne("App.Api.Features.Accounts.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("CallerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("App.Api.Features.DirectMessages.DirectConversation", null)
+                        .WithMany()
+                        .HasForeignKey("ConversationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("App.Api.Features.Accounts.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("RecipientId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("App.Api.Features.DirectMessages.DirectCallMember", b =>
+                {
+                    b.HasOne("App.Api.Features.DirectMessages.DirectCall", null)
+                        .WithMany()
+                        .HasForeignKey("CallId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("App.Api.Features.Accounts.UserSession", null)
+                        .WithMany()
+                        .HasForeignKey("SessionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("App.Api.Features.Accounts.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("App.Api.Features.DirectMessages.DirectCommand", b =>
@@ -2842,15 +3030,28 @@ namespace App.Api.Infrastructure.Persistence.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("App.Api.Features.Voice.VoiceRoomBinding", null)
+                        .WithMany()
+                        .HasForeignKey("CommunityId", "ChannelId")
+                        .HasPrincipalKey("CommunityId", "ChannelId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("App.Api.Features.Voice.VoiceRoomBinding", b =>
                 {
                     b.HasOne("App.Api.Features.Communities.Community", null)
-                        .WithOne()
-                        .HasForeignKey("App.Api.Features.Voice.VoiceRoomBinding", "CommunityId")
+                        .WithMany()
+                        .HasForeignKey("CommunityId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("App.Api.Features.Communities.Category", null)
+                        .WithMany()
+                        .HasForeignKey("CommunityId", "CategoryId")
+                        .HasPrincipalKey("CommunityId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserClaim<System.Guid>", b =>

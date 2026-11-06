@@ -25,7 +25,16 @@ export function ReceivingSettings({ state, client }: { state: VoiceSnapshot; cli
         <dt>{t('Round-trip delay (ms)')}</dt><dd>{number(stats.rttMs)}</dd><dt>{t('Receive jitter (ms)')}</dt><dd>{number(stats.jitterMs)}</dd>
         <dt>{t('Receive packet loss (%)')}</dt><dd>{number(stats.lossPercent)}</dd>
       </dl>
-      {stats.videos.length > 0 && <ul className="voice-video-stats">{stats.videos.map((video, index) => <li key={index}>{t(video.direction === 'sending' ? 'Outgoing video' : 'Incoming video stream')} {index + 1}: {video.width ?? '—'} × {video.height ?? '—'} · {number(video.fps)} {t('fps')}</li>)}</ul>}
+      {stats.videos.length > 0 && <ul className="voice-video-stats">{stats.videos.map((video, index) => <li key={index}>
+        <strong>{t(video.direction === 'sending' ? 'Outgoing video' : 'Incoming video stream')} {index + 1}</strong>: {video.width ?? '—'} × {video.height ?? '—'} · {number(video.fps)} {t('fps')}
+        <p>{t(video.interval === 'stale' ? 'Video counters are stale.' : video.interval === 'reset' ? 'Video counters restarted; waiting for an interval.' : video.interval === 'baseline' ? 'Waiting for a video measurement interval.' : 'Video measurement interval: {value}s', { value: number(video.intervalSeconds) })}</p>
+        <dl>
+          {video.direction === 'sending' ? <><dt>{t('Capture (fps)')}</dt><dd>{number(video.captureFps)}</dd><dt>{t('Encoding (ms/frame)')}</dt><dd>{number(video.processingMsPerFrame)}</dd><dt>{t('Browser quality limit')}</dt><dd>{video.limitation === null ? '—' : t(video.limitation === 'cpu' ? 'Encoder CPU load' : video.limitation === 'bandwidth' ? 'Network bandwidth' : video.limitation === 'none' ? 'No reported limit' : 'Other reported limit')}</dd></> : <>
+            <dt>{t('Decoding (ms/frame)')}</dt><dd>{number(video.processingMsPerFrame)}</dd><dt>{t('Dropped frames (interval)')}</dt><dd>{number(video.droppedFrames)}</dd><dt>{t('Completed freezes (interval)')}</dt><dd>{number(video.freezes)}</dd><dt>{t('Freeze duration (ms, interval)')}</dt><dd>{number(video.freezeMs)}</dd>
+          </>}
+        </dl>
+      </li>)}</ul>}
+      <p className="field-hint">{t('Compare capture, encoding and received FPS to investigate stutters. CPU is the browser’s encoder limitation signal, not total device CPU. Drops and completed freezes refer only to the shown interval; missing or stale counters are not zero. These indicators do not establish a cause by themselves.')}</p>
       <p className="field-hint">{t('This voice connection only: RTP payload, not total internet usage. Rates use sample deltas; counters reset on a new voice connection. Missing values are unavailable. No CPU or memory estimate is made.')}</p>
       <button className="secondary-button" onClick={download}>{t('Save connection report')}</button>
       <p className="field-hint">{t('The report contains settings and aggregate counters, without names, messages, addresses or access tokens. Nothing is uploaded.')}</p>

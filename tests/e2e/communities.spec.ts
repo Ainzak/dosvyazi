@@ -1,4 +1,4 @@
-import { communityOverview, confirmPendingAction, workspaceLink } from './workspace-navigation';
+import { communityOverview, confirmPendingAction, workspaceLink, openWorkspaceNavigation, closeWorkspaceNavigation } from './workspace-navigation';
 import { expect, test } from '@playwright/test';
 import type { Browser, Page } from '@playwright/test';
 
@@ -18,9 +18,13 @@ async function create(page: Page, name = 'Weekend crew') {
   return page.url();
 }
 async function invite(page: Page) {
-  await communityOverview(page); await page.getByRole('button', { name: 'Create invitation', exact: true }).click();
-  await expect(page.getByLabel('Share this invitation code')).toBeVisible();
-  return page.getByLabel('Share this invitation code').inputValue();
+  await communityOverview(page); await openWorkspaceNavigation(page);
+  await page.getByRole('button', { name: 'Invite people', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Invite people', exact: true });
+  await dialog.getByRole('button', { name: 'Create invitation', exact: true }).click();
+  const link = await dialog.getByLabel('Invitation link', { exact: true }).inputValue();
+  await dialog.getByRole('button', { name: 'Close', exact: true }).click(); await closeWorkspaceNavigation(page);
+  return new URL(link).pathname.split('/').at(-1)!;
 }
 async function join(page: Page, code: string, name = 'Weekend crew') {
   await page.goto('/communities');
@@ -103,8 +107,11 @@ test('ban clears a cached channel, lifting requires rejoin, leave and revocation
     await expect(member.getByRole('heading', { name: 'No communities yet.' })).toBeVisible();
     await member.goto(channelUrl);
     await expect(member.getByRole('heading', { name: 'Community unavailable.' })).toBeVisible();
-    await page.getByRole('button', { name: /^Revoke invitation/ }).click();
-    await expect(page.getByText('Revoked', { exact: true })).toBeVisible();
+    await openWorkspaceNavigation(page); await page.getByRole('button', { name: 'Invite people', exact: true }).click();
+    const invitations = page.getByRole('dialog', { name: 'Invite people', exact: true });
+    await invitations.getByRole('button', { name: /^Revoke invitation/ }).click();
+    await expect(invitations.getByRole('button', { name: /^Revoke invitation/ })).toHaveCount(0);
+    await invitations.getByRole('button', { name: 'Close', exact: true }).click(); await closeWorkspaceNavigation(page);
     await member.goto('/communities');
     await member.getByLabel('Invitation code', { exact: true }).fill(code);
     await member.getByRole('button', { name: 'Join community', exact: true }).click();

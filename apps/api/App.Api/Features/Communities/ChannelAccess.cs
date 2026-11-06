@@ -44,10 +44,13 @@ public static class ChannelAccess
         return channel.DiscussionArchived ? access with { Permissions = access.Permissions & ~Send, SendDeniedBy = channel.Kind == "ForumTopic" ? "This forum topic is archived. Reopen it to send messages." : "This thread is archived. Reopen it to send messages." } : access;
     }
 
-    public static async Task<EffectiveChannelAccess> VoiceAsync(AppDbContext db, Guid community, Guid user, CancellationToken ct)
+    public static Task<EffectiveChannelAccess> VoiceAsync(AppDbContext db, Guid community, Guid user, CancellationToken ct) => VoiceAsync(db, community, community, user, ct);
+
+    public static async Task<EffectiveChannelAccess> VoiceAsync(AppDbContext db, Guid community, Guid channel, Guid user, CancellationToken ct)
     {
-        var category = await db.Communities.AsNoTracking().Where(c => c.Id == community).Select(c => c.VoiceCategoryId).SingleOrDefaultAsync(ct);
-        return await ResolveCoreAsync(db, community, community, category, user, true, ct);
+        var room = await db.VoiceRooms.AsNoTracking().SingleOrDefaultAsync(c => c.CommunityId == community && c.ChannelId == channel, ct);
+        if (room is null) return new(0, null, null);
+        return await ResolveCoreAsync(db, community, channel, room.CategoryId, user, true, ct);
     }
 
     // Call under the community lock when used to authorize an operation/publication.
@@ -60,7 +63,7 @@ public static class ChannelAccess
         var roles = await db.CommunityRoles.AsNoTracking().Where(r => r.CommunityId == community && (r.Id == community || assigned.Contains(r.Id))).ToArrayAsync(ct);
         var category = await db.CategoryRoleRules.AsNoTracking().Where(r => r.CommunityId == community && r.CategoryId == categoryId && (r.RoleId == community || assigned.Contains(r.RoleId)))
             .Select(r => new ResourceRule(r.CategoryId, r.RoleId, r.Allow, r.Deny)).ToArrayAsync(ct);
-        var rules = voice ? await db.VoiceRoleRules.AsNoTracking().Where(r => r.CommunityId == community && (r.RoleId == community || assigned.Contains(r.RoleId)))
+        var rules = voice ? await db.VoiceRoleRules.AsNoTracking().Where(r => r.CommunityId == community && r.ChannelId == resource && (r.RoleId == community || assigned.Contains(r.RoleId)))
             .Select(r => new ResourceRule(community, r.RoleId, r.Allow, r.Deny)).ToArrayAsync(ct)
             : await db.ChannelRoleRules.AsNoTracking().Where(r => r.CommunityId == community && r.ChannelId == resource && (r.RoleId == community || assigned.Contains(r.RoleId)))
                 .Select(r => new ResourceRule(r.ChannelId, r.RoleId, r.Allow, r.Deny)).ToArrayAsync(ct);

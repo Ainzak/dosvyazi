@@ -24,7 +24,7 @@ test('saved rights explain owner access and configuration restores a reviewed is
   const rights = page.locator('.administration-panel').filter({ has: page.locator('.rights-result') });
   await expect(rights).toContainText('The owner has all supported permissions'); await rights.getByLabel('Explain access to', { exact: true }).selectOption(c.channels[0]!.id);
   await expect(rights.locator('.rights-decisions')).toContainText('Allowed');
-  const download = page.waitForEvent('download'); await page.getByRole('button', { name: 'Download configuration', exact: true }).click(); expect((await download).suggestedFilename()).toBe('dosvyazi-community-v1.json');
+  const download = page.waitForEvent('download'); await page.getByRole('button', { name: 'Download configuration', exact: true }).click(); expect((await download).suggestedFilename()).toBe('dosvyazi-community-v2.json');
   await changeLanguage(page, 'ru'); await rights.scrollIntoViewIfNeeded(); await expectReadableText(rights); await page.screenshot({ path: info.outputPath('rights-ru.png') });
   await page.goto('/communities'); await page.getByRole('button', { name: 'Выбрать файл настроек', exact: true }).click();
   await page.getByLabel('Файл настроек (JSON, до 256 КиБ)', { exact: true }).setInputFiles({ name: 'configuration.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(document)) });

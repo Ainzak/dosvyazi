@@ -1,4 +1,4 @@
-import { changeLanguage, communityOverview, workspaceLink } from './workspace-navigation';
+import { createInvitation, changeLanguage, communityOverview, workspaceLink } from './workspace-navigation';
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { expectReadableText } from './readability';
@@ -13,8 +13,7 @@ async function createCommunity(page: Page) {
   await page.goto('/communities'); await page.getByLabel('Community name', { exact: true }).fill('Gathering crew');
   await page.getByRole('button', { name: 'Create community', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Gathering crew', exact: true })).toBeVisible();
-  await communityOverview(page); await page.getByRole('button', { name: 'Create invitation', exact: true }).click();
-  const code = await page.getByLabel('Share this invitation code').inputValue();
+  await communityOverview(page); const code = await createInvitation(page);
   return { code, url: page.url() };
 }
 

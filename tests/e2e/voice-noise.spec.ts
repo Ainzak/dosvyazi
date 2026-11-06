@@ -59,7 +59,7 @@ test('noise suppression preference persists and processing changes preserve mute
   await page.getByRole('button', { name: 'Leave voice', exact: true }).click();
   await expect(page.getByRole('region', { name: 'Voice controls' })).toHaveCount(0);
   await page.reload(); await join(page); await expect(toggle).not.toBeChecked();
-  await page.getByRole('button', { name: 'Enable microphone', exact: true }).click();
+  await page.getByRole('button', { name: 'Enable microphone', exact: true }).click(); await audioSettings(page);
   await expect(page.getByRole('button', { name: 'Mute microphone', exact: true })).toBeEnabled();
   await expect.poll(() => setting(page)).toBe(false);
   const initial = await page.evaluate(() => window.noiseTest.tracks.at(-1)!.getSettings());
@@ -77,7 +77,7 @@ test('noise suppression preference persists and processing changes preserve mute
   await expect.poll(() => setting(page)).toBe(false); await expect(page.getByRole('button', { name: 'Retry noise suppression', exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'Deafen', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Undeafen', exact: true })).toBeEnabled();
-  const mutedCaptures = await captures(page);
+  const mutedCaptures = await captures(page); await audioSettings(page);
   await toggle.check(); await expect(toggle).toBeEnabled();
   expect(await captures(page)).toBe(mutedCaptures);
   expect(await page.evaluate(() => window.noiseTest.tracks.at(-1)!.enabled)).toBe(false);
@@ -88,7 +88,7 @@ test('noise suppression preference persists and processing changes preserve mute
   await expect(page.getByRole('button', { name: 'Enable microphone', exact: true })).toBeEnabled();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: info.outputPath('noise-controls.png'), fullPage: true });
-  await changeLanguage(page, 'ru');
+  await changeLanguage(page, 'ru'); await page.getByRole('button', { name: 'Настройки звука и трансляции', exact: true }).click();
   await expect(page.getByRole('checkbox', { name: 'Шумоподавление', exact: true })).toBeChecked();
   await page.screenshot({ path: info.outputPath('noise-controls-ru.png'), fullPage: true });
   expect(errors).toEqual([]);
@@ -96,7 +96,7 @@ test('noise suppression preference persists and processing changes preserve mute
 
 test('a late microphone refresh is discarded after muting and leaving', async ({ page }) => {
   await setup(page);
-  await page.getByRole('button', { name: 'Enable microphone', exact: true }).click();
+  await page.getByRole('button', { name: 'Enable microphone', exact: true }).click(); await audioSettings(page);
   await expect.poll(() => setting(page)).toBe(true);
   await page.evaluate(() => { window.noiseTest.holdCapture = true; });
   await page.getByRole('checkbox', { name: 'Noise suppression', exact: true }).uncheck();
@@ -116,14 +116,14 @@ test('unsupported noise suppression is explained without preventing explicit mic
   await expect(page.getByRole('checkbox', { name: 'Noise suppression', exact: true })).toBeDisabled();
   await expect(page.getByText('Noise suppression is unavailable in this browser.', { exact: true })).toBeVisible();
   expect(await captures(page)).toBe(0);
-  await page.getByRole('button', { name: 'Enable microphone', exact: true }).click();
+  await page.getByRole('button', { name: 'Enable microphone', exact: true }).click(); await audioSettings(page);
   await expect(page.getByRole('button', { name: 'Mute microphone', exact: true })).toBeEnabled();
   await page.screenshot({ path: info.outputPath('noise-unsupported.png'), fullPage: true });
 });
 
 test('unconfirmed refreshed capture leaves the microphone muted and explicit activation recovers', async ({ page }) => {
   await setup(page);
-  await page.getByRole('button', { name: 'Enable microphone', exact: true }).click();
+  await page.getByRole('button', { name: 'Enable microphone', exact: true }).click(); await audioSettings(page);
   await expect.poll(() => setting(page)).toBe(true);
   const toggle = page.getByRole('checkbox', { name: 'Noise suppression', exact: true });
   await page.evaluate(() => { window.noiseTest.ignore = true; }); await toggle.uncheck();
@@ -131,14 +131,14 @@ test('unconfirmed refreshed capture leaves the microphone muted and explicit act
   await expect(page.getByRole('button', { name: 'Enable microphone', exact: true })).toBeEnabled();
   expect(await page.evaluate(() => window.noiseTest.tracks.every(track => track.readyState === 'ended'))).toBe(true);
   await page.evaluate(() => { window.noiseTest.ignore = false; });
-  await page.getByRole('button', { name: 'Enable microphone', exact: true }).click();
+  await page.getByRole('button', { name: 'Enable microphone', exact: true }).click(); await audioSettings(page);
   await expect.poll(() => setting(page)).toBe(false);
   await expect(page.getByRole('button', { name: 'Mute microphone', exact: true })).toBeEnabled();
 });
 
 test('a late constraint result cannot unmute or restore a departed session', async ({ page }) => {
   await setup(page);
-  await page.getByRole('button', { name: 'Enable microphone', exact: true }).click();
+  await page.getByRole('button', { name: 'Enable microphone', exact: true }).click(); await audioSettings(page);
   await expect.poll(() => setting(page)).toBe(true);
   await page.evaluate(() => { window.noiseTest.hold = true; });
   await page.getByRole('checkbox', { name: 'Noise suppression', exact: true }).uncheck();

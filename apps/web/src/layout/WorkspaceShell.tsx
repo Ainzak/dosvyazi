@@ -1,4 +1,7 @@
-import { useRef, useState, useSyncExternalStore } from 'react';
+import { DirectCallNotices } from '../features/direct/DirectCallsProvider';
+import { InvitePeople } from '../features/communities/InvitePeople';
+import { CreateVoiceChannel } from '../features/communities/CreateVoiceChannel';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, NavLink, useLocation, useMatch } from 'react-router';
@@ -12,6 +15,7 @@ import { PersistentVoiceVideo, VoiceDock } from '../features/voice/VoicePanel';
 import { useI18n } from '../i18n/LocaleContext';
 import { WorkspaceHeaderTarget } from './WorkspaceHeader';
 import { AccountOptions } from './AccountOptions';
+import { voiceHref } from '../api/voice';
 import { forumHref } from '../api/forums';
 import { ConnectionRecovery, connectionFailure } from './ConnectionRecovery';
 
@@ -39,6 +43,7 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
   const mobile = useSyncExternalStore(subscribe, isMobile);
   const drawer = useRef<HTMLDialogElement>(null);
   const menu = useRef<HTMLButtonElement>(null);
+  useEffect(() => { drawer.current?.close(); }, [location.pathname]);
   const [headerTarget, setHeaderTarget] = useState<HTMLDivElement | null>(null);
   const list = useQuery({ queryKey: communityListKey(user?.id ?? ''), queryFn: ({ signal }) => listCommunities(signal), enabled: !!user });
   const community = useQuery({ queryKey: [...communityKeys(user?.id ?? '', id ?? ''), 'details'], queryFn: ({ signal }) => getCommunity(id!, signal), enabled: !!user && !!id,
@@ -47,9 +52,9 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
   const denied = community.error instanceof ApiError && [401, 403, 404].includes(community.error.status);
   const current = user && id && !denied ? community.data : undefined;
   const channel = current?.channels.find(item => location.pathname === `/communities/${id}/channels/${item.id}` || location.pathname.startsWith(`/communities/${id}/channels/${item.id}/threads`) || location.pathname === forumHref(id!, item.id) || location.pathname.startsWith(forumHref(id!, item.id) + '/topics/'));
-  const voiceRoom = /^\/communities\/[^/]+\/voice$/.test(location.pathname);
+  const voiceRoom = /^\/communities\/[^/]+\/voice(?:\/[^/]+)?$/.test(location.pathname);
   const section = voiceRoom ? t('Voice room') : location.pathname.startsWith('/messages') ? t('Messages') : location.pathname.includes('/gatherings') ? t('Gatherings')
-    : location.pathname === '/bookmarks' ? t('Bookmarks') : location.pathname === '/notifications' ? t('Notifications') : location.pathname.startsWith('/stickers') ? t('Sticker packs') : location.pathname.startsWith('/communities') ? t('Communities')
+    : location.pathname === '/bookmarks' ? t('My bookmarks') : location.pathname === '/notifications' ? t('Notifications') : location.pathname.startsWith('/stickers') ? t('Sticker packs') : location.pathname.startsWith('/communities') ? t('Communities')
     : location.pathname.startsWith('/profiles/') ? t('Profile') : location.pathname === '/about' ? t('About this build') : ['/account', '/login', '/register', '/forgot-password', '/reset-password'].includes(location.pathname) ? t('Account') : t('Dosvyazi');
 
   const account = <div className="workspace-account"><Link to="/account" aria-label={t(user ? 'My account' : 'Sign in')}><span className="workspace-avatar" aria-hidden="true">{initials(user?.displayName ?? 'ds')}</span><span><strong>{user?.displayName ?? t('Your account')}</strong><small>{t('Account')}</small></span></Link><AccountOptions /></div>;
@@ -64,12 +69,13 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
       <div className="workspace-title"><span className="workspace-avatar" aria-hidden="true">{current ? initials(current.name) : 'ds'}</span><strong>{current?.name ?? t('Dosvyazi')}</strong></div>
       <div className="workspace-navigation-content">
         <nav className="workspace-links" aria-label={t('Main navigation')}>
-          <NavLink to="/messages"><MessageSquare size={20} aria-hidden="true" />{t('Messages')}</NavLink>
-          <NavLink to="/communities" end><Users size={20} aria-hidden="true" />{t('Communities')}</NavLink>
+          {!id && <><NavLink to="/messages"><MessageSquare size={20} aria-hidden="true" />{t('Messages')}</NavLink>
+          <NavLink to="/communities" end><Users size={20} aria-hidden="true" />{t('Communities')}</NavLink></>}
           {current && <NavLink end to={`/communities/${current.id}`}><Users size={20} aria-hidden="true" />{t('Community overview')}</NavLink>}
           {current && user && <GatheringsLink user={user.id} community={current.id} live={!location.pathname.includes('/gatherings')} />}
-          <NavLink to="/stickers"><Smile size={20} aria-hidden="true" />{t('Sticker packs')}</NavLink>
-          {user && <><NavLink to="/notifications"><Bell size={20} aria-hidden="true" />{t('Notifications')}</NavLink><NavLink to="/bookmarks"><Bookmark size={20} aria-hidden="true" />{t('Bookmarks')}</NavLink></>}
+          {!id && <><NavLink to="/stickers"><Smile size={20} aria-hidden="true" />{t('Sticker packs')}</NavLink>
+          {user && <><NavLink to="/notifications"><Bell size={20} aria-hidden="true" />{t('Notifications')}</NavLink><NavLink to="/bookmarks"><Bookmark size={20} aria-hidden="true" />{t('My bookmarks')}</NavLink></>}</>}
+          {current && user && (Number(current.permissions) & 128) !== 0 && <InvitePeople key={current.id} community={current.id} user={user.id} />}
         </nav>
         {user && list.isPending && <p role="status" className="field-hint">{t('Loading communities…')}</p>}
         {user && list.isError && !interrupted && <div><p className="field-hint" role="alert">{t('Could not load communities.')}</p><button className="secondary-button" onClick={() => void list.refetch()}>{t('Try again')}</button></div>}
@@ -80,7 +86,7 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
             {current.channels.filter(item => item.kind !== 'Forum').map(item => <NavLink key={item.id} to={`/communities/${current.id}/channels/${item.id}`}><Hash size={20} aria-hidden="true" /><span>{item.categoryName && <small>{item.categoryName} / </small>}{item.name}</span><UnreadBadge user={user.id} community={current.id} channel={item.id} /></NavLink>)}
           </nav>
           {current.channels.some(item => item.kind === 'Forum') && <nav className="workspace-links channel-nav" aria-label={t('Community forums')}><h2>{t('Forums')}</h2>{current.channels.filter(item => item.kind === 'Forum').map(item => <NavLink key={item.id} to={forumHref(current.id, item.id)}><MessageSquare size={20} aria-hidden="true" /><span>{item.categoryName && <small>{item.categoryName} / </small>}{item.name}</span></NavLink>)}</nav>}
-          <nav className="workspace-links" aria-label={t('Community voice')}><h2>{t('Community voice')}</h2><NavLink to={`/communities/${current.id}/voice`}><Volume2 size={20} aria-hidden="true" />{t('Voice room')}</NavLink></nav>
+          <nav className="workspace-links" aria-label={t('Community voice')}><div className="channel-heading"><h2>{t('Community voice')}</h2>{(Number(current.permissions) & 96) === 96 && <CreateVoiceChannel key={current.id} community={current.id} user={user.id} />}</div>{current.voiceChannels?.map(item => <NavLink key={item.id} to={voiceHref(current.id, item.id)} end><Volume2 size={20} aria-hidden="true" /><span>{item.categoryName && <small>{item.categoryName} / </small>}{item.id === current.id ? t(item.name) : item.name}</span>{Number(item.participants) > 0 && <small aria-hidden="true" title={t('Active voice sessions: {value}', { value: item.participants })}>{item.participants}</small>}</NavLink>)}</nav>
         </>}
         <nav className="workspace-links workspace-utilities" aria-label={t('Workspace settings')}><NavLink to="/about"><Info size={20} aria-hidden="true" />{t('About this build')}</NavLink></nav>
       </div>
@@ -100,7 +106,7 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
       {mobile && <button ref={menu} className="icon-button" aria-label={t('Open navigation')} aria-haspopup="dialog" onClick={() => drawer.current?.showModal()}><Menu size={22} aria-hidden="true" /></button>}
       <div className="workspace-breadcrumb">{channel && <Hash size={23} aria-hidden="true" />}<span><strong>{channel?.name ?? section}</strong>{current && <small>{current.name}</small>}</span></div>
       <div className="topbar-actions" ref={setHeaderTarget} />
-    </header>{interrupted && <section className="workspace-recovery" aria-label={t('Connection recovery')}><p role="alert">{t('Connection interrupted. Saved data may be out of date.')}</p><button className="secondary-button" disabled={recovering} onClick={() => {
+    </header><DirectCallNotices />{interrupted && <section className="workspace-recovery" aria-label={t('Connection recovery')}><p role="alert">{t('Connection interrupted. Saved data may be out of date.')}</p><button className="secondary-button" disabled={recovering} onClick={() => {
       setRecovering(true);
       void session.refetch().then(result => { if (!result.error) return client.invalidateQueries({ predicate: query => query.queryKey[0] === 'private' }); }).finally(() => setRecovering(false));
     }}>{t(recovering ? 'Checking…' : 'Restore connection')}</button></section>}<main key={location.pathname} id="main" className={voiceRoom ? 'voice-main' : channel ? 'conversation-main' : location.pathname.startsWith('/messages') ? 'direct-main' : undefined} tabIndex={-1}>{children}</main><PersistentVoiceVideo /></div>

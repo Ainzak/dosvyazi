@@ -6,8 +6,8 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 const target = process.env.DOSVYAZI_API_TARGET ?? 'http://127.0.0.1:5080';
-const proxy = Object.fromEntries(['/api', '/health', '/openapi', '/hubs'].map(prefix =>
-  [prefix, { target, changeOrigin: false, ws: prefix === '/hubs' }]));
+const proxy = Object.fromEntries(['/api', '/health', '/openapi', '/hubs', '/livekit'].map(prefix =>
+  [prefix, { target, changeOrigin: false, ws: prefix === '/hubs' || prefix === '/livekit' }]));
 
 export default defineConfig({
   plugins: [react(), {

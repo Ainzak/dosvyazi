@@ -1,9 +1,12 @@
+import { VideoDiagnosticCounter } from './videoDiagnostics';
+import type { VideoDiagnostics } from './videoDiagnostics';
+
 export type ConnectionStats = {
   status: 'waiting' | 'ready' | 'unavailable'; sampledAt: number | null; elapsedSeconds: number;
   sentBytes: number; receivedBytes: number; sendBps: number | null; receiveBps: number | null;
   rttMs: number | null; jitterMs: number | null; lossPercent: number | null;
   incomingVideo: number; outgoingVideo: number;
-  videos: { direction: 'sending' | 'receiving'; width: number | null; height: number | null; fps: number | null }[];
+  videos: ({ direction: 'sending' | 'receiving'; width: number | null; height: number | null } & VideoDiagnostics)[];
 };
 export const emptyConnectionStats = (): ConnectionStats => ({ status: 'waiting', sampledAt: null, elapsedSeconds: 0,
   sentBytes: 0, receivedBytes: 0, sendBps: null, receiveBps: null, rttMs: null, jitterMs: null, lossPercent: null, incomingVideo: 0, outgoingVideo: 0, videos: [] });
@@ -11,6 +14,7 @@ export const emptyConnectionStats = (): ConnectionStats => ({ status: 'waiting',
 // Only RTP payload counters. Never retain/export raw ICE, SDP, addresses or identities.
 export class ConnectionCounter {
   private previous = new Map<string, { bytes: number; packets: number; lost: number; frames: number; hasFrames: boolean }>();
+  private video = new VideoDiagnosticCounter();
   private started: number;
   private last: number | null = null;
   private sent = 0;
@@ -19,6 +23,7 @@ export class ConnectionCounter {
   sample(reports: RTCStatsReport[], now = performance.now()): ConnectionStats {
     let sent = 0, received = 0, packets = 0, lost = 0, rtt: number | null = null, jitter: number | null = null, incomingVideo = 0, outgoingVideo = 0;
     const seen = new Set<string>();
+    const videoKeys = new Set<string>();
     const videos: ConnectionStats['videos'] = [];
     const seconds = this.last === null ? 0 : (now - this.last) / 1000;
     const nonnegative = (value: unknown): number => typeof value === 'number' && Number.isFinite(value) ? Math.max(0, value) : 0;
@@ -42,12 +47,14 @@ export class ConnectionCounter {
       this.previous.set(key, current);
       if (inbound && typeof row.jitter === 'number') jitter = Math.max(jitter ?? 0, nonnegative(row.jitter) * 1000);
       if ((row.kind ?? row.mediaType) === 'video') {
+        videoKeys.add(key);
         if (inbound) incomingVideo++; else outgoingVideo++;
-        videos.push({ direction: inbound ? 'receiving' : 'sending', width: typeof row.frameWidth === 'number' ? nonnegative(row.frameWidth) : null,
-          height: typeof row.frameHeight === 'number' ? nonnegative(row.frameHeight) : null,
-          fps: typeof row.framesPerSecond === 'number' && Number.isFinite(row.framesPerSecond) ? nonnegative(row.framesPerSecond) : old?.hasFrames && current.hasFrames && seconds > 0 ? delta('frames') / seconds : null });
+        videos.push({ direction: inbound ? 'receiving' : 'sending', width: typeof row.frameWidth === 'number' && Number.isFinite(row.frameWidth) && row.frameWidth >= 0 ? row.frameWidth : null,
+          height: typeof row.frameHeight === 'number' && Number.isFinite(row.frameHeight) && row.frameHeight >= 0 ? row.frameHeight : null,
+          ...this.video.sample(key, row, typeof row.mediaSourceId === 'string' ? report.get(row.mediaSourceId) as Record<string, unknown> | undefined : undefined, now) });
       }
     });
+    this.video.retain(videoKeys);
     // Bound bookkeeping in unusually long sessions with many publication changes.
     if (this.previous.size > 512) for (const key of this.previous.keys()) if (!seen.has(key)) this.previous.delete(key);
     this.sent += sent; this.received += received;

@@ -120,8 +120,13 @@ public sealed class VoiceGatewayTests
         {
             await gateway.DeleteRoomAsync(room, default);
             Assert.Empty(await gateway.ParticipantsAsync(room, default));
+            await gateway.RemoveParticipantAsync(room, Guid.NewGuid(), default);
         }
-        else await Assert.ThrowsAsync<VoiceGatewayException>(() => gateway.DeleteRoomAsync(room, default));
+        else
+        {
+            await Assert.ThrowsAsync<VoiceGatewayException>(() => gateway.DeleteRoomAsync(room, default));
+            await Assert.ThrowsAsync<VoiceGatewayException>(() => gateway.RemoveParticipantAsync(room, Guid.NewGuid(), default));
+        }
         await Assert.ThrowsAsync<VoiceGatewayException>(() => gateway.CreateRoomAsync(room, default));
     }
 

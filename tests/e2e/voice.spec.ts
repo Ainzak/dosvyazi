@@ -1,4 +1,4 @@
-import { changeLanguage, audioSettings, communityOverview, joinVoice, workspaceLink } from './workspace-navigation';
+import { createInvitation, changeLanguage, audioSettings, communityOverview, joinVoice, workspaceLink } from './workspace-navigation';
 import { expect, test } from '@playwright/test';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -42,8 +42,7 @@ async function receivedEnergy(page: Page) {
 test('Speak revocation rotates live audio, rejoins listen-only, and Connect/View denies remain scoped', async ({ page, browser }, info) => {
   test.setTimeout(90_000);
   await register(page, 'Voice policy owner'); await create(page);
-  await communityOverview(page); await page.getByRole('button', { name: 'Create invitation', exact: true }).click();
-  const code = await page.getByLabel('Share this invitation code').inputValue();
+  await communityOverview(page); const code = await createInvitation(page);
   const root = `/api/v1${new URL(page.url()).pathname}`;
   const csrf = await (await page.request.get('/api/v1/account/csrf')).json() as { requestToken: string };
   const context = await browser.newContext({ baseURL: 'http://127.0.0.1:5174', viewport: page.viewportSize()!, permissions: ['microphone'] });
@@ -100,8 +99,7 @@ test('members receive audio, keep voice through text navigation, mute/deafen and
   const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
   await register(page, 'Voice owner'); await create(page);
   await expect(page.getByText('No one is in voice yet.')).toBeVisible();
-  await communityOverview(page); await page.getByRole('button', { name: 'Create invitation', exact: true }).click();
-  const code = await page.getByLabel('Share this invitation code').inputValue();
+  await communityOverview(page); const code = await createInvitation(page);
   const context = await browser.newContext({ baseURL: 'http://127.0.0.1:5174', viewport: page.viewportSize()!, permissions: ['microphone'] });
   try {
     const member = await context.newPage(); member.on('pageerror', error => errors.push(error.message));
@@ -144,7 +142,7 @@ test('members receive audio, keep voice through text navigation, mute/deafen and
     await expect(member.getByRole('button', { name: 'Enable microphone', exact: true })).toBeEnabled();
     await page.getByRole('button', { name: 'Mute microphone', exact: true }).click();
     await expect.poll(() => receivedEnergy(member)).toBeLessThan(0.001);
-    await expect(ownerRow.getByLabel('Not speaking', { exact: true })).toBeVisible();
+    await expect(ownerRow.getByLabel('Microphone muted', { exact: true })).toBeVisible();
     await audioSettings(member);
     await member.getByText('Media devices', { exact: true }).click();
     expect(await member.getByLabel('Microphone device').isEnabled()).toBe(true);
@@ -174,8 +172,7 @@ test('members receive audio, keep voice through text navigation, mute/deafen and
 test('ban ends the member voice and an interrupted check can recover', async ({ page, browser }) => {
   test.setTimeout(55_000);
   await register(page, 'Voice moderator'); await create(page);
-  await communityOverview(page); await page.getByRole('button', { name: 'Create invitation', exact: true }).click();
-  const code = await page.getByLabel('Share this invitation code').inputValue();
+  await communityOverview(page); const code = await createInvitation(page);
   const context = await browser.newContext({ baseURL: 'http://127.0.0.1:5174', viewport: page.viewportSize()!, permissions: ['microphone'] });
   try {
     const member = await context.newPage(); await register(member, 'Banned voice peer'); await member.goto('/communities');
@@ -228,8 +225,7 @@ test('microphone denial remains muted and account change clears voice', async ({
 test('completed ban rotates current audio away from a replayed old grant', async ({ page, browser }) => {
   test.setTimeout(60_000);
   await register(page, 'Rotation owner'); await create(page);
-  await communityOverview(page); await page.getByRole('button', { name: 'Create invitation', exact: true }).click();
-  const code = await page.getByLabel('Share this invitation code').inputValue();
+  await communityOverview(page); const code = await createInvitation(page);
   const community = new URL(page.url()).pathname.split('/')[2]!;
   const context = await browser.newContext({ baseURL: 'http://127.0.0.1:5174', permissions: ['microphone'] });
   try {
@@ -294,8 +290,7 @@ test('moderator disconnect requires explicit rejoin, Russian persists and long n
   test.setTimeout(75_000);
   const peerName = 'ParticipantWithALongName12345678901234567'.slice(0, 40);
   await register(page, 'Disconnect owner'); await create(page);
-  await communityOverview(page); await page.getByRole('button', { name: 'Create invitation', exact: true }).click();
-  const code = await page.getByLabel('Share this invitation code').inputValue();
+  await communityOverview(page); const code = await createInvitation(page);
   const context = await browser.newContext({ baseURL: 'http://127.0.0.1:5174', viewport: page.viewportSize()!, permissions: ['microphone'] });
   try {
     const member = await context.newPage(); await register(member, peerName); await member.goto('/communities');
@@ -339,8 +334,7 @@ test('moderator disconnect requires explicit rejoin, Russian persists and long n
 test('kick and invitation rejoin use a fresh voice grant and output volume survives deafen/reconnect', async ({ page, browser }, info) => {
   test.setTimeout(85_000);
   await register(page, 'Kick owner'); await create(page);
-  await communityOverview(page); await page.getByRole('button', { name: 'Create invitation', exact: true }).click();
-  const code = await page.getByLabel('Share this invitation code').inputValue();
+  await communityOverview(page); const code = await createInvitation(page);
   const community = new URL(page.url()).pathname.split('/')[2]!;
   const context = await browser.newContext({ baseURL: 'http://127.0.0.1:5174', viewport: page.viewportSize()!, permissions: ['microphone'] });
   try {
@@ -361,6 +355,7 @@ test('kick and invitation rejoin use a fresh voice grant and output volume survi
     await member.getByRole('button', { name: 'Deafen', exact: true }).click();
     await expect.poll(() => member.locator('audio').evaluateAll(elements => elements.every(e => (e as HTMLAudioElement).muted))).toBe(true);
     await member.getByRole('button', { name: 'Undeafen', exact: true }).click();
+    await audioSettings(member);
     await expect(slider).toHaveValue('25');
     await communityOverview(page); await page.getByRole('button', { name: 'Remove Kick peer', exact: true }).click();
     await page.getByRole('dialog').getByRole('button', { name: 'Confirm action', exact: true }).click();
@@ -433,8 +428,7 @@ test('a transition 409 keeps voice pending and automatically joins after readine
 test('blocked playback explains remote audio and the retry reports success', async ({ page, browser }) => {
   test.setTimeout(55_000);
   await register(page, 'Playback owner'); await create(page);
-  await communityOverview(page); await page.getByRole('button', { name: 'Create invitation', exact: true }).click();
-  const code = await page.getByLabel('Share this invitation code').inputValue();
+  await communityOverview(page); const code = await createInvitation(page);
   const context = await browser.newContext({ baseURL: 'http://127.0.0.1:5174', permissions: ['microphone'] });
   await context.addInitScript(() => {
     const state = window as unknown as { blockPlayback: boolean }; state.blockPlayback = true;

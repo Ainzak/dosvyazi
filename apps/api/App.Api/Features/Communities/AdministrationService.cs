@@ -13,12 +13,12 @@ public sealed record RightDecision(string Permission, bool Allowed, int Required
 public sealed record RightsExplanation(string Version, bool OwnerOverride, RightSource[] Sources, RightDecision[] Decisions);
 public sealed record CommunityConfiguration(string Format, int Version, string Name, Guid EveryoneRoleId,
     RolePolicy[] Roles, CategoryPolicy[] Categories, ChannelPolicy[] Channels, ResourceRule[] CategoryRules,
-    ResourceRule[] ChannelRules, Guid? VoiceCategoryId, ResourceRule[] VoiceRules);
+    ResourceRule[] ChannelRules, Guid? VoiceCategoryId, ResourceRule[] VoiceRules, VoiceChannelPolicy[]? VoiceChannels = null);
 public sealed record ConfigurationPreviewRequest(JsonElement Configuration);
 public sealed record ConfigurationRestoreRequest(Guid ClientRequestId, string Name, JsonElement Configuration);
 public sealed record ConfigurationRestored(string CommunityId);
 
-public sealed class AdministrationService(AppDbContext db)
+public sealed class AdministrationService(AppDbContext db, Microsoft.Extensions.Options.IOptions<App.Api.Features.Voice.VoiceOptions> voiceOptions)
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
     { UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow, PropertyNameCaseInsensitive = false, MaxDepth = 16 };
@@ -43,21 +43,23 @@ public sealed class AdministrationService(AppDbContext db)
         }
         if (kind is not ("text" or "voice")) throw new CommunityFailure(400, "Choose a text or voice resource.");
         var voice = kind == "voice";
+        var voiceId = channelId ?? id;
+        var voiceRoom = voice ? await db.VoiceRooms.AsNoTracking().SingleOrDefaultAsync(r => r.CommunityId == id && r.ChannelId == voiceId, ct) ?? throw Missing() : null;
         TextChannel? channel = voice ? null : await db.TextChannels.AsNoTracking().SingleOrDefaultAsync(ch => ch.Id == channelId && ch.CommunityId == id, ct) ?? throw Missing();
         var archivedDiscussion = channel?.DiscussionArchived == true && channel.ParentChannelId != null;
         var archiveLabel = channel?.Kind == "ForumTopic" ? "Archived forum topic" : "Archived thread";
         if (channel?.ParentChannelId is Guid parentId)
             channel = await db.TextChannels.AsNoTracking().SingleOrDefaultAsync(ch => ch.Id == parentId && ch.CommunityId == id && ch.ParentChannelId == null, ct) ?? throw Missing();
-        var actorAccess = voice ? await ChannelAccess.VoiceAsync(db, id, actor, ct) : await ChannelAccess.ResolveAsync(db, id, channel!, actor, ct);
+        var actorAccess = voice ? await ChannelAccess.VoiceAsync(db, id, voiceId, actor, ct) : await ChannelAccess.ResolveAsync(db, id, channel!, actor, ct);
         if (!actorAccess.View) throw Missing();
-        var access = voice ? await ChannelAccess.VoiceAsync(db, id, target, ct) : await ChannelAccess.ResolveAsync(db, id, channel!, target, ct);
+        var access = voice ? await ChannelAccess.VoiceAsync(db, id, voiceId, target, ct) : await ChannelAccess.ResolveAsync(db, id, channel!, target, ct);
         if (archivedDiscussion) access = access with { Permissions = access.Permissions & ~ChannelAccess.Send };
         var assigned = await db.MemberRoles.AsNoTracking().Where(r => r.CommunityId == id && r.UserId == target).Select(r => r.RoleId).ToArrayAsync(ct);
         var roles = await db.CommunityRoles.AsNoTracking().Where(r => r.CommunityId == id && (r.Id == id || assigned.Contains(r.Id))).OrderBy(r => r.Rank).ThenBy(r => r.Name).ToArrayAsync(ct);
         var roleIds = roles.Select(r => r.Id).ToArray();
-        var categoryId = voice ? c.VoiceCategoryId : channel!.CategoryId;
+        var categoryId = voice ? voiceRoom!.CategoryId : channel!.CategoryId;
         var category = await db.CategoryRoleRules.AsNoTracking().Where(r => r.CommunityId == id && r.CategoryId == categoryId && roleIds.Contains(r.RoleId)).Select(r => new ResourceRule(r.CategoryId, r.RoleId, r.Allow, r.Deny)).ToArrayAsync(ct);
-        var resource = voice ? await db.VoiceRoleRules.AsNoTracking().Where(r => r.CommunityId == id && roleIds.Contains(r.RoleId)).Select(r => new ResourceRule(id, r.RoleId, r.Allow, r.Deny)).ToArrayAsync(ct)
+        var resource = voice ? await db.VoiceRoleRules.AsNoTracking().Where(r => r.CommunityId == id && r.ChannelId == voiceId && roleIds.Contains(r.RoleId)).Select(r => new ResourceRule(r.ChannelId, r.RoleId, r.Allow, r.Deny)).ToArrayAsync(ct)
             : await db.ChannelRoleRules.AsNoTracking().Where(r => r.CommunityId == id && r.ChannelId == channel!.Id && roleIds.Contains(r.RoleId)).Select(r => new ResourceRule(r.ChannelId, r.RoleId, r.Allow, r.Deny)).ToArrayAsync(ct);
         var sources = roles.Select(r => new RightSource("role", r.Name, r.Grants, 0))
             .Concat(category.OrderBy(r => r.RoleId).Select(r => new RightSource("category", roles.Single(role => role.Id == r.RoleId).Name, r.Allow, r.Deny)))
@@ -78,13 +80,14 @@ public sealed class AdministrationService(AppDbContext db)
         var c = await Lock(id, actor, ct);
         // A manager need not have access to every private resource; only the owner may export the full map.
         if (c.OwnerId != actor) throw new CommunityFailure(403, "Only the community owner can export its configuration.");
-        var result = new CommunityConfiguration("dosvyazi-community", 1, c.Name, id,
+        var result = new CommunityConfiguration("dosvyazi-community", 2, c.Name, id,
             await db.CommunityRoles.AsNoTracking().Where(r => r.CommunityId == id).OrderBy(r => r.Id).Select(r => new RolePolicy(r.Id, r.Name, r.Grants, r.Rank)).ToArrayAsync(ct),
             await db.Categories.AsNoTracking().Where(r => r.CommunityId == id).OrderBy(r => r.Id).Select(r => new CategoryPolicy(r.Id, r.Name)).ToArrayAsync(ct),
             await db.TextChannels.AsNoTracking().Where(r => r.CommunityId == id && r.ParentChannelId == null).OrderBy(r => r.Id).Select(r => new ChannelPolicy(r.Id, r.Name, r.CategoryId, r.Kind)).ToArrayAsync(ct),
             await db.CategoryRoleRules.AsNoTracking().Where(r => r.CommunityId == id).OrderBy(r => r.CategoryId).ThenBy(r => r.RoleId).Select(r => new ResourceRule(r.CategoryId, r.RoleId, r.Allow, r.Deny)).ToArrayAsync(ct),
             await db.ChannelRoleRules.AsNoTracking().Where(r => r.CommunityId == id).OrderBy(r => r.ChannelId).ThenBy(r => r.RoleId).Select(r => new ResourceRule(r.ChannelId, r.RoleId, r.Allow, r.Deny)).ToArrayAsync(ct), c.VoiceCategoryId,
-            await db.VoiceRoleRules.AsNoTracking().Where(r => r.CommunityId == id).OrderBy(r => r.RoleId).Select(r => new ResourceRule(id, r.RoleId, r.Allow, r.Deny)).ToArrayAsync(ct));
+            await db.VoiceRoleRules.AsNoTracking().Where(r => r.CommunityId == id).OrderBy(r => r.RoleId).Select(r => new ResourceRule(r.ChannelId, r.RoleId, r.Allow, r.Deny)).ToArrayAsync(ct),
+            await db.VoiceRooms.AsNoTracking().Where(r => r.CommunityId == id).OrderBy(r => r.ChannelId != id).ThenBy(r => r.Name).Select(r => new VoiceChannelPolicy(r.ChannelId, r.Name, r.CategoryId)).ToArrayAsync(ct));
         await tx.CommitAsync(ct);
         return result;
     }
@@ -93,14 +96,15 @@ public sealed class AdministrationService(AppDbContext db)
     {
         CommunityConfiguration document;
         try { document = raw.Deserialize<CommunityConfiguration>(Json) ?? throw new JsonException(); }
-        catch (Exception e) when (e is JsonException or InvalidOperationException) { throw new CommunityFailure(400, "Invalid configuration file. Use an unmodified version 1 export."); }
-        if (document.Format != "dosvyazi-community" || document.Version != 1 || document.EveryoneRoleId == Guid.Empty || document.VoiceRules is null ||
+        catch (Exception e) when (e is JsonException or InvalidOperationException) { throw new CommunityFailure(400, "Invalid configuration file. Use a supported configuration export."); }
+        if (document.Format != "dosvyazi-community" || document.Version is not (1 or 2) || document.EveryoneRoleId == Guid.Empty || document.VoiceRules is null ||
             string.IsNullOrWhiteSpace(document.Name) || document.Name != document.Name.Trim() || document.Name.Length is < 2 or > 80 || document.Name.Any(char.IsControl))
             throw new CommunityFailure(400, "Unsupported configuration format, version or name.");
+        if ((document.Version == 1 && document.VoiceChannels is not null) || (document.Version == 2 && document.VoiceChannels is null)) throw new CommunityFailure(400, "Invalid voice channel configuration version.");
         AccessService.Validate(document.EveryoneRoleId, new SaveAccessRequest(Guid.NewGuid(), Policy(document)));
         return document;
     }
-    private static AccessPolicy Policy(CommunityConfiguration d) => new("1", d.Roles, d.Categories, d.Channels, [], d.CategoryRules, d.ChannelRules, d.VoiceCategoryId, d.VoiceRules);
+    private static AccessPolicy Policy(CommunityConfiguration d) => new("1", d.Roles, d.Categories, d.Channels, [], d.CategoryRules, d.ChannelRules, d.VoiceCategoryId, d.VoiceRules, d.VoiceChannels);
 
     public async Task<ConfigurationRestored> Restore(Guid actor, ConfigurationRestoreRequest request, CancellationToken ct)
     {
@@ -123,6 +127,8 @@ public sealed class AdministrationService(AppDbContext db)
         var roleMap = d.Roles.ToDictionary(r => r.Id, r => r.Id == d.EveryoneRoleId ? id : Guid.NewGuid());
         var categoryMap = d.Categories.ToDictionary(r => r.Id, _ => Guid.NewGuid());
         var channelMap = d.Channels.ToDictionary(r => r.Id, _ => Guid.NewGuid());
+        var voices = AccessService.VoiceChannels(d.EveryoneRoleId, Policy(d));
+        var voiceMap = voices.ToDictionary(r => r.Id, r => r.Id == d.EveryoneRoleId ? id : Guid.NewGuid());
         var now = DateTimeOffset.UtcNow;
         var community = new Community { Id = id, OwnerId = actor, ClientRequestId = request.ClientRequestId, Name = name, CreatedAt = now, VoiceCategoryId = null };
         db.Communities.Add(community);
@@ -135,9 +141,11 @@ public sealed class AdministrationService(AppDbContext db)
         await db.SaveChangesAsync(ct);
         db.TextChannels.AddRange(d.Channels.Select(r => new TextChannel { CommunityId = id, Id = channelMap[r.Id], Name = r.Name, Kind = r.Kind, CategoryId = r.CategoryId is Guid cat ? categoryMap[cat] : null }));
         await db.SaveChangesAsync(ct);
+        db.VoiceRooms.AddRange(voices.Select(r => new App.Api.Features.Voice.VoiceRoomBinding { CommunityId = id, ChannelId = voiceMap[r.Id], Id = Guid.NewGuid(), Name = r.Name, AdmissionProtected = voiceOptions.Value.AdmissionRequired, CategoryId = r.CategoryId is Guid cat ? categoryMap[cat] : null }));
+        await db.SaveChangesAsync(ct);
         db.CategoryRoleRules.AddRange(d.CategoryRules.Select(r => new CategoryRoleRule { CommunityId = id, CategoryId = categoryMap[r.ResourceId], RoleId = roleMap[r.RoleId], Allow = r.Allow, Deny = r.Deny }));
         db.ChannelRoleRules.AddRange(d.ChannelRules.Select(r => new ChannelRoleRule { CommunityId = id, ChannelId = channelMap[r.ResourceId], RoleId = roleMap[r.RoleId], Allow = r.Allow, Deny = r.Deny }));
-        db.VoiceRoleRules.AddRange(d.VoiceRules.Select(r => new VoiceRoleRule { CommunityId = id, RoleId = roleMap[r.RoleId], Allow = r.Allow, Deny = r.Deny }));
+        db.VoiceRoleRules.AddRange(d.VoiceRules.Select(r => new VoiceRoleRule { CommunityId = id, ChannelId = voiceMap[r.ResourceId], RoleId = roleMap[r.RoleId], Allow = r.Allow, Deny = r.Deny }));
         community.VoiceCategoryId = d.VoiceCategoryId is Guid vc ? categoryMap[vc] : null;
         db.AccessChanges.Add(new AccessChange { CommunityId = id, ClientRequestId = request.ClientRequestId, ActorId = actor, Hash = hash, ResultVersion = 1, CreatedAt = now });
         CommunityAudit.Add(db, id, actor, "configuration.restored", id);

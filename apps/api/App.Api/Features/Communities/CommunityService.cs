@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Options;
 using System.Security.Cryptography;
 using System.Data;
 using System.Text;
@@ -8,7 +9,7 @@ using App.Api.Features.Voice;
 
 namespace App.Api.Features.Communities;
 
-public sealed class CommunityService(AppDbContext database, IDataProtectionProvider protection, App.Api.Features.Gatherings.GatheringService gatherings)
+public sealed class CommunityService(AppDbContext database, IDataProtectionProvider protection, App.Api.Features.Gatherings.GatheringService gatherings, IOptions<VoiceOptions> voiceOptions)
 {
     private readonly IDataProtector codes = protection.CreateProtector("Dosvyazi.CommunityInvites.v1");
     private static CommunityFailure Missing() => new(404, "Community or channel is unavailable.");
@@ -40,7 +41,16 @@ public sealed class CommunityService(AppDbContext database, IDataProtectionProvi
         var count = await database.Memberships.CountAsync(m => m.CommunityId == id && m.Status == "Active", cancellationToken);
         var permissions = await ChannelAccess.BaseAsync(database, id, user, cancellationToken);
         var voice = await ChannelAccess.VoiceAsync(database, id, user, cancellationToken);
-        var result = new CommunityDetails(id.ToString(), community.Name, community.OwnerId.ToString(), community.OwnerId == user ? "Owner" : "Member", count, visible.ToArray(), permissions.Permissions, permissions.Rank, voice.View);
+        var voiceChannels = new List<VoiceChannelSummary>();
+        foreach (var room in await database.VoiceRooms.AsNoTracking().Where(r => r.CommunityId == id).OrderBy(r => r.ChannelId != id).ThenBy(r => r.Name).ThenBy(r => r.ChannelId).ToArrayAsync(cancellationToken))
+        {
+            var access = await ChannelAccess.VoiceAsync(database, id, room.ChannelId, user, cancellationToken);
+            if (!access.View) continue;
+            var categoryName = room.CategoryId is Guid categoryId ? await database.Categories.Where(c => c.Id == categoryId && c.CommunityId == id).Select(c => c.Name).SingleAsync(cancellationToken) : null;
+            var occupants = await database.VoiceLeases.CountAsync(l => l.CommunityId == id && l.ChannelId == room.ChannelId && l.Active && l.Generation == room.Generation && l.ExpiresAt > DateTimeOffset.UtcNow, cancellationToken);
+            voiceChannels.Add(new(room.ChannelId.ToString(), room.Name, categoryName, access.Connect, occupants));
+        }
+        var result = new CommunityDetails(id.ToString(), community.Name, community.OwnerId.ToString(), community.OwnerId == user ? "Owner" : "Member", count, visible.ToArray(), permissions.Permissions, permissions.Rank, voice.View, voiceChannels.ToArray());
         await tx.CommitAsync(cancellationToken);
         return result;
     }
@@ -66,6 +76,7 @@ public sealed class CommunityService(AppDbContext database, IDataProtectionProvi
             await using var transaction = await database.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
             var community = new Community { Id = Guid.NewGuid(), OwnerId = user, ClientRequestId = request.ClientRequestId, Name = name, CreatedAt = DateTimeOffset.UtcNow };
             database.Communities.Add(community);
+            database.VoiceRooms.Add(new VoiceRoomBinding { ChannelId = community.Id, CommunityId = community.Id, Id = Guid.NewGuid(), AdmissionProtected = voiceOptions.Value.AdmissionRequired });
             database.Memberships.Add(new Membership { Community = community, UserId = user, JoinedAt = community.CreatedAt });
             database.TextChannels.Add(new TextChannel { Id = Guid.NewGuid(), Community = community });
             database.CommunityRoles.Add(new CommunityRole { Id = community.Id, CommunityId = community.Id, Name = "everyone", Grants = ChannelAccess.DefaultGrants });
@@ -164,7 +175,7 @@ public sealed class CommunityService(AppDbContext database, IDataProtectionProvi
         if (member?.Status == "Banned") throw new CommunityFailure(403, "You are banned from this community. Ask a moderator to review the ban.");
         if (member?.Status != "Active")
         {
-            if (invite.Uses >= invite.MaxUses) throw InvalidInvite();
+            if (invite.MaxUses is int maximum && invite.Uses >= maximum) throw InvalidInvite();
             if (member is null) database.Memberships.Add(new Membership { CommunityId = communityId, UserId = user, JoinedAt = DateTimeOffset.UtcNow });
             else { member.Status = "Active"; member.JoinedAt = DateTimeOffset.UtcNow; }
             invite.Uses++;
@@ -201,7 +212,7 @@ public sealed class CommunityService(AppDbContext database, IDataProtectionProvi
         if (banned)
         {
             await database.MemberRoles.Where(m => m.CommunityId == id && m.UserId == target).ExecuteDeleteAsync(cancellationToken);
-            await VoiceTransitions.RevokeMemberAsync(database, id, target, cancellationToken);
+            await VoiceTransitions.RevokeMemberAsync(database, id, target, cancellationToken, voiceOptions.Value.AdmissionRequired);
             await gatherings.RevokeMember(id, target, cancellationToken);
         }
         await database.SaveChangesAsync(cancellationToken);
@@ -229,7 +240,7 @@ public sealed class CommunityService(AppDbContext database, IDataProtectionProvi
         {
             member.Status = "Left"; community.PolicyVersion++;
             await database.MemberRoles.Where(m => m.CommunityId == id && m.UserId == target).ExecuteDeleteAsync(ct);
-            await VoiceTransitions.RevokeMemberAsync(database, id, target, ct);
+            await VoiceTransitions.RevokeMemberAsync(database, id, target, ct, voiceOptions.Value.AdmissionRequired);
             await gatherings.RevokeMember(id, target, ct);
             CommunityAudit.Add(database, id, user, "member.removed", target);
             await database.SaveChangesAsync(ct);
@@ -258,7 +269,7 @@ public sealed class CommunityService(AppDbContext database, IDataProtectionProvi
         if (member is null || member.Status == "Banned") throw Missing();
         if (member.Status != "Left") { member.Status = "Left"; community.PolicyVersion++; }
         await database.MemberRoles.Where(m => m.CommunityId == id && m.UserId == user).ExecuteDeleteAsync(cancellationToken);
-        await VoiceTransitions.RevokeMemberAsync(database, id, user, cancellationToken);
+        await VoiceTransitions.RevokeMemberAsync(database, id, user, cancellationToken, voiceOptions.Value.AdmissionRequired);
         await gatherings.RevokeMember(id, user, cancellationToken);
         await database.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);

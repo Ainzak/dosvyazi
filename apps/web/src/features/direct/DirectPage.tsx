@@ -1,3 +1,4 @@
+import { DirectCallButton } from './DirectCallsProvider';
 import { HistoryWindowControls } from '../messages/HistoryWindowControls';
 import { ImageSendOptions } from '../messages/ImageSendOptions';
 import { useHistoryWindow, captureMessageAnchor, restoreMessageAnchor } from '../messages/historyWindow';
@@ -145,7 +146,7 @@ function DirectThread({ user, id }: { user: UserProfile; id: string }) {
   }, [feed.data, send.isPending, send.isError]);
   if ([details.error, feed.error].some(error => error instanceof ApiError && [401, 403, 404].includes(error.status))) return <section className="about-panel"><h2>{t('Conversation is unavailable.')}</h2><p>{t('Sign in again or choose another conversation.')}</p></section>;
   const allowed = !!details.data && !details.data.contactUnavailable;
-  return <section className="direct-thread" aria-label={t('Direct conversation')}><header><Link className="direct-back icon-button" to="/messages" aria-label={t('Back to conversations')} title={t('Back to conversations')}><ArrowLeft size={20} aria-hidden="true" /></Link><h2>{details.data?.otherName ?? t('Loading conversation…')}</h2>{details.data && <Link to={`/profiles/${details.data.otherUserId}`}>{t('View profile')}</Link>}</header>
+  return <section className="direct-thread" aria-label={t('Direct conversation')}><header><Link className="direct-back icon-button" to="/messages" aria-label={t('Back to conversations')} title={t('Back to conversations')}><ArrowLeft size={20} aria-hidden="true" /></Link><h2>{details.data?.otherName ?? t('Loading conversation…')}</h2>{details.data && <Link to={`/profiles/${details.data.otherUserId}`}>{t('View profile')}</Link>}<DirectCallButton conversation={id} disabled={!allowed} /></header>
     {details.isError && <p role="alert">{t(details.error.message)}</p>}
     {details.data && <><NotificationPreference scope={scope} /><FocusedMessage scope={scope} /></>}
     {details.data && <div className="direct-controls"><p>{t('{value} unread', { value: Number(details.data.unread) })}</p><button className="secondary-button" disabled={read.isPending || !feed.data} onClick={() => read.mutate(feed.data!.watermark)}>{t('Mark as read')}</button>

@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
-import { Maximize2, MonitorUp, Video } from 'lucide-react';
+import { Maximize, Minimize, Maximize2, MonitorUp, Video } from 'lucide-react';
 import { useLocation } from 'react-router';
 import { useI18n } from '../../i18n/LocaleContext';
 import type { VoiceVideo, VoiceSnapshot } from './VoiceClient';
+import { useVideoFullscreen } from './useVideoFullscreen';
 
 function VideoTile({ video, name, focused, focus, stop, busy, receive, allowed }: { video: VoiceVideo; name: string; focused: boolean; focus: (button: HTMLButtonElement) => void; stop: () => void; busy: boolean; receive: (enabled: boolean) => void; allowed: boolean }) {
   const { t } = useI18n();
   const element = useRef<HTMLVideoElement>(null);
+  const { container: fullscreenContainer, button: fullscreenButton, fullscreen, toggle: toggleFullscreen, keyDown: fullscreenKeyDown } = useVideoFullscreen();
   useEffect(() => {
     const target = element.current;
     const track = video.track;
@@ -15,12 +17,14 @@ function VideoTile({ video, name, focused, focus, stop, busy, receive, allowed }
     target.muted = true;
     return () => { track.detach(target); target.srcObject = null; };
   }, [video.track, video.receiving]);
-  return <figure className={`voice-video-tile${focused ? ' is-focused' : ''}`}>
+  return <figure ref={fullscreenContainer} className={`voice-video-tile${focused ? ' is-focused' : ''}${fullscreen ? ' is-fullscreen' : ''}`} role={fullscreen ? 'dialog' : undefined} aria-modal={fullscreen || undefined} aria-label={fullscreen ? t('{name}: {source}', { name, source: t(video.source === 'screen' ? 'Screen share' : 'Camera') }) : undefined} onKeyDown={fullscreenKeyDown}>
     {video.receiving && video.track ? <video ref={element} autoPlay muted playsInline aria-label={t('{name}: {source}', { name, source: t(video.source === 'screen' ? 'Screen share' : 'Camera') })} /> : <p className="voice-video-placeholder">{t(video.receiving ? 'Waiting for this video' : 'This video is not being received')}</p>}
     <figcaption><span className="voice-video-label">{video.source === 'screen' ? <MonitorUp size={18} aria-hidden="true" /> : <Video size={18} aria-hidden="true" />}<span>{name} · {t(video.source === 'screen' ? 'Screen share' : 'Camera')}{video.local ? t(' · You') : ''}</span></span><div className="voice-video-actions">
-      <button className="secondary-button" aria-pressed={focused} onClick={event => focus(event.currentTarget)}><Maximize2 size={16} aria-hidden="true" />{t(focused ? 'Show all videos' : 'Focus video')}</button>
+      {!fullscreen && <button className="secondary-button" aria-pressed={focused} onClick={event => focus(event.currentTarget)}><Maximize2 size={16} aria-hidden="true" />{t(focused ? 'Show all videos' : 'Focus video')}</button>}
+      <button ref={fullscreenButton} className="secondary-button" aria-pressed={fullscreen} disabled={!fullscreen && (!video.receiving || !video.track)} onClick={toggleFullscreen}>{fullscreen ? <Minimize size={16} aria-hidden="true" /> : <Maximize size={16} aria-hidden="true" />}{t(fullscreen ? 'Exit fullscreen' : 'Open fullscreen')}</button>
       {video.local && <button className="secondary-button stop-local-video" disabled={busy} onClick={stop}>{t(video.source === 'screen' ? 'Stop your screen share' : 'Stop your camera')}</button>}
     </div></figcaption>
+    {video.source === 'screen' && <p className={`voice-screen-audio-state${video.audio === 'shared' ? ' is-active' : ''}`} role="status">{t(video.audio === 'shared' ? 'Screen audio is shared' : video.audio === 'paused' ? 'Screen audio is paused' : 'No screen audio is shared')}</p>}
     {!video.local && <label className="voice-receive-toggle"><input type="checkbox" checked={video.receiving} disabled={!allowed} onChange={event => receive(event.target.checked)} />{t('Receive {name}: {source}', { name, source: t(video.source === 'screen' ? 'Screen share' : 'Camera') })}</label>}
   </figure>;
 }

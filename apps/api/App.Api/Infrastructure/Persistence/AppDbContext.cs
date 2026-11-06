@@ -72,6 +72,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : Ident
         base.OnModelCreating(builder);
         App.Api.Features.Stickers.StickerModel.Configure(builder);
         DirectModel.Configure(builder);
+        DirectCallModel.Configure(builder);
         App.Api.Features.Navigation.NavigationModel.Configure(builder);
         PreparationModel.Configure(builder);
         AttendanceModel.Configure(builder);
@@ -196,7 +197,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : Ident
         builder.Entity<Community>().HasOne<Category>().WithMany().HasForeignKey(c => new { c.Id, c.VoiceCategoryId }).HasPrincipalKey(c => new { c.CommunityId, c.Id }).OnDelete(DeleteBehavior.Restrict);
         builder.Entity<VoiceRoleRule>(rule =>
         {
-            rule.HasKey(r => new { r.CommunityId, r.RoleId });
+            rule.HasKey(r => new { r.CommunityId, r.ChannelId, r.RoleId });
+            rule.HasOne<VoiceRoomBinding>().WithMany().HasForeignKey(r => new { r.CommunityId, r.ChannelId }).HasPrincipalKey(r => new { r.CommunityId, r.ChannelId }).OnDelete(DeleteBehavior.Restrict);
             rule.HasOne<CommunityRole>().WithMany().HasForeignKey(r => new { r.CommunityId, r.RoleId }).HasPrincipalKey(r => new { r.CommunityId, r.Id }).OnDelete(DeleteBehavior.Restrict);
             rule.ToTable(t => t.HasCheckConstraint("CK_VoiceRoleRules_Bits", "\"Allow\" BETWEEN 0 AND 65535 AND \"Deny\" BETWEEN 0 AND 65535 AND ((\"Allow\" | \"Deny\") & 280) = 0"));
         });
@@ -221,15 +223,20 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : Ident
         });
         builder.Entity<VoiceRoomBinding>(room =>
         {
-            room.HasKey(item => item.CommunityId);
+            room.HasKey(item => item.ChannelId);
+            room.HasAlternateKey(item => new { item.CommunityId, item.ChannelId });
+            room.Property(item => item.Name).HasMaxLength(80);
+            room.HasIndex(item => new { item.CommunityId, item.Name }).IsUnique();
             room.HasIndex(item => item.Id).IsUnique();
             room.HasIndex(item => item.NextCheckAt);
             room.Property(item => item.Status).HasMaxLength(10);
-            room.HasOne<Community>().WithOne().HasForeignKey<VoiceRoomBinding>(item => item.CommunityId).OnDelete(DeleteBehavior.Restrict);
+            room.HasOne<Community>().WithMany().HasForeignKey(item => item.CommunityId).OnDelete(DeleteBehavior.Restrict);
+            room.HasOne<Category>().WithMany().HasForeignKey(item => new { item.CommunityId, item.CategoryId }).HasPrincipalKey(item => new { item.CommunityId, item.Id }).OnDelete(DeleteBehavior.Restrict);
             room.ToTable(table => table.HasCheckConstraint("CK_VoiceRooms_State", "\"Generation\" > 0 AND \"Status\" IN ('Ready', 'Pending')"));
         });
         builder.Entity<VoiceLease>(lease =>
         {
+            lease.HasOne<VoiceRoomBinding>().WithMany().HasForeignKey(item => new { item.CommunityId, item.ChannelId }).HasPrincipalKey(item => new { item.CommunityId, item.ChannelId }).OnDelete(DeleteBehavior.Restrict);
             lease.HasIndex(item => item.UserId).IsUnique().HasFilter("\"Active\"");
             lease.HasIndex(item => new { item.CommunityId, item.Active });
             lease.HasOne<AppUser>().WithMany().HasForeignKey(item => item.UserId).OnDelete(DeleteBehavior.Restrict);
@@ -334,7 +341,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : Ident
             invite.HasOne(item => item.Community).WithMany().HasForeignKey(item => item.CommunityId).OnDelete(DeleteBehavior.Cascade);
             invite.HasIndex(item => item.CodeHash).IsUnique();
             invite.HasIndex(item => new { item.CommunityId, item.ClientRequestId }).IsUnique();
-            invite.ToTable(table => table.HasCheckConstraint("CK_CommunityInvites_Limits", "\"Uses\" >= 0 AND \"Uses\" <= \"MaxUses\" AND \"MaxUses\" BETWEEN 1 AND 100 AND \"LifetimeHours\" BETWEEN 1 AND 168"));
+            invite.ToTable(table => table.HasCheckConstraint("CK_CommunityInvites_Limits", "\"Uses\" >= 0 AND (\"MaxUses\" IS NULL OR (\"Uses\" <= \"MaxUses\" AND \"MaxUses\" BETWEEN 1 AND 100)) AND \"LifetimeHours\" BETWEEN 1 AND 168"));
         });
         builder.Entity<AppUser>(user =>
         {

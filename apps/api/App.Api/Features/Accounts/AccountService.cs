@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Options;
 using System.Security.Claims;
 using App.Api.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authentication;
@@ -9,7 +10,7 @@ using Microsoft.AspNetCore.WebUtilities;
 
 namespace App.Api.Features.Accounts;
 
-public sealed class AccountService(AppDbContext database, UserManager<AppUser> users, SignInManager<AppUser> signIn)
+public sealed class AccountService(AppDbContext database, UserManager<AppUser> users, SignInManager<AppUser> signIn, IOptions<VoiceOptions> voiceOptions)
 {
     public static UserProfile Profile(AppUser user) => new(user.Id.ToString(), user.Email!, user.DisplayName);
     public static bool ValidDisplayName(string name) => name.Trim().Length is >= 2 and <= 40 && !name.Any(char.IsControl);
@@ -70,7 +71,7 @@ public sealed class AccountService(AppDbContext database, UserManager<AppUser> u
         foreach (var community in communities)
         {
             await database.Communities.FromSqlInterpolated($"SELECT * FROM \"Communities\" WHERE \"Id\" = {community} FOR UPDATE").AnyAsync(ct);
-            await VoiceTransitions.RevokeMemberAsync(database, community, user.Id, ct);
+            await VoiceTransitions.RevokeMemberAsync(database, community, user.Id, ct, voiceOptions.Value.AdmissionRequired);
         }
         await database.Sessions.Where(s => s.UserId == user.Id && s.RevokedAt == null)
             .ExecuteUpdateAsync(setters => setters.SetProperty(s => s.RevokedAt, DateTimeOffset.UtcNow), ct);
@@ -92,7 +93,7 @@ public sealed class AccountService(AppDbContext database, UserManager<AppUser> u
             foreach (var community in communities)
             {
                 await database.Communities.FromSqlInterpolated($"SELECT * FROM \"Communities\" WHERE \"Id\" = {community} FOR UPDATE").AnyAsync(cancellationToken);
-                await VoiceTransitions.RevokeMemberAsync(database, community, userId, cancellationToken);
+                await VoiceTransitions.RevokeMemberAsync(database, community, userId, cancellationToken, voiceOptions.Value.AdmissionRequired);
             }
             await database.SaveChangesAsync(cancellationToken);
             await database.Sessions.Where(session => session.Id == sessionId && session.UserId == userId && session.RevokedAt == null)

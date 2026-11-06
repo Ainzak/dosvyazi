@@ -19,7 +19,7 @@ The last command produces a new `.local/artifacts/vps-releases/release-<id>.tar.
 
 Use Docker Engine and the Compose plugin from [Docker's official Ubuntu repository](https://docs.docker.com/engine/install/ubuntu/). Back up relevant existing configuration and record installed versions, file changes and firewall rules before installation. Do not use a convenience script, upgrade unrelated packages, reboot or reset existing networking as part of deployment.
 
-All four services use host networking. PostgreSQL binds `127.0.0.1:15432`, the API binds `127.0.0.1:5080`, and Caddy proxies to these local services. LiveKit's HTTP/WebSocket port 7880 must stay blocked externally. Host networking avoids Docker-published ports bypassing UFW; see [Docker firewall behavior](https://docs.docker.com/engine/network/packet-filtering-firewalls/).
+All four services use host networking. PostgreSQL binds `127.0.0.1:15432`, the API binds `127.0.0.1:5080`, and Caddy proxies to these local services. LiveKit's HTTP/WebSocket port 7880 must bind only to 127.0.0.1 using `bind_addresses: [127.0.0.1]`, in addition to remaining blocked externally. Host networking avoids Docker-published ports bypassing UFW; see [Docker firewall behavior](https://docs.docker.com/engine/network/packet-filtering-firewalls/).
 
 On a newly installed Docker host that already routes VPN traffic, this deployment uses the following `/etc/docker/daemon.json`. Merge deliberately with any existing daemon configuration; do not overwrite it:
 
@@ -43,7 +43,7 @@ Add only the required host/provider firewall rules, preserving SSH, VPN and exis
 - TCP 7881: LiveKit ICE/TCP fallback.
 - UDP 50000–60000: direct LiveKit media.
 
-Do not expose 5080, 15432, 5432, 7880, the Caddy admin endpoint or Docker API. This initial configuration has no TURN/TLS relay; restrictive networks may require a separate verified TURN setup. See [LiveKit ports](https://docs.livekit.io/transport/self-hosting/ports-firewall/). The `wss://<domain>/livekit` route preserves SDK subpaths by stripping only `/livekit` before forwarding.
+Do not expose 5080, 15432, 5432, 7880, the Caddy admin endpoint or Docker API. This initial configuration has no TURN/TLS relay; restrictive networks may require a separate verified TURN setup. See [LiveKit ports](https://docs.livekit.io/transport/self-hosting/ports-firewall/). The `wss://<domain>/livekit` route forwards the complete path to the API admission endpoint, which validates current leases before proxying allowed signaling subpaths to the private SFU. `Voice__AdmissionRequired=true` is set in Compose. Never forward this route directly to LiveKit or expose an alternative SFU signaling route. Media still travels directly through the advertised RTC ports. See [voice admission](voice-admission.md).
 
 ## Private configuration and startup
 
