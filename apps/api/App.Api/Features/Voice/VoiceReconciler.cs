@@ -7,6 +7,13 @@ namespace App.Api.Features.Voice;
 
 public sealed class VoiceReconciler(AppDbContext database, IVoiceGateway gateway, Microsoft.Extensions.Options.IOptions<VoiceOptions> options)
 {
+    // A quiescent room has nobody who could still enter without a new Join.
+    // Join, leave, revocation, admission and SFU webhooks reset NextCheckAt to
+    // now, so this interval is only a safety net, not a revocation deadline.
+    public static readonly TimeSpan IdleRecheck = TimeSpan.FromMinutes(5);
+    // Matches the admission JWT clock skew; a grant is unusable after this.
+    public static readonly TimeSpan GrantSkew = TimeSpan.FromSeconds(5);
+
     public async Task ReconcileAsync(Guid channel, CancellationToken ct)
     {
         var community = await database.VoiceRooms.AsNoTracking().Where(item => item.ChannelId == channel).Select(item => item.CommunityId).SingleOrDefaultAsync(ct);
@@ -45,11 +52,14 @@ public sealed class VoiceReconciler(AppDbContext database, IVoiceGateway gateway
         await using var controlTransaction = await database.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, ct);
         await database.Communities.FromSqlInterpolated($"SELECT * FROM \"Communities\" WHERE \"Id\" = {community} FOR UPDATE").AnyAsync(ct);
         room = await database.VoiceRooms.SingleAsync(item => item.CommunityId == community && item.ChannelId == channel, ct);
+        var observedEmpty = false;
+        var retiredLeft = true;
         try
         {
             if (room.Status == "Ready")
             {
                 var actual = await gateway.ParticipantsAsync(new VoiceRoom(room.Id, room.Generation), ct);
+                observedEmpty = actual.Count == 0;
                 var allowed = await database.VoiceLeases.Where(item => item.CommunityId == community && item.ChannelId == channel && item.Active && item.Generation == room.Generation && item.ExpiresAt > DateTimeOffset.UtcNow)
                     .Select(item => item.Id).ToArrayAsync(ct);
                 foreach (var participant in actual.Where(item => !allowed.Any(id => id.ToString("N") == item.Identity)))
@@ -90,12 +100,18 @@ public sealed class VoiceReconciler(AppDbContext database, IVoiceGateway gateway
             }
             // A stale grant can recreate its retired room. Keep a durable inventory
             // and periodically delete those rooms; never move current peers there.
-            foreach (var retired in await database.RetiredVoiceRooms.Where(item => item.CommunityId == community && item.RoomId == room.Id)
-                .OrderBy(item => item.LastCleanupAt).Take(4).ToArrayAsync(ct))
+            // Once every grant of that generation has expired, a confirmed delete
+            // is final: nobody can recreate the room, so the record is dropped.
+            var retiredRooms = database.RetiredVoiceRooms.Where(item => item.CommunityId == community && item.RoomId == room.Id);
+            var retiredCount = await retiredRooms.CountAsync(ct);
+            foreach (var retired in await retiredRooms.OrderBy(item => item.LastCleanupAt).Take(4).ToArrayAsync(ct))
             {
+                var final = await GrantsExpiredAsync(community, channel, retired.Generation, ct);
                 await gateway.DeleteRoomAsync(new VoiceRoom(retired.RoomId, retired.Generation), ct);
-                retired.LastCleanupAt = DateTimeOffset.UtcNow;
+                if (final) { database.RetiredVoiceRooms.Remove(retired); retiredCount--; }
+                else retired.LastCleanupAt = DateTimeOffset.UtcNow;
             }
+            retiredLeft = retiredCount > 0;
             room.ControlUnavailable = false;
         }
         catch (VoiceGatewayException)
@@ -106,9 +122,23 @@ public sealed class VoiceReconciler(AppDbContext database, IVoiceGateway gateway
         }
         // Failure before advancement leaves Pending retryable. A later retired-room
         // cleanup failure does not undo confirmed current-generation separation.
-        room.NextCheckAt = DateTimeOffset.UtcNow.AddSeconds(room.ControlUnavailable ? 3 : 1);
+        var quiescent = !room.ControlUnavailable && observedEmpty && !retiredLeft && room.Status == "Ready" &&
+            !VoiceTransitions.RemovalPending(room) && room.AdmissionAttempt is null && (!options.Value.AdmissionRequired || room.AdmissionProtected) &&
+            !await database.VoiceLeases.AnyAsync(item => item.CommunityId == community && item.ChannelId == channel && item.Active, ct) &&
+            await GrantsExpiredAsync(community, channel, room.Generation, ct);
+        room.NextCheckAt = DateTimeOffset.UtcNow + (quiescent ? IdleRecheck : TimeSpan.FromSeconds(room.ControlUnavailable ? 3 : 1));
         await database.SaveChangesAsync(ct);
         await controlTransaction.CommitAsync(ct);
+    }
+
+    // Leases and grant receipts are retained, and Join is the only issuer of
+    // community voice grants, so this bounds when an old token stops working.
+    private async Task<bool> GrantsExpiredAsync(Guid community, Guid channel, long generation, CancellationToken ct)
+    {
+        var latest = await database.VoiceGrantRequests
+            .Where(item => item.Lease.CommunityId == community && item.Lease.ChannelId == channel && item.Lease.Generation == generation)
+            .MaxAsync(item => (DateTimeOffset?)item.ExpiresAt, ct);
+        return latest is null || latest.Value + GrantSkew <= DateTimeOffset.UtcNow;
     }
 
     private async Task<bool> StillAuthorizedAsync(VoiceLease lease, CancellationToken ct)
@@ -138,8 +168,16 @@ public sealed class VoiceWorker(IServiceScopeFactory scopes, Microsoft.Extension
                     .OrderBy(item => item.NextCheckAt).Take(16).Select(item => item.ChannelId).ToArrayAsync(stoppingToken);
                 foreach (var community in communities)
                 {
-                    using var operation = scopes.CreateScope();
-                    await operation.ServiceProvider.GetRequiredService<VoiceReconciler>().ReconcileAsync(community, stoppingToken);
+                    // One failing room must not postpone the rest of the batch.
+                    try
+                    {
+                        using var operation = scopes.CreateScope();
+                        await operation.ServiceProvider.GetRequiredService<VoiceReconciler>().ReconcileAsync(community, stoppingToken);
+                    }
+                    catch (Exception) when (!stoppingToken.IsCancellationRequested)
+                    {
+                        logger.LogWarning("Voice reconciliation deferred for one room; storage or control service is unavailable.");
+                    }
                 }
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { break; }

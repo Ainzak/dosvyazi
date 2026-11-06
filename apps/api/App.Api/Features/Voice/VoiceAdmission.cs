@@ -103,6 +103,8 @@ public sealed class VoiceAdmission(AppDbContext db, IOptions<VoiceOptions> optio
             }
             channel = room.ChannelId;
             room.AdmissionAttempt = operation; room.AdmissionDeadline = DateTimeOffset.UtcNow.AddSeconds(10);
+            // The worker enforces the deadline after a crash; never sleep past it.
+            if (room.NextCheckAt > room.AdmissionDeadline) room.NextCheckAt = room.AdmissionDeadline.Value;
             await db.SaveChangesAsync(bounded); await prepare.CommitAsync(bounded);
             break;
         }

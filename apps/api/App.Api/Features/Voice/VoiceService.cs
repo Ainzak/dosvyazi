@@ -91,6 +91,8 @@ public sealed class VoiceService(AppDbContext database, IVoiceGateway gateway, I
         lease.CanSpeak = access.Speak; lease.CanShareScreen = access.ShareScreen; lease.CanUseCamera = access.UseCamera;
         var grant = gateway.CreateGrant(new VoiceRoom(room.Id, room.Generation), lease.Id, access.Speak, access.ShareScreen, access.UseCamera);
         lease.ExpiresAt = DateTimeOffset.UtcNow.AddSeconds(90);
+        // A quiescent room is rechecked rarely; a new grant makes it live again.
+        if (room.NextCheckAt > DateTimeOffset.UtcNow.AddSeconds(1)) room.NextCheckAt = DateTimeOffset.UtcNow;
         var command = new VoiceGrantRequest { UserId = userId, ClientRequestId = request.ClientRequestId,
             Lease = lease, ProtectedToken = tokens.Protect(grant.Token), ExpiresAt = grant.ExpiresAt };
         database.VoiceGrantRequests.Add(command);
